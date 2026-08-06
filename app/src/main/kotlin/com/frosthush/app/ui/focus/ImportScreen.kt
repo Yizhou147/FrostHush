@@ -70,7 +70,9 @@ fun ImportScreen(onBack: () -> Unit) {
     var mode by rememberSaveable { mutableIntStateOf(0) } // 0 手动 1 剪贴板
 
     Scaffold(
-        // 顶部状态栏由 TopAppBar 自带 insets 处理，底部不给手势条留空白（对齐雹全屏内容）
+        // 背景明确为主题背景色；顶部状态栏由 TopAppBar 自带 insets 处理，
+        // 底部不给手势条留空白（对齐雹全屏内容）
+        containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(

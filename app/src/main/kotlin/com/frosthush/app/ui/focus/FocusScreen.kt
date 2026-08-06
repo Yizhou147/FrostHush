@@ -158,7 +158,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     Scaffold(
-        // 本页位于主脚手架内容区内，系统栏 insets 已由外层处理，这里不再留底部手势条空白
+        // 背景明确为主题背景色；本页位于主脚手架内容区内，系统栏 insets 已由外层处理
+        containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {

@@ -136,8 +136,9 @@ private fun MainScaffold() {
         }
     } else {
         Scaffold(
-            // 只预留顶部状态栏：不给底部手势条留 padding（对齐雹——窗口内容铺满整个
-            // 小窗/屏幕，白色带正是 Scaffold 默认 contentWindowInsets 在底部留下的空白）
+            // 内容区背景明确为主题背景色（F7F9FF），避免 Scaffold 默认容器色覆盖；
+            // 只预留顶部状态栏，不给底部手势条/操作杆留 padding（对齐雹窗口内容铺满）
+            containerColor = MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets.statusBars,
             bottomBar = {
                 // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统

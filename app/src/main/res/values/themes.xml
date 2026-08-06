@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 系统栏透明 + 关闭强制对比 scrim（对齐雹），配合 enableEdgeToEdge 实现沉浸 -->
+    <!-- 窗口背景对齐雹的 md_theme_background（F7F9FF）：小窗圆角/操作杆等未覆盖区域
+         不再露出刺眼纯白；系统栏透明 + 关闭强制对比，配合 enableEdgeToEdge 沉浸 -->
     <style name="Theme.FrostHush" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorBackground">#F7F9FF</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:enforceStatusBarContrast">false</item>
