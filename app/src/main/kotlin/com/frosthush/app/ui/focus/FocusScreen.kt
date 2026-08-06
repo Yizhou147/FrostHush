@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -157,6 +158,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     Scaffold(
+        // 本页位于主脚手架内容区内，系统栏 insets 已由外层处理，这里不再留底部手势条空白
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (session == null) {

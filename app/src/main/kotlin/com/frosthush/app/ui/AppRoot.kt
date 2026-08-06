@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -131,30 +131,28 @@ private fun MainScaffold() {
                 onImport = { importing = true },
                 modifier = Modifier
                     .weight(1f)
-                    .windowInsetsPadding(WindowInsets.safeDrawing),
+                    .windowInsetsPadding(WindowInsets.statusBars),
             )
         }
     } else {
         Scaffold(
+            // 只预留顶部状态栏：不给底部手势条留 padding（对齐雹——窗口内容铺满整个
+            // 小窗/屏幕，白色带正是 Scaffold 默认 contentWindowInsets 在底部留下的空白）
+            contentWindowInsets = WindowInsets.statusBars,
             bottomBar = {
-                // 对齐雹的 insetter 实现（BottomNavigationView 加 bottom insets padding）：
-                // 外层 Box 背景浅灰填满整个底栏区域（含手势条区域），内部 NavigationBar
-                // 内容通过 navigationBarsPadding 避让手势条，使手势条区域沉浸为底栏颜色，
-                // 小窗 / 手势导航下不再是白色背景。
-                Box(Modifier.fillMaxWidth().background(NavContainer)) {
-                    NavigationBar(
-                        containerColor = Color.Transparent,
-                        windowInsets = WindowInsets(0, 0, 0, 0),
-                        modifier = Modifier.navigationBarsPadding(),
-                    ) {
-                        tabs.forEachIndexed { index, spec ->
-                            NavigationBarItem(
-                                selected = tab == index,
-                                onClick = { tab = index },
-                                icon = { Icon(spec.icon, contentDescription = null) },
-                                label = { Text(stringResource(spec.label)) },
-                            )
-                        }
+                // 底栏背景通过内置 windowInsets 延伸到窗口底部手势条区，
+                // 实现雹的"底条上也显示内容"：手势条横条叠加在底栏背景上
+                NavigationBar(
+                    containerColor = NavContainer,
+                    windowInsets = WindowInsets.navigationBars,
+                ) {
+                    tabs.forEachIndexed { index, spec ->
+                        NavigationBarItem(
+                            selected = tab == index,
+                            onClick = { tab = index },
+                            icon = { Icon(spec.icon, contentDescription = null) },
+                            label = { Text(stringResource(spec.label)) },
+                        )
                     }
                 }
             }

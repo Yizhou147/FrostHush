@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -69,6 +70,8 @@ fun ImportScreen(onBack: () -> Unit) {
     var mode by rememberSaveable { mutableIntStateOf(0) } // 0 手动 1 剪贴板
 
     Scaffold(
+        // 顶部状态栏由 TopAppBar 自带 insets 处理，底部不给手势条留空白（对齐雹全屏内容）
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.import_title)) },
