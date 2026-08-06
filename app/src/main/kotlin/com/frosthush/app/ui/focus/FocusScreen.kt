@@ -1,7 +1,7 @@
 package com.frosthush.app.ui.focus
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.outlined.Delete as OutlinedDelete
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -82,7 +82,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.longPressDraggableHandle
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
@@ -735,7 +734,7 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
                                         presets = FocusStore.presets.toList()
                                     }) {
                                         Icon(
-                                            imageVector = OutlinedDelete,
+                                            imageVector = Icons.Outlined.Delete,
                                             contentDescription = stringResource(R.string.action_delete),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
