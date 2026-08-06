@@ -2,7 +2,6 @@ package com.frosthush.app.ui.focus
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -543,11 +542,10 @@ private fun IdleContent(
                 )
             }
         } else {
-            // 列表尺寸跟随操作栏展开/收起平滑过渡，避免生硬跳动
+            // 列表高度由操作栏的 expandVertically 平滑让出（布局尺寸渐变），
+            // 此处不再对列表自身做尺寸动画，避免 items 间距被拉伸
             LazyColumn(
-                Modifier
-                    .fillMaxSize()
-                    .animateContentSize(),
+                Modifier.fillMaxSize(),
             ) {
                 items(filtered, key = { it }) { pkg ->
                     val isSelected = pkg in selected
