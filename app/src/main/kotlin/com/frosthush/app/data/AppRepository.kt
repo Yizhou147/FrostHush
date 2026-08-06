@@ -27,14 +27,13 @@ class AppRepository(private val context: Context) {
 
     /** 全部已安装应用（按中文拼音排序） */
     fun queryApps(): List<AppInfo> = runCatching {
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
-        } else PackageManager.MATCH_UNINSTALLED_PACKAGES
         val list = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            pm.getInstalledApplications(flags)
+            pm.getInstalledApplications(
+                PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
+            )
         } else {
             @Suppress("DEPRECATION")
-            pm.getInstalledApplications(flags)
+            pm.getInstalledApplications(PackageManager.MATCH_UNINSTALLED_PACKAGES)
         }
         list.asSequence()
             .filter { it.packageName != context.packageName } // 排除自身
