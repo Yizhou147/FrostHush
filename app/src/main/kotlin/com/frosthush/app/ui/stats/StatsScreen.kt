@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ import kotlin.math.max
  * - 近 7/30 天柱状图（可切换）
  * - 会话明细：日期、起止时间、时长
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen() {
     val version by FocusManager.version.collectAsState()
@@ -116,6 +118,7 @@ fun StatsScreen() {
                 HorizontalDivider()
             }
         }
+    }
     }
 }
 
@@ -289,7 +292,6 @@ private fun SessionRow(record: FocusStore.HistoryRecord) {
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-    }
     }
 }
 

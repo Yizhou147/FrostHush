@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +54,7 @@ import com.frosthush.app.data.SettingsStore
  * - 专注结束通知开关
  * - 小米超级岛开关
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
     val defaultMinutes by SettingsStore.defaultFocusMinutes
@@ -151,7 +153,6 @@ private fun SettingCard(
             Spacer(Modifier.width(8.dp))
             trailing()
         }
-    }
     }
 }
 
