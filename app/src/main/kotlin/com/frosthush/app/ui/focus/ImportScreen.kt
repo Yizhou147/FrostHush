@@ -53,6 +53,7 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.ui.AppIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 
 /**
  * 导入页：FilterChip 切换「手动导入 / 剪贴板导入」。
@@ -217,11 +218,19 @@ private fun ClipboardImportTab(
         }.getOrDefault(null) ?: return@LaunchedEffect
 
         val parsed = withContext(Dispatchers.Default) {
-            text.split(Regex("[\\s,，;；\\n]+"))
-                .map { it.trim() }
-                .filter { it.matches(Regex("[a-zA-Z0-9_.]+")) }
-                .distinct()
-                .filter { it in installedNames }
+            // 兼容雹导出的 JSON 数组格式 ["pkg1","pkg2",...]（截取 [ 到 ]），
+            // 无数组时按空格/逗号/分号分隔的纯包名列表解析。
+            val pkgs = runCatching {
+                if (text.contains('[')) {
+                    val json = JSONArray(text.substring(text.indexOf('[')..text.indexOf(']', text.indexOf('['))))
+                    (0 until json.length()).map { json.getString(it) }
+                } else {
+                    text.split(Regex("[\\s,，;；\\n]+"))
+                        .map { it.trim() }
+                        .filter { it.matches(Regex("[a-zA-Z0-9_.]+")) }
+                }
+            }.getOrDefault(emptyList())
+            pkgs.distinct().filter { it in installedNames }
         }
         packages = parsed
         selected = parsed.toSet() // 默认全选
