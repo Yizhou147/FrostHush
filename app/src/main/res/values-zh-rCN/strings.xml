@@ -93,6 +93,11 @@
     <string name="settings_default_duration_summary">开始专注时默认选中 %1$d 分钟</string>
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
+    <string name="settings_focus_island">小米超级岛</string>
+    <string name="settings_focus_island_summary">专注时通过小米超级岛展示倒计时</string>
+
+    <!-- 全屏锁定 -->
+    <string name="focus_lock_title">专注模式进行中</string>
 
     <!-- 关于 -->
     <string name="about_version">版本 %s</string>

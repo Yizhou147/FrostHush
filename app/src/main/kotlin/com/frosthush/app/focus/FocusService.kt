@@ -14,14 +14,19 @@ import androidx.core.app.ServiceCompat
 import com.frosthush.app.MainActivity
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
+import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.util.MiuiIsland
 
 /**
- * 专注模式前台服务：常驻通知显示剩余时间，每秒检查是否到点。
- * 到点后恢复全部应用并结束；进程被杀后由 START_STICKY / Boot 接收器兜底。
+ * 专注模式前台服务：常驻通知显示剩余时间；是否注入小米超级岛参数由设置
+ * SettingsStore.focusIslandEnabled 控制，中途切换立即生效。每秒检查是否到点，
+ * 到点后按快照恢复并结束。进程被杀后由 START_STICKY / Boot 接收器兜底。
  */
 class FocusService : Service() {
     private val channelID = javaClass.simpleName
     private val handler = Handler(Looper.getMainLooper())
+    // 超级岛开关（实时读取设置缓存，中途切换立即生效）
+    private val islandEnabled get() = SettingsStore.cache.focusIslandEnabled
 
     private val tickRunnable = object : Runnable {
         override fun run() {
@@ -38,8 +43,17 @@ class FocusService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        createNotificationChannel()
-        startForeground(NOTIFICATION_ID, buildNotification(FocusStore.activeSession()?.endMillis ?: 0L))
+        // 前台启动整体兜底：通知 / 前台服务任何异常都不应拖垮应用进程
+        runCatching {
+            createNotificationChannel()
+            val notification = buildNotification(remainingMillis())
+            // HyperOS 智能省电会延迟受限应用 FGS（startForeground）的首发通知约 10 秒才发布，
+            // 而普通 notify 发布/更新已存在的通知是即时的。因此先 notify 发布普通通知，再
+            // startForeground 将同 id 通知标记为前台通知，使通知立刻出现。
+            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
+            startForeground(NOTIFICATION_ID, notification)
+            updateNotification(remainingMillis())
+        }
         handler.post(tickRunnable)
         return START_STICKY
     }
@@ -57,20 +71,29 @@ class FocusService : Service() {
         val contentIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, channelID)
+        val frontTitle = getString(R.string.focus_active_title)
+        val remainingText = FocusManager.countdownText(remaining)
+        val contentText = getString(R.string.focus_remaining, remainingText)
+        val builder = NotificationCompat.Builder(this, channelID)
             .setSmallIcon(R.drawable.ic_stat_focus)
-            .setContentTitle(getString(R.string.focus_active_title))
-            .setContentText(getString(R.string.focus_remaining, FocusManager.countdownText(remaining)))
+            .setContentTitle(frontTitle)
+            .setContentText(contentText)
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
+        // HyperOS 超级岛：仅当设置开启时才注入岛参数
+        if (islandEnabled) {
+            runCatching {
+                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, remainingText, contentText))
+            }
+        }
+        return builder.build()
     }
 
     private fun createNotificationChannel() {
+        // 重要度 HIGH：HyperOS 超级岛仅对高重要度通知呈现，且首次只 alert 一次
         NotificationManagerCompat.from(this).createNotificationChannel(
-            NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_LOW)
+            NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(getString(R.string.focus_notification_channel)).build()
         )
     }

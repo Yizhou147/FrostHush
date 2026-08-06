@@ -7,6 +7,7 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.frosthush.app.BuildConfig
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.MainActivity
 import com.frosthush.app.R
@@ -47,7 +48,8 @@ object FocusManager {
      */
     suspend fun startFocus(minutes: Int): String? = withContext(Dispatchers.IO) {
         if (minutes !in DURATIONS) return@withContext app.getString(R.string.focus_duration_invalid)
-        val packages = FocusStore.blacklist()
+        // 防御：排除自身，避免误暂停本应用
+        val packages = FocusStore.blacklist().filter { it != BuildConfig.APPLICATION_ID }
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)
         if (!shizukuReady()) return@withContext app.getString(R.string.focus_shizuku_unavailable)
         val start = System.currentTimeMillis()

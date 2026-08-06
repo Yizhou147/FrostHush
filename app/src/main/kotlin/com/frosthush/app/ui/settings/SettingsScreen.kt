@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -44,6 +45,7 @@ import com.frosthush.app.focus.FocusManager
  * 设置页：
  * - 默认专注时长（选择列表）
  * - 专注结束通知开关
+ * - 小米超级岛开关
  */
 @Composable
 fun SettingsScreen() {
@@ -51,6 +53,8 @@ fun SettingsScreen() {
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
     val notifyFinish by SettingsStore.notifyFinishEnabled
         .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
+    val focusIsland by SettingsStore.focusIslandEnabled
+        .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
     var showDurationDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -80,6 +84,15 @@ fun SettingsScreen() {
             onClick = { SettingsStore.setNotifyFinishEnabled(!notifyFinish) },
             trailing = {
                 Switch(checked = notifyFinish, onCheckedChange = { SettingsStore.setNotifyFinishEnabled(it) })
+            },
+        )
+        SettingCard(
+            icon = Icons.Filled.Star,
+            title = stringResource(R.string.settings_focus_island),
+            summary = stringResource(R.string.settings_focus_island_summary),
+            onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
+            trailing = {
+                Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
             },
         )
     }

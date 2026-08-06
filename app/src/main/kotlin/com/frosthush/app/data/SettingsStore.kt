@@ -23,6 +23,7 @@ object SettingsStore {
     data class Settings(
         val defaultFocusMinutes: Int = DEFAULT_FOCUS_MINUTES,
         val notifyFinishEnabled: Boolean = true,
+        val focusIslandEnabled: Boolean = true,
         val welcomeDone: Boolean = false,
     )
 
@@ -30,6 +31,7 @@ object SettingsStore {
 
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
+    private val KEY_FOCUS_ISLAND = booleanPreferencesKey("focus_island_enabled")
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
 
     /** 内存缓存：供不便于挂起的后台代码同步读取 */
@@ -45,6 +47,7 @@ object SettingsStore {
                 cache = Settings(
                     defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
+                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
                 )
             }
@@ -53,6 +56,7 @@ object SettingsStore {
 
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
+    val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
 
     fun setDefaultFocusMinutes(minutes: Int) {
@@ -66,6 +70,13 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_NOTIFY_FINISH] = enabled }
             cache = cache.copy(notifyFinishEnabled = enabled)
+        }
+    }
+
+    fun setFocusIslandEnabled(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_FOCUS_ISLAND] = enabled }
+            cache = cache.copy(focusIslandEnabled = enabled)
         }
     }
 

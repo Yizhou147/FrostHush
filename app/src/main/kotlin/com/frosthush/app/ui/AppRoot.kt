@@ -15,6 +15,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -25,8 +26,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.frosthush.app.R
+import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.ui.about.AboutScreen
+import com.frosthush.app.ui.focus.FocusLockScreen
 import com.frosthush.app.ui.focus.FocusScreen
 import com.frosthush.app.ui.focus.ImportScreen
 import com.frosthush.app.ui.settings.SettingsScreen
@@ -35,6 +39,7 @@ import com.frosthush.app.ui.stats.StatsScreen
 /**
  * 应用根组件：
  * 首次启动显示欢迎/权限页；之后进入底栏导航（专注/统计/设置/关于）。
+ * 专注进行中时在最顶层叠加全屏锁定倒计时（不可打断）。
  */
 @Composable
 fun AppRoot() {
@@ -42,13 +47,24 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         SettingsStore.welcomeDone.collect { welcomeDone = it }
     }
-    if (!welcomeDone) {
-        WelcomeScreen(onFinished = {
-            SettingsStore.setWelcomeDone(true)
-            welcomeDone = true
-        })
-    } else {
-        MainScaffold()
+    val version by FocusManager.version.collectAsState()
+    var focusLocked by remember { mutableStateOf(FocusStore.activeSession() != null) }
+    LaunchedEffect(version) {
+        focusLocked = FocusStore.activeSession() != null
+    }
+    Box(Modifier.fillMaxSize()) {
+        if (!welcomeDone) {
+            WelcomeScreen(onFinished = {
+                SettingsStore.setWelcomeDone(true)
+                welcomeDone = true
+            })
+        } else {
+            MainScaffold()
+        }
+        // 专注进行中：全屏锁定倒计时覆盖一切
+        if (focusLocked) {
+            FocusLockScreen(onFinished = { focusLocked = false })
+        }
     }
 }
 

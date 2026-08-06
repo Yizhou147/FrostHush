@@ -95,6 +95,11 @@
     <string name="settings_default_duration_summary">%1$d minutes selected by default when starting focus</string>
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
+    <string name="settings_focus_island">Xiaomi Super Island</string>
+    <string name="settings_focus_island_summary">Show the countdown in the Xiaomi Super Island during focus</string>
+
+    <!-- 全屏锁定 -->
+    <string name="focus_lock_title">Focus mode active</string>
 
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
