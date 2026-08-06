@@ -2,13 +2,13 @@ package com.frosthush.app.ui.focus
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
@@ -30,9 +30,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -182,7 +184,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    // 搜索展开时无边框搜索框从搜索按钮一侧（右端）向左扩散，覆盖标题区域
+                    // 搜索展开：白色遮罩以搜索按键为中心（右端）向外扩散，覆盖"专注"标题；
+                    // 遮罩左侧显示返回箭头，内部为无边框输入框
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                         if (!showSearch) {
                             Text(stringResource(R.string.tab_focus))
@@ -193,9 +196,21 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                             exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
                         ) {
                             Row(
-                                Modifier.fillMaxWidth(),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceContainerLowest,
+                                        RoundedCornerShape(24.dp),
+                                    )
+                                    .padding(horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
+                                IconButton(onClick = { showSearch = false }) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.action_cancel),
+                                    )
+                                }
                                 Icon(
                                     Icons.Filled.Search,
                                     contentDescription = null,
@@ -481,11 +496,11 @@ private fun IdleContent(
         }
     }
     Column(Modifier.fillMaxSize()) {
-        // 多选操作栏：进入/退出过渡动画（搜索框已移到顶栏）
+        // 多选操作栏：高度平滑展开/收起，下方应用列表随之一同平滑移动
         AnimatedVisibility(
             visible = selectionMode,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
         ) {
             // 多选操作栏：退出 / 计数 / 全选 / 清空 / 删除
             Row(
@@ -528,7 +543,12 @@ private fun IdleContent(
                 )
             }
         } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            // 列表尺寸跟随操作栏展开/收起平滑过渡，避免生硬跳动
+            LazyColumn(
+                Modifier
+                    .fillMaxSize()
+                    .animateContentSize(),
+            ) {
                 items(filtered, key = { it }) { pkg ->
                     val isSelected = pkg in selected
                     Row(
