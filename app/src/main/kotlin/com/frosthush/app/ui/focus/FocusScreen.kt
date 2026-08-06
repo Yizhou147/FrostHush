@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -181,27 +182,52 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    // 搜索展开时标题位变为搜索框（对齐雹 SearchView 在顶栏上展开的效果）
+                    // 搜索展开时标题位变为无边框搜索框（对齐雹 SearchView 效果）；
+                    // 动画从搜索按钮一侧（右侧）向左扩散覆盖整个标题区域
                     AnimatedContent(
                         targetState = showSearch,
                         transitionSpec = {
                             if (targetState) {
-                                (fadeIn() + expandHorizontally()) togetherWith (fadeOut() + shrinkHorizontally())
+                                (fadeIn() + expandHorizontally(expandFrom = Alignment.End)) togetherWith
+                                    (fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End))
                             } else {
-                                (fadeIn() + expandHorizontally()) togetherWith (fadeOut() + shrinkHorizontally())
+                                (fadeIn() + expandHorizontally(expandFrom = Alignment.End)) togetherWith
+                                    (fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End))
                             }
                         },
                         label = "searchField",
                     ) { searching ->
                         if (searching) {
-                            OutlinedTextField(
-                                value = query,
-                                onValueChange = { query = it },
-                                placeholder = { Text(stringResource(R.string.focus_search_hint)) },
-                                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            // 无边框搜索框：BasicTextField + 搜索图标
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                BasicTextField(
+                                    value = query,
+                                    onValueChange = { query = it },
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyLarge,
+                                    decorationBox = { innerTextField ->
+                                        Box {
+                                            if (query.isEmpty()) {
+                                                Text(
+                                                    stringResource(R.string.focus_search_hint),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                            innerTextField()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         } else {
                             Text(stringResource(R.string.tab_focus))
                         }
