@@ -3,6 +3,7 @@ package com.frosthush.app.ui.about
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,7 +14,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,13 +35,19 @@ import com.frosthush.app.ui.AppIcon
 @Composable
 fun AboutScreen() {
     val context = LocalContext.current
-    Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.tab_about)) }) },
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(padding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
         Spacer(Modifier.height(24.dp))
         // 应用图标：直接取已安装应用图标（系统解码，规避 adaptive icon 资源加载崩溃）
         AppIcon(packageName = context.packageName, size = 96.dp, corner = 20.dp)
@@ -69,6 +78,7 @@ fun AboutScreen() {
             title = stringResource(R.string.about_privacy),
             text = stringResource(R.string.about_privacy_text),
         )
+    }
     }
 }
 

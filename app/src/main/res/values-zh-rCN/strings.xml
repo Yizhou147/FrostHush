@@ -28,7 +28,9 @@
     <string name="tab_about">关于</string>
 
     <!-- 专注页 -->
-    <string name="focus_total_duration">累计专注时长：%s</string>
+    <string name="focus_total_duration">累计专注：%s</string>
+    <string name="focus_action_search">搜索</string>
+    <string name="focus_action_select">选择</string>
     <string name="focus_apps_empty">尚未添加要暂停的应用，请先导入</string>
     <string name="focus_import">导入</string>
     <string name="focus_start">开始专注</string>

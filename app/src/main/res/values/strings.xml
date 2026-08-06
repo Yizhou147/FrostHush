@@ -29,6 +29,8 @@
 
     <!-- 专注页 -->
     <string name="focus_total_duration">Total focus time: %s</string>
+    <string name="focus_action_search">Search</string>
+    <string name="focus_action_select">Select</string>
     <string name="focus_apps_empty">No apps selected yet, import some to begin</string>
     <string name="focus_import">Import</string>
     <string name="focus_start">Start focus</string>

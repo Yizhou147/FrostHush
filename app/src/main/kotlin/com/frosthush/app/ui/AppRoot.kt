@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Info
@@ -129,17 +127,14 @@ private fun MainScaffold() {
                 tab = tab,
                 onOpenStats = { tab = 1 },
                 onImport = { importing = true },
-                modifier = Modifier
-                    .weight(1f)
-                    .windowInsetsPadding(WindowInsets.statusBars),
+                modifier = Modifier.weight(1f),
             )
         }
     } else {
         Scaffold(
-            // 内容区背景明确为主题背景色（F7F9FF），避免 Scaffold 默认容器色覆盖；
-            // 只预留顶部状态栏，不给底部手势条/操作杆留 padding（对齐雹窗口内容铺满）
+            // 顶部状态栏由各页面自己的 TopAppBar 处理；底部由 bottomBar 兜底覆盖
             containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets.statusBars,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
                 // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
                 // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，

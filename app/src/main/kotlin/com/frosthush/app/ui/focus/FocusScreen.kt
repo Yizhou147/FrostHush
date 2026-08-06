@@ -23,11 +23,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.AlertDialog
@@ -49,6 +51,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -113,6 +116,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
+    // 顶栏搜索图标控制搜索框显隐（对齐雹的 SearchView 展开）
+    var showSearch by remember { mutableStateOf(false) }
 
     val repo = remember { AppRepository(context) }
     val appNames = remember { mutableStateOf(mapOf<String, String>()) }
@@ -158,9 +163,35 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     Scaffold(
-        // 背景明确为主题背景色；本页位于主脚手架内容区内，系统栏 insets 已由外层处理
+        // 背景明确为主题背景色；顶栏由本页自己提供（左上"专注"，右上搜索/选择/导入，
+        // 对齐雹的专注页 Toolbar）；内容区不再重复处理系统栏 insets
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.tab_focus)) },
+                actions = {
+                    IconButton(onClick = { showSearch = !showSearch }) {
+                        Icon(
+                            Icons.Filled.Search,
+                            contentDescription = stringResource(R.string.focus_action_search),
+                        )
+                    }
+                    IconButton(onClick = { selectionMode = !selectionMode; if (!selectionMode) selected = emptySet() }) {
+                        Icon(
+                            Icons.Filled.SelectAll,
+                            contentDescription = stringResource(R.string.focus_action_select),
+                        )
+                    }
+                    IconButton(onClick = onImport) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.focus_import),
+                        )
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (session == null) {
@@ -216,6 +247,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                     appNames = appNames.value,
                     query = query,
                     onQueryChange = { query = it },
+                    showSearch = showSearch,
                     selectionMode = selectionMode,
                     selected = selected,
                     onItemClick = { pkg ->
@@ -358,7 +390,7 @@ private fun ActiveFocusContent(
     }
 }
 
-/** 空闲状态：已选应用列表（搜索 + 长按多选批量删除）+ 导入 */
+/** 空闲状态：已选应用列表（顶栏搜索/多选/导入 + 长按多选批量删除） */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun IdleContent(
@@ -366,6 +398,7 @@ private fun IdleContent(
     appNames: Map<String, String>,
     query: String,
     onQueryChange: (String) -> Unit,
+    showSearch: Boolean,
     selectionMode: Boolean,
     selected: Set<String>,
     onItemClick: (String) -> Unit,
@@ -433,27 +466,17 @@ private fun IdleContent(
                 }
             }
         } else {
-            // 标题 + 导入
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.focus_selected_count, blacklist.size),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
+            // 搜索框由顶栏搜索图标控制显示（对齐雹的 SearchView 展开）
+            if (showSearch) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    placeholder = { Text(stringResource(R.string.focus_search_hint)) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    singleLine = true,
                 )
-                OutlinedButton(onClick = onImport) { Text(stringResource(R.string.focus_import)) }
             }
-            // 搜索框
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                placeholder = { Text(stringResource(R.string.focus_search_hint)) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-            )
         }
         if (filtered.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
@@ -487,16 +510,9 @@ private fun IdleContent(
                             Text(appNames[pkg] ?: pkg, style = MaterialTheme.typography.bodyLarge)
                             Text(pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        // 与雹一致：列表项右侧无删除图标，删除通过长按多选 + 顶栏/操作栏完成
                         if (selectionMode) {
                             Checkbox(checked = isSelected, onCheckedChange = { onItemClick(pkg) })
-                        } else {
-                            IconButton(onClick = {
-                                onQueryChange("")
-                                FocusStore.saveBlacklist(blacklist.filter { it != pkg })
-                                FocusManager.bumpVersion()
-                            }) {
-                                Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
                         }
                     }
                     HorizontalDivider()
