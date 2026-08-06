@@ -1,12 +1,14 @@
 package com.frosthush.app.ui
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -64,7 +66,8 @@ fun AppRoot() {
     LaunchedEffect(version) {
         focusLocked = FocusStore.activeSession() != null
     }
-    Box(Modifier.fillMaxSize()) {
+    // 统一根背景 = 主题背景色（雹色板 F7F9FF），否则透明页面会透出窗口背景（纯白）
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (!welcomeDone) {
             WelcomeScreen(onFinished = {
                 SettingsStore.setWelcomeDone(true)
@@ -115,6 +118,7 @@ private fun MainScaffold() {
                         onClick = { tab = index },
                         icon = { Icon(spec.icon, contentDescription = null) },
                         label = { Text(stringResource(spec.label)) },
+                        modifier = Modifier.padding(vertical = 6.dp),
                     )
                 }
                 Spacer(Modifier.weight(1f))
@@ -131,8 +135,12 @@ private fun MainScaffold() {
     } else {
         Scaffold(
             bottomBar = {
-                // 底栏背景延伸到底部手势条区域：小窗 / 手势导航下横条颜色与底栏一致（沉浸）
-                NavigationBar(containerColor = NavContainer) {
+                // 底栏背景延伸到底部手势条区域：小窗 / 手势导航下横条颜色与底栏一致（沉浸）。
+                // 显式消费导航条 insets，保证各窗口模式下都延伸到手势条区域。
+                NavigationBar(
+                    containerColor = NavContainer,
+                    windowInsets = WindowInsets.navigationBars,
+                ) {
                     tabs.forEachIndexed { index, spec ->
                         NavigationBarItem(
                             selected = tab == index,
