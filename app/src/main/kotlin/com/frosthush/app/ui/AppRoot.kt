@@ -3,8 +3,12 @@ package com.frosthush.app.ui
 import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -83,8 +87,15 @@ fun AppRoot() {
         } else {
             MainScaffold()
         }
-        // 专注进行中：全屏锁定倒计时覆盖一切
-        if (focusLocked) {
+        // 专注进行中：全屏锁定倒计时覆盖一切（进入淡入 + 缩放落定，结束快速淡出）
+        AnimatedVisibility(
+            visible = focusLocked,
+            enter = fadeIn(tween(250)) + scaleIn(
+                initialScale = 1.15f,
+                animationSpec = tween(450, easing = FastOutSlowInEasing),
+            ),
+            exit = fadeOut(tween(200)),
+        ) {
             FocusLockScreen(onFinished = { focusLocked = false })
         }
     }

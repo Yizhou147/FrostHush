@@ -53,18 +53,20 @@ object FocusManager {
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)
         if (!shizukuReady()) return@withContext app.getString(R.string.focus_shizuku_unavailable)
         val start = System.currentTimeMillis()
-        // 先持久化会话并启动服务，再逐个暂停应用，避免逐个挂起耗时导致通知延迟
+        // 先持久化会话并启动服务，再立即刷新 UI 进入全屏专注：
+        // 逐个暂停应用（每次一次 Shizuku IPC）耗时较长，不能等全部挂起完成才显示锁屏
         FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, minutes))
         startFocusService()
+        bumpVersion()
         var suspended = 0
         packages.forEach { if (HShizuku.setAppSuspendedForFocus(it, true)) suspended++ }
         if (suspended == 0) {
-            // 全部失败：回滚会话并停止服务
+            // 全部失败：回滚会话、停止服务，并再次刷新 UI 退出全屏专注
             FocusStore.clearActiveSession()
             app.stopService(Intent(app, FocusService::class.java))
+            bumpVersion()
             return@withContext app.getString(R.string.operation_failed)
         }
-        bumpVersion()
         null
     }
 
