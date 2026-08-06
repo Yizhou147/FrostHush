@@ -1,6 +1,12 @@
 package com.frosthush.app.ui
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -91,12 +97,22 @@ private fun MainScaffold() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var importing by rememberSaveable { mutableStateOf(false) }
 
-    if (importing) {
-        ImportScreen(onBack = { importing = false })
-        return
-    }
-
-    val tabs = listOf(
+    // 导入页与主界面之间平滑过渡（对齐雹 Fragment 切换动画）
+    AnimatedContent(
+        targetState = importing,
+        transitionSpec = {
+            if (targetState) {
+                (fadeIn() + slideInHorizontally { it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 4 })
+            } else {
+                (fadeIn() + slideInHorizontally { -it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { it / 4 })
+            }
+        },
+        label = "importTransition",
+    ) { isImporting ->
+        if (isImporting) {
+            ImportScreen(onBack = { importing = false })
+        } else {
+            val tabs = listOf(
         TabSpec(R.string.tab_focus, Icons.Filled.Timer),
         TabSpec(R.string.tab_stats, Icons.Filled.BarChart),
         TabSpec(R.string.tab_settings, Icons.Filled.Settings),
@@ -164,6 +180,8 @@ private fun MainScaffold() {
             )
         }
     }
+    }
+}
 }
 
 @Composable

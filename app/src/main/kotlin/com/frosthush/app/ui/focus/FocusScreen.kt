@@ -1,5 +1,14 @@
 package com.frosthush.app.ui.focus
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
@@ -171,15 +180,47 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tab_focus)) },
+                title = {
+                    // 搜索展开时标题位变为搜索框（对齐雹 SearchView 在顶栏上展开的效果）
+                    AnimatedContent(
+                        targetState = showSearch,
+                        transitionSpec = {
+                            if (targetState) {
+                                (fadeIn() + expandHorizontally()) togetherWith (fadeOut() + shrinkHorizontally())
+                            } else {
+                                (fadeIn() + expandHorizontally()) togetherWith (fadeOut() + shrinkHorizontally())
+                            }
+                        },
+                        label = "searchField",
+                    ) { searching ->
+                        if (searching) {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                placeholder = { Text(stringResource(R.string.focus_search_hint)) },
+                                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        } else {
+                            Text(stringResource(R.string.tab_focus))
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch }) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.focus_action_search),
-                        )
+                        // 图标在搜索/关闭间切换
+                        AnimatedContent(targetState = showSearch, label = "searchIcon") { searching ->
+                            Icon(
+                                if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                                contentDescription = stringResource(R.string.focus_action_search),
+                            )
+                        }
                     }
-                    IconButton(onClick = { selectionMode = !selectionMode; if (!selectionMode) selected = emptySet() }) {
+                    IconButton(onClick = {
+                        selectionMode = !selectionMode
+                        if (!selectionMode) selected = emptySet()
+                    }) {
                         Icon(
                             Icons.Filled.SelectAll,
                             contentDescription = stringResource(R.string.focus_action_select),
@@ -249,7 +290,6 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                     appNames = appNames.value,
                     query = query,
                     onQueryChange = { query = it },
-                    showSearch = showSearch,
                     selectionMode = selectionMode,
                     selected = selected,
                     onItemClick = { pkg ->
@@ -400,7 +440,6 @@ private fun IdleContent(
     appNames: Map<String, String>,
     query: String,
     onQueryChange: (String) -> Unit,
-    showSearch: Boolean,
     selectionMode: Boolean,
     selected: Set<String>,
     onItemClick: (String) -> Unit,
@@ -436,7 +475,12 @@ private fun IdleContent(
         }
     }
     Column(Modifier.fillMaxSize()) {
-        if (selectionMode) {
+        // 多选操作栏：进入/退出过渡动画（搜索框已移到顶栏）
+        AnimatedVisibility(
+            visible = selectionMode,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+        ) {
             // 多选操作栏：退出 / 计数 / 全选 / 清空 / 删除
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -466,18 +510,6 @@ private fun IdleContent(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-        } else {
-            // 搜索框由顶栏搜索图标控制显示（对齐雹的 SearchView 展开）
-            if (showSearch) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    placeholder = { Text(stringResource(R.string.focus_search_hint)) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    singleLine = true,
-                )
             }
         }
         if (filtered.isEmpty()) {
