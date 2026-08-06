@@ -140,19 +140,22 @@ private fun MainScaffold() {
             // 小窗/屏幕，白色带正是 Scaffold 默认 contentWindowInsets 在底部留下的空白）
             contentWindowInsets = WindowInsets.statusBars,
             bottomBar = {
-                // 底栏背景通过内置 windowInsets 延伸到窗口底部手势条区，
-                // 实现雹的"底条上也显示内容"：手势条横条叠加在底栏背景上
-                NavigationBar(
-                    containerColor = NavContainer,
-                    windowInsets = WindowInsets.navigationBars,
-                ) {
-                    tabs.forEachIndexed { index, spec ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            icon = { Icon(spec.icon, contentDescription = null) },
-                            label = { Text(stringResource(spec.label)) },
-                        )
+                // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
+                // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
+                // 内部 NavigationBar 仅负责内容并避让操作杆。
+                Box(Modifier.fillMaxWidth().background(NavContainer)) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        windowInsets = WindowInsets.navigationBars,
+                    ) {
+                        tabs.forEachIndexed { index, spec ->
+                            NavigationBarItem(
+                                selected = tab == index,
+                                onClick = { tab = index },
+                                icon = { Icon(spec.icon, contentDescription = null) },
+                                label = { Text(stringResource(spec.label)) },
+                            )
+                        }
                     }
                 }
             }
