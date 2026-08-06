@@ -14,6 +14,9 @@ private val LightColors = lightColorScheme(
     onPrimaryContainer = Color(0xFF001A4E),
     secondary = Color(0xFF5A5D72),
     tertiary = Color(0xFF006874),
+    // 纯白背景（对应雹的纯白/近白背景）
+    background = Color.White,
+    surface = Color.White,
 )
 
 private val DarkColors = darkColorScheme(
