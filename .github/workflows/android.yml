@@ -1,0 +1,52 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+      - '!.github/workflows/android.yml'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Build with Gradle
+        run: |
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo storeFile=../keystore.jks > signing.properties
+            echo storePassword=${{ secrets.KEYSTORE_PASSWORD }} >> signing.properties
+            echo keyAlias=${{ secrets.KEYSTORE_ALIAS }} >> signing.properties
+            echo keyPassword=${{ secrets.KEYSTORE_ALIAS_PASSWORD }} >> signing.properties
+            echo ${{ secrets.KEYSTORE }} | base64 --decode > keystore.jks
+          fi
+          # 无签名 secrets 时 build.gradle.kts 自动回退 debug 签名
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FrostHush-release
+          path: app/build/outputs/apk/release/*.apk

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">霜息</string>
+    <string name="app_description">霜息是一款专注模式应用，通过 Shizuku 暂停你选择的应用，帮助你保持专注。</string>
+
+    <!-- 欢迎 / 权限页 -->
+    <string name="welcome_title">欢迎使用霜息</string>
+    <string name="welcome_subtitle">开始使用前，请先完成以下权限设置</string>
+    <string name="permission_notification">通知权限</string>
+    <string name="permission_notification_desc">专注结束提醒（Android 13+ 需要，低版本自动视为已获取）</string>
+    <string name="permission_apps">读取已安装应用</string>
+    <string name="permission_apps_desc">用于选择专注时要暂停的应用，数据不会离开本机</string>
+    <string name="permission_shizuku">Shizuku 权限</string>
+    <string name="permission_shizuku_desc">经 Shizuku 调用系统接口暂停应用</string>
+    <string name="permission_granted">已获取</string>
+    <string name="permission_not_granted">未获取</string>
+    <string name="action_grant">去授权</string>
+    <string name="action_finish">完成，进入应用</string>
+    <string name="shizuku_state_not_connected">未连接服务</string>
+    <string name="shizuku_state_unauthorized">未授权</string>
+    <string name="shizuku_state_authorized">已授权</string>
+    <string name="action_start_shizuku">启动 Shizuku</string>
+
+    <!-- 底栏 -->
+    <string name="tab_focus">专注</string>
+    <string name="tab_stats">统计</string>
+    <string name="tab_settings">设置</string>
+    <string name="tab_about">关于</string>
+
+    <!-- 专注页 -->
+    <string name="focus_total_duration">累计专注时长：%s</string>
+    <string name="focus_apps_empty">尚未添加要暂停的应用，请先导入</string>
+    <string name="focus_import">导入</string>
+    <string name="focus_start">开始专注</string>
+    <string name="focus_select_duration">选择专注时长</string>
+    <string name="focus_confirm_warning">开启专注模式后，所选应用将被暂停，且中途不可退出。</string>
+    <string name="action_cancel">取消</string>
+    <string name="action_start">开始</string>
+    <string name="focus_active_title">专注进行中</string>
+    <string name="focus_remaining">剩余 %s</string>
+    <string name="focus_started">专注模式已开始</string>
+    <string name="focus_shizuku_unavailable">Shizuku 不可用，请先完成授权</string>
+    <string name="focus_no_apps">请先选择要暂停的应用</string>
+    <string name="focus_duration_invalid">时长无效</string>
+    <string name="focus_restore_prompt">检测到重启前未完成的专注会话，连接 Shizuku 以恢复暂停应用。</string>
+    <string name="focus_connect_shizuku">连接 Shizuku</string>
+    <string name="focus_notification_channel">专注</string>
+    <string name="focus_finished_title">专注结束</string>
+    <string name="focus_finished_text">所有应用已恢复</string>
+    <string name="focus_suspended_dialog">%1$s已暂停，请保持专注。</string>
+    <string name="focus_selected_count">已选应用（%1$d）</string>
+    <string name="operation_failed">操作失败</string>
+    <plurals name="focus_apps_paused">
+        <item quantity="other">已暂停 %1$d 个应用</item>
+    </plurals>
+    <plurals name="focus_duration_minutes">
+        <item quantity="other">%1$d 分钟</item>
+    </plurals>
+
+    <!-- 导入 -->
+    <string name="import_title">导入应用</string>
+    <string name="import_manual">手动导入</string>
+    <string name="import_clipboard">剪贴板导入</string>
+    <string name="import_search_hint">搜索名称、包名或拼音</string>
+    <string name="import_filter_all">全部</string>
+    <string name="import_filter_user">用户应用</string>
+    <string name="import_filter_system">系统应用</string>
+    <string name="import_select_all">全选</string>
+    <string name="import_clear">清空</string>
+    <string name="import_add_count">添加（%1$d）</string>
+    <string name="import_clipboard_empty">剪贴板中没有可导入的包名</string>
+    <string name="import_clipboard_hint">粘贴以空格、逗号或换行分隔的包名列表</string>
+    <string name="import_nothing">没有匹配的应用</string>
+
+    <!-- 统计 -->
+    <string name="stats_today">今日</string>
+    <string name="stats_week">本周</string>
+    <string name="stats_month">本月</string>
+    <string name="stats_year">本年</string>
+    <string name="stats_total">累计总时长</string>
+    <string name="stats_daily_avg">日均</string>
+    <string name="stats_longest">最长单次</string>
+    <string name="stats_chart_7d">近 7 天</string>
+    <string name="stats_chart_30d">近 30 天</string>
+    <string name="stats_sessions">会话明细</string>
+    <string name="stats_no_sessions">暂无专注记录</string>
+    <string name="stats_session_item">%1$s  %2$s - %3$s</string>
+    <string name="stats_duration_hours_minutes">%1$d小时%2$d分</string>
+    <string name="stats_duration_minutes_only">%1$d分钟</string>
+
+    <!-- 设置 -->
+    <string name="settings_default_duration">默认专注时长</string>
+    <string name="settings_default_duration_summary">开始专注时默认选中 %1$d 分钟</string>
+    <string name="settings_notify_finish">专注结束通知</string>
+    <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
+
+    <!-- 关于 -->
+    <string name="about_version">版本 %s</string>
+    <string name="about_opensource">开源声明</string>
+    <string name="about_opensource_text">本项目基于 Hail（https://github.com/aistra0528/Hail）的专注模式功能独立开发，不含 Hail 的冻结/停止等其他功能。</string>
+    <string name="about_privacy">隐私说明</string>
+    <string name="about_privacy_text">所有数据均保存在本机，不会联网上传。</string>
+</resources>
