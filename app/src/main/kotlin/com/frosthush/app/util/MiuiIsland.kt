@@ -59,26 +59,16 @@ object MiuiIsland {
                                                 .put("pic", PIC_SECOND)
                                         )
                                 )
-                                // 大岛 B 区（右侧）：仅倒计时文本
-                                .apply {
-                                    val right = JSONObject()
-                                        .put("frontTitle", "")
-                                        .put("title", remainingText)
+                                // 大岛 B 区（右侧）：等宽数字倒计时。
+                                // 使用官方等宽数字组件 sameWidthDigitInfo 替代普通文本组件：
+                                // 等宽字形下每秒倒计时的整体宽度恒定，避免系统按文本宽度
+                                // 居中重排导致数字抖动（0/1/8 等字形宽度不一引起的秒级跳动）
+                                .put(
+                                    "sameWidthDigitInfo", JSONObject()
+                                        .put("digit", remainingText)
                                         .put("content", "")
-                                        .put("useHighLight", false)
-                                        // 深浅模式两套文字颜色：岛展开卡片背景固定深色，需用白色文字
-                                        .put("colorTitle", "#FF000000")
-                                        .put("colorTitleDark", "#FFFFFFFF")
-                                        .put("colorContent", "#FF000000")
-                                        .put("colorContentDark", "#FFFFFFFF")
-                                        .put("colorSubContent", "#FF000000")
-                                        .put("colorSubContentDark", "#FFFFFFFF")
-                                    // 官方文档文本组件 key 为 "miui.focus.paramtextInfo"（疑似笔误），
-                                    // 实际系统版本可能识别无前缀 key，多 key 兜底确保文本渲染。
-                                    put("miui.focus.paramtextInfo", right)
-                                    put("paramtextInfo", right)
-                                    put("textInfo", right)
-                                }
+                                        .put("showHighlightColor", false)
+                                )
                         )
                         // 小岛：秒表图标
                         .put(
