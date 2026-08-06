@@ -8,7 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -136,19 +137,24 @@ private fun MainScaffold() {
     } else {
         Scaffold(
             bottomBar = {
-                // 底栏背景延伸到底部手势条区域：小窗 / 手势导航下横条颜色与底栏一致（沉浸）。
-                // 显式消费导航条 insets，保证各窗口模式下都延伸到手势条区域。
-                NavigationBar(
-                    containerColor = NavContainer,
-                    windowInsets = WindowInsets.navigationBars,
-                ) {
-                    tabs.forEachIndexed { index, spec ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            icon = { Icon(spec.icon, contentDescription = null) },
-                            label = { Text(stringResource(spec.label)) },
-                        )
+                // 对齐雹的 insetter 实现（BottomNavigationView 加 bottom insets padding）：
+                // 外层 Box 背景浅灰填满整个底栏区域（含手势条区域），内部 NavigationBar
+                // 内容通过 navigationBarsPadding 避让手势条，使手势条区域沉浸为底栏颜色，
+                // 小窗 / 手势导航下不再是白色背景。
+                Box(Modifier.fillMaxWidth().background(NavContainer)) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        windowInsets = WindowInsets(0, 0, 0, 0),
+                        modifier = Modifier.navigationBarsPadding(),
+                    ) {
+                        tabs.forEachIndexed { index, spec ->
+                            NavigationBarItem(
+                                selected = tab == index,
+                                onClick = { tab = index },
+                                icon = { Icon(spec.icon, contentDescription = null) },
+                                label = { Text(stringResource(spec.label)) },
+                            )
+                        }
                     }
                 }
             }
