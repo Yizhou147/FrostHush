@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.FrostHush" parent="android:Theme.Material.Light.NoActionBar"/>
+    <!-- 系统栏透明 + 关闭强制对比 scrim（对齐雹），配合 enableEdgeToEdge 实现沉浸 -->
+    <style name="Theme.FrostHush" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast">false</item>
+        <item name="android:enforceNavigationBarContrast">false</item>
+    </style>
 </resources>

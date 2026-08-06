@@ -3,6 +3,7 @@ package com.frosthush.app.ui
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
@@ -98,13 +100,15 @@ private fun MainScaffold() {
         TabSpec(R.string.tab_about, Icons.Filled.Info),
     )
 
-    // 横屏：底栏自动变为侧边导航栏（对应雹 layout-land 的 NavigationRailView）
+    // 横屏：底栏自动变为侧边导航栏（对应雹 layout-land 的 NavigationRailView）。
+    // 侧边栏背景与页面背景同色，菜单项垂直居中（对应雹的 menuGravity="center"）。
     if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
         Row(Modifier.fillMaxSize()) {
             NavigationRail(
-                containerColor = NavContainer,
+                containerColor = MaterialTheme.colorScheme.background,
                 modifier = Modifier.fillMaxHeight(),
             ) {
+                Spacer(Modifier.weight(1f))
                 tabs.forEachIndexed { index, spec ->
                     NavigationRailItem(
                         selected = tab == index,
@@ -113,6 +117,7 @@ private fun MainScaffold() {
                         label = { Text(stringResource(spec.label)) },
                     )
                 }
+                Spacer(Modifier.weight(1f))
             }
             TabContent(
                 tab = tab,
