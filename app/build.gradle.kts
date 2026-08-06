@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -27,7 +28,7 @@ android {
             isShrinkResources = true
             // 无签名 secrets 时自动回退 debug 签名，云编译开箱即用
             signingConfig = if (file("../signing.properties").exists()) {
-                val props = java.util.Properties().apply { load(file("../signing.properties").reader()) }
+                val props = Properties().apply { load(file("../signing.properties").reader()) }
                 signingConfigs.create("release") {
                     storeFile = file(props.getProperty("storeFile"))
                     storePassword = props.getProperty("storePassword")
