@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Shizuku api 库要求 minSdk 24，覆盖以保持本项目 minSdk 23（与 Hail 相同做法） -->
+    <uses-sdk tools:overrideLibrary="rikka.shizuku.api, rikka.shizuku.provider"/>
+
     <!-- 专注结束提醒（Android 13+ 运行时权限，低版本自动视为已获取） -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- 读取已安装应用列表（无运行时弹窗，能查询到列表即视为已获取） -->
