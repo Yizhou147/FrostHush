@@ -1,6 +1,7 @@
 package com.frosthush.app.ui
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -96,6 +97,11 @@ private val NavContainer = Color(0xFFECEEF4)
 private fun MainScaffold() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var importing by rememberSaveable { mutableStateOf(false) }
+
+    // 导入页时拦截系统返回键：退回主界面而非直接退出应用
+    BackHandler(enabled = importing) {
+        importing = false
+    }
 
     // 导入页与主界面之间平滑过渡（对齐雹 Fragment 切换动画）
     AnimatedContent(

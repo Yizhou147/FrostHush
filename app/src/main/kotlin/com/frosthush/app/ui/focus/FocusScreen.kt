@@ -182,23 +182,16 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    // 搜索展开时标题位变为无边框搜索框（对齐雹 SearchView 效果）；
-                    // 动画从搜索按钮一侧（右侧）向左扩散覆盖整个标题区域
-                    AnimatedContent(
-                        targetState = showSearch,
-                        transitionSpec = {
-                            if (targetState) {
-                                (fadeIn() + expandHorizontally(expandFrom = Alignment.End)) togetherWith
-                                    (fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End))
-                            } else {
-                                (fadeIn() + expandHorizontally(expandFrom = Alignment.End)) togetherWith
-                                    (fadeOut() + shrinkHorizontally(shrinkTowards = Alignment.End))
-                            }
-                        },
-                        label = "searchField",
-                    ) { searching ->
-                        if (searching) {
-                            // 无边框搜索框：BasicTextField + 搜索图标
+                    // 搜索展开时无边框搜索框从搜索按钮一侧（右端）向左扩散，覆盖标题区域
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                        if (!showSearch) {
+                            Text(stringResource(R.string.tab_focus))
+                        }
+                        AnimatedVisibility(
+                            visible = showSearch,
+                            enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
+                            exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
+                        ) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -214,22 +207,9 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                                     onValueChange = { query = it },
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodyLarge,
-                                    decorationBox = { innerTextField ->
-                                        Box {
-                                            if (query.isEmpty()) {
-                                                Text(
-                                                    stringResource(R.string.focus_search_hint),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                )
-                                            }
-                                            innerTextField()
-                                        }
-                                    },
                                     modifier = Modifier.weight(1f),
                                 )
                             }
-                        } else {
-                            Text(stringResource(R.string.tab_focus))
                         }
                     }
                 },
