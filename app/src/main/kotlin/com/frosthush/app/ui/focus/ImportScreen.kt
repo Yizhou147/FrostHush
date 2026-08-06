@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
 import com.frosthush.app.data.AppRepository
 import com.frosthush.app.data.FocusStore
@@ -100,8 +101,10 @@ fun ImportScreen(onBack: () -> Unit) {
 }
 
 private fun addToBlacklist(packages: Set<String>) {
-    if (packages.isEmpty()) return
-    FocusStore.saveBlacklist((FocusStore.blacklist() + packages).distinct())
+    // 过滤掉本应用，避免误把自己加入暂停黑名单
+    val filtered = packages.filter { it != BuildConfig.APPLICATION_ID }.toSet()
+    if (filtered.isEmpty()) return
+    FocusStore.saveBlacklist((FocusStore.blacklist() + filtered).distinct())
     FocusManager.bumpVersion()
 }
 

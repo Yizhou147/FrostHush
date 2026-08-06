@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -43,17 +44,15 @@ class FocusService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 前台启动整体兜底：通知 / 前台服务任何异常都不应拖垮应用进程
-        runCatching {
-            createNotificationChannel()
-            val notification = buildNotification(remainingMillis())
-            // HyperOS 智能省电会延迟受限应用 FGS（startForeground）的首发通知约 10 秒才发布，
-            // 而普通 notify 发布/更新已存在的通知是即时的。因此先 notify 发布普通通知，再
-            // startForeground 将同 id 通知标记为前台通知，使通知立刻出现。
-            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
-            startForeground(NOTIFICATION_ID, notification)
-            updateNotification(remainingMillis())
-        }
+        // 前台服务必须成功启动：startForegroundService 后若 5 秒内未调用 startForeground，
+        // 系统会抛 ForegroundServiceDidNotStartInTimeException 直接闪退。
+        // 因此 notify（通知权限被拒时会抛 SecurityException）与 startForeground 分开保护，
+        // notify 失败绝不能连带跳过 startForeground。
+        runCatching { createNotificationChannel() }
+        val notification = runCatching { buildNotification(remainingMillis()) }.getOrElse { fallbackNotification() }
+        runCatching { NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification) }
+        runCatching { startForeground(NOTIFICATION_ID, notification) }
+        runCatching { updateNotification(remainingMillis()) }
         handler.post(tickRunnable)
         return START_STICKY
     }
@@ -97,6 +96,25 @@ class FocusService : Service() {
                 .setName(getString(R.string.focus_notification_channel)).build()
         )
     }
+
+    /**
+     * 通知构建兜底：buildNotification 任一步意外失败时，也必须有合法的 Notification
+     * 供 startForeground 使用，否则会触发 FGS 启动超时闪退。
+     */
+    private fun fallbackNotification(): Notification = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, channelID)
+                .setSmallIcon(R.drawable.ic_stat_focus)
+                .setContentTitle(getString(R.string.focus_active_title))
+                .build()
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+                .setSmallIcon(R.drawable.ic_stat_focus)
+                .setContentTitle(getString(R.string.focus_active_title))
+                .build()
+        }
+    }.getOrElse { Notification() }
 
     override fun onBind(intent: Intent?): IBinder? = null
 

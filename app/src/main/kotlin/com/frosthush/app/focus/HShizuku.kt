@@ -48,6 +48,8 @@ object HShizuku {
 
     /** 专注模式专用暂停：系统弹窗文案为「xx已暂停，请保持专注。」且不显示"取消暂停应用"按钮 */
     fun setAppSuspendedForFocus(packageName: String, suspended: Boolean): Boolean {
+        // 硬防御：绝不允许暂停自身（黑名单历史数据/剪贴板导入可能误带本应用）
+        if (packageName == BuildConfig.APPLICATION_ID) return false
         if (getApplicationInfoOrNull(packageName) == null) return false
         if (Targets.P) setAppRestricted(packageName, suspended)
         if (suspended) forceStopApp(packageName)
