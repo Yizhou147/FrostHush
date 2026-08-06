@@ -78,37 +78,38 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-        SettingCard(
-            icon = Icons.Filled.Timer,
-            title = stringResource(R.string.settings_default_duration),
-            summary = stringResource(R.string.settings_default_duration_summary, defaultMinutes),
-            onClick = { showDurationDialog = true },
-            trailing = {
-                Icon(
-                    Icons.Filled.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            },
-        )
-        SettingCard(
-            icon = Icons.Filled.Notifications,
-            title = stringResource(R.string.settings_notify_finish),
-            summary = stringResource(R.string.settings_notify_finish_summary),
-            onClick = { SettingsStore.setNotifyFinishEnabled(!notifyFinish) },
-            trailing = {
-                Switch(checked = notifyFinish, onCheckedChange = { SettingsStore.setNotifyFinishEnabled(it) })
-            },
-        )
-        SettingCard(
-            icon = Icons.Filled.Star,
-            title = stringResource(R.string.settings_focus_island),
-            summary = stringResource(R.string.settings_focus_island_summary),
-            onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
-            trailing = {
-                Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
-            },
-        )
+            SettingCard(
+                icon = Icons.Filled.Timer,
+                title = stringResource(R.string.settings_default_duration),
+                summary = stringResource(R.string.settings_default_duration_summary, defaultMinutes),
+                onClick = { showDurationDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.Notifications,
+                title = stringResource(R.string.settings_notify_finish),
+                summary = stringResource(R.string.settings_notify_finish_summary),
+                onClick = { SettingsStore.setNotifyFinishEnabled(!notifyFinish) },
+                trailing = {
+                    Switch(checked = notifyFinish, onCheckedChange = { SettingsStore.setNotifyFinishEnabled(it) })
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.Star,
+                title = stringResource(R.string.settings_focus_island),
+                summary = stringResource(R.string.settings_focus_island_summary),
+                onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
+                trailing = {
+                    Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
+                },
+            )
+        }
     }
 
     if (showDurationDialog) {
