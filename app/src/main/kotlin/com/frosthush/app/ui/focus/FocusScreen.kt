@@ -22,8 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
@@ -406,7 +406,7 @@ private fun IdleContent(
             ) {
                 IconButton(onClick = onExitSelection) {
                     Icon(
-                        Icons.AutoMirrored.Filled.Close,
+                        Icons.Filled.Close,
                         contentDescription = stringResource(R.string.action_cancel),
                     )
                 }

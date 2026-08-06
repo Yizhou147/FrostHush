@@ -21,9 +21,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.frosthush.app.AppIcon
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
+import com.frosthush.app.ui.AppIcon
 
 /**
  * 关于页：
