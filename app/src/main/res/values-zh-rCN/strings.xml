@@ -121,7 +121,7 @@
     <!-- 关于 -->
     <string name="about_version">版本 %s</string>
     <string name="about_opensource">开源声明</string>
-    <string name="about_opensource_text">本项目基于 Hail（https://github.com/aistra0528/Hail）的专注模式功能独立开发，不含 Hail 的冻结/停止等其他功能。</string>
+    <string name="about_opensource_text">雹（Hail，https://github.com/aistra0528/Hail）本体不含专注模式；专注模式是在雹基础上额外添加的功能。本项目将其独立为完整的专注应用，不含雹的冻结/停止等其他功能。</string>
     <string name="about_privacy">隐私说明</string>
     <string name="about_privacy_text">所有数据均保存在本机，不会联网上传。</string>
 </resources>

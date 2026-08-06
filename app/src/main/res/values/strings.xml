@@ -123,7 +123,7 @@
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
     <string name="about_opensource">Open source notice</string>
-    <string name="about_opensource_text">This app is developed based on the focus mode feature of Hail (https://github.com/aistra0528/Hail) and does not include Hail\'s freeze/stop features.</string>
+    <string name="about_opensource_text">Hail (https://github.com/aistra0528/Hail) itself does not include a focus mode; focus mode was added on top of it. This standalone app is extracted from that feature and does not include Hail\'s freeze/stop features.</string>
     <string name="about_privacy">Privacy</string>
     <string name="about_privacy_text">All data is stored locally on your device and never uploaded.</string>
 </resources>
