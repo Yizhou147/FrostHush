@@ -90,7 +90,7 @@ fun FocusLockScreen(onFinished: () -> Unit) {
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            text = context.getString(R.plurals.focus_apps_paused, pausedCount, pausedCount),
+            text = context.resources.getQuantityString(R.plurals.focus_apps_paused, pausedCount, pausedCount),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

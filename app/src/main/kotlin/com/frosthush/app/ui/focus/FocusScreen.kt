@@ -337,7 +337,7 @@ private fun ActiveFocusContent(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            context.getString(
+            context.resources.getQuantityString(
                 R.plurals.focus_apps_paused, pausedCount, pausedCount
             ),
             style = MaterialTheme.typography.bodyLarge,
