@@ -63,6 +63,11 @@
     <string name="focus_finished_text">All apps have been restored</string>
     <string name="focus_suspended_dialog">%1$s has been paused. Please stay focused.</string>
     <string name="focus_selected_count">Selected apps (%1$d)</string>
+    <string name="focus_search_hint">Search name, package or pinyin</string>
+    <string name="focus_selected">%1$d selected</string>
+    <string name="focus_select_all">Select all</string>
+    <string name="focus_clear_selection">Clear</string>
+    <string name="focus_preset_drag_hint">Long press and drag to reorder</string>
     <string name="operation_failed">Operation failed</string>
     <plurals name="focus_apps_paused">
         <item quantity="one">%1$d app paused</item>
@@ -110,7 +115,7 @@
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
-    <string name="settings_focus_island_summary">Show the countdown in the Xiaomi Super Island during focus</string>
+    <string name="settings_focus_island_summary">Show the countdown in the Xiaomi Super Island during focus. Requires unlocking the focus notification whitelist via HyperCeiler</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">Focus mode active</string>

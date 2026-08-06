@@ -1,7 +1,9 @@
 package com.frosthush.app.ui.focus
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.ExperimentalLayoutApi
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +19,20 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Close
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Delete as OutlinedDelete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -54,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -68,10 +75,15 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.util.FuzzySearch
+import com.frosthush.app.util.PinyinSearch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.longPressDraggableHandle
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 专注页（首页）：
@@ -97,6 +109,10 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     var pendingMinutes by remember { mutableIntStateOf(defaultMinutes) }
     var showDurationDialog by remember { mutableStateOf(false) }
     var showWarningDialog by remember { mutableStateOf(false) }
+    // 黑名单列表：搜索词 + 长按多选状态
+    var query by remember { mutableStateOf("") }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(setOf<String>()) }
 
     val repo = remember { AppRepository(context) }
     val appNames = remember { mutableStateOf(mapOf<String, String>()) }
@@ -118,6 +134,15 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         while (true) {
             now = System.currentTimeMillis()
             delay(1000L)
+        }
+    }
+
+    // 开始专注后退出多选状态
+    LaunchedEffect(session) {
+        if (session != null) {
+            selectionMode = false
+            selected = emptySet()
+            query = ""
         }
     }
 
@@ -186,11 +211,34 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                 IdleContent(
                     blacklist = blacklist,
                     appNames = appNames.value,
-                    onImport = onImport,
-                    onRemove = { pkg ->
-                        FocusStore.saveBlacklist(blacklist.filter { it != pkg })
-                        FocusManager.bumpVersion()
+                    query = query,
+                    onQueryChange = { query = it },
+                    selectionMode = selectionMode,
+                    selected = selected,
+                    onItemClick = { pkg ->
+                        if (selectionMode) {
+                            selected = if (pkg in selected) selected - pkg else selected + pkg
+                        }
                     },
+                    onItemLongClick = { pkg ->
+                        if (!selectionMode) {
+                            selectionMode = true
+                            selected = setOf(pkg)
+                        }
+                    },
+                    onSelectAll = { visible -> selected = visible },
+                    onClearSelection = { selected = emptySet() },
+                    onDeleteSelected = {
+                        FocusStore.saveBlacklist(blacklist.filter { it !in selected })
+                        FocusManager.bumpVersion()
+                        selected = emptySet()
+                        selectionMode = false
+                    },
+                    onExitSelection = {
+                        selectionMode = false
+                        selected = emptySet()
+                    },
+                    onImport = onImport,
                 )
             }
         }
@@ -307,13 +355,23 @@ private fun ActiveFocusContent(
     }
 }
 
-/** 空闲状态：已选应用列表 + 导入 */
+/** 空闲状态：已选应用列表（搜索 + 长按多选批量删除）+ 导入 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun IdleContent(
     blacklist: List<String>,
     appNames: Map<String, String>,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectionMode: Boolean,
+    selected: Set<String>,
+    onItemClick: (String) -> Unit,
+    onItemLongClick: (String) -> Unit,
+    onSelectAll: (Set<String>) -> Unit,
+    onClearSelection: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onExitSelection: () -> Unit,
     onImport: () -> Unit,
-    onRemove: (String) -> Unit,
 ) {
     if (blacklist.isEmpty()) {
         Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
@@ -328,34 +386,118 @@ private fun IdleContent(
                 OutlinedButton(onClick = onImport) { Text(stringResource(R.string.focus_import)) }
             }
         }
-    } else {
-        Row(
-            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.focus_selected_count, blacklist.size),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedButton(onClick = onImport) { Text(stringResource(R.string.focus_import)) }
+        return
+    }
+    // 按名称/包名/拼音过滤（黑名单规模小，组合期直接计算）
+    val filtered = remember(blacklist, appNames, query) {
+        val q = query.trim()
+        if (q.isEmpty()) blacklist
+        else blacklist.filter { pkg ->
+            val name = appNames[pkg] ?: pkg
+            FuzzySearch.search(name, q) || FuzzySearch.search(pkg, q) || PinyinSearch.searchPinyinAll(name, q)
         }
-        LazyColumn(Modifier.fillMaxSize()) {
-            items(blacklist, key = { it }) { pkg ->
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AppIcon(pkg, 40.dp)
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(appNames[pkg] ?: pkg, style = MaterialTheme.typography.bodyLarge)
-                        Text(pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = { onRemove(pkg) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+    }
+    Column(Modifier.fillMaxSize()) {
+        if (selectionMode) {
+            // 多选操作栏：退出 / 计数 / 全选 / 清空 / 删除
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onExitSelection) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Close,
+                        contentDescription = stringResource(R.string.action_cancel),
+                    )
                 }
-                HorizontalDivider()
+                Text(
+                    stringResource(R.string.focus_selected, selected.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { onSelectAll(filtered.toSet()) }) {
+                    Text(stringResource(R.string.focus_select_all))
+                }
+                TextButton(onClick = onClearSelection) {
+                    Text(stringResource(R.string.focus_clear_selection))
+                }
+                IconButton(onClick = onDeleteSelected, enabled = selected.isNotEmpty()) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = stringResource(R.string.action_delete),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            // 标题 + 导入
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.focus_selected_count, blacklist.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = onImport) { Text(stringResource(R.string.focus_import)) }
+            }
+            // 搜索框
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                placeholder = { Text(stringResource(R.string.focus_search_hint)) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                singleLine = true,
+            )
+        }
+        if (filtered.isEmpty()) {
+            Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(R.string.import_nothing),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        } else {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(filtered, key = { it }) { pkg ->
+                    val isSelected = pkg in selected
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onItemClick(pkg) },
+                                onLongClick = { onItemLongClick(pkg) },
+                            )
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                else Color.Transparent
+                            )
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppIcon(pkg, 40.dp)
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(appNames[pkg] ?: pkg, style = MaterialTheme.typography.bodyLarge)
+                            Text(pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (selectionMode) {
+                            Checkbox(checked = isSelected, onCheckedChange = { onItemClick(pkg) })
+                        } else {
+                            IconButton(onClick = {
+                                onQueryChange("")
+                                FocusStore.saveBlacklist(blacklist.filter { it != pkg })
+                                FocusManager.bumpVersion()
+                            }) {
+                                Icon(Icons.Filled.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                }
             }
         }
     }
@@ -542,10 +684,20 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
     )
 }
 
-/** 管理预设：列表 + 删除 */
+/** 管理预设：长按拖动排序 + 删除 */
 @Composable
 private fun PresetManageDialog(onDismiss: () -> Unit) {
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
+    val listState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+        if (from.index != to.index) {
+            // 更新本地列表并同步数据源持久化
+            presets = presets.toMutableList().apply { add(to.index, removeAt(from.index)) }
+            FocusStore.presets.clear()
+            FocusStore.presets.addAll(presets)
+            FocusStore.savePresets()
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.action_manage_presets)) },
@@ -557,27 +709,38 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                    items(presets, key = { it.id }) { preset ->
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = "${preset.name} ${preset.minutes}",
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyLarge,
-                            )
-                            IconButton(onClick = {
-                                FocusStore.presets.removeAll { it.id == preset.id }
-                                FocusStore.savePresets()
-                                presets = FocusStore.presets.toList()
-                            }) {
-                                Icon(
-                                    imageVector = OutlinedDelete,
-                                    contentDescription = stringResource(R.string.action_delete),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                Column {
+                    Text(
+                        text = stringResource(R.string.focus_preset_drag_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                    LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
+                        items(presets, key = { it.id }) { preset ->
+                            ReorderableItem(reorderableState, key = preset.id) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                        .longPressDraggableHandle(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "${preset.name} ${preset.minutes}",
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                    )
+                                    IconButton(onClick = {
+                                        FocusStore.presets.removeAll { it.id == preset.id }
+                                        FocusStore.savePresets()
+                                        presets = FocusStore.presets.toList()
+                                    }) {
+                                        Icon(
+                                            imageVector = OutlinedDelete,
+                                            contentDescription = stringResource(R.string.action_delete),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

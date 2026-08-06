@@ -63,6 +63,11 @@
     <string name="focus_finished_text">所有应用已恢复</string>
     <string name="focus_suspended_dialog">%1$s已暂停，请保持专注。</string>
     <string name="focus_selected_count">已选应用（%1$d）</string>
+    <string name="focus_search_hint">搜索名称、包名或拼音</string>
+    <string name="focus_selected">已选 %1$d 项</string>
+    <string name="focus_select_all">全选</string>
+    <string name="focus_clear_selection">清空</string>
+    <string name="focus_preset_drag_hint">长按拖动调整顺序</string>
     <string name="operation_failed">操作失败</string>
     <plurals name="focus_apps_paused">
         <item quantity="other">已暂停 %1$d 个应用</item>
@@ -108,7 +113,7 @@
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
-    <string name="settings_focus_island_summary">专注时通过小米超级岛展示倒计时</string>
+    <string name="settings_focus_island_summary">专注时通过小米超级岛展示倒计时；需先用 HyperCeiler 解锁焦点通知白名单</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">专注模式进行中</string>

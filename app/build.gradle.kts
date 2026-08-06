@@ -73,4 +73,5 @@ dependencies {
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.reorderable)
 }
