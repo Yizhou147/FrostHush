@@ -73,5 +73,10 @@ dependencies {
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.reorderable)
+    // reorderable 3.x 传递依赖 Compose Multiplatform(org.jetbrains.compose 1.7.0)，
+    // 会与 BOM 的 androidx.compose 形成双套类导致编译期符号解析崩坏，故排除之，
+    // 使其直接复用 BOM 的 androidx.compose（API 二进制兼容）。
+    implementation(libs.reorderable) {
+        exclude(group = "org.jetbrains.compose")
+    }
 }
