@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -22,7 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,10 +37,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.frosthush.app.R
+import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
-import com.frosthush.app.focus.FocusManager
 
 /**
  * 设置页：
@@ -142,7 +145,7 @@ private fun SettingCard(
     }
 }
 
-/** 默认专注时长选择对话框 */
+/** 默认专注时长设置对话框：数字输入（1-240 分钟） */
 @Composable
 private fun DurationDialog(
     selected: Int,
@@ -150,29 +153,32 @@ private fun DurationDialog(
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
+    var input by remember { mutableStateOf(selected.toString()) }
     AlertDialog(
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.settings_default_duration)) },
         text = {
-            Column {
-                FocusManager.DURATIONS.forEach { minutes ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onSelect(minutes) }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected == minutes, onClick = { onSelect(minutes) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            context.resources.getQuantityString(
-                                R.plurals.focus_duration_minutes, minutes, minutes
-                            ),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                }
-            }
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it.filter(Char::isDigit).take(3) },
+                label = { Text(stringResource(R.string.focus_time_label)) },
+                suffix = { Text(stringResource(R.string.focus_time_unit)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         },
         confirmButton = {
+            TextButton(onClick = {
+                val minutes = input.toIntOrNull()
+                if (minutes != null && minutes in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
+                    onSelect(minutes)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                }
+            }) { Text(stringResource(R.string.action_confirm)) }
+        },
+        dismissButton = {
             TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
         },
     )

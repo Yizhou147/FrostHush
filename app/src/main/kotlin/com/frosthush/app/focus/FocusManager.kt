@@ -28,8 +28,8 @@ object FocusManager {
     private const val FINISH_CHANNEL_ID = "focus_finished"
     private const val FINISH_NOTIFICATION_ID = 101
 
-    /** 可选专注时长（分钟） */
-    val DURATIONS = listOf(15, 30, 45, 60, 90, 120)
+    /** 可选专注时长范围（分钟），见 FocusStore.MIN_MINUTES / MAX_MINUTES */
+    val durationRange: IntRange = FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES
 
     /** 数据版本号：导入/移除/开始/结束时自增，驱动界面刷新 */
     val version = MutableStateFlow(0)
@@ -47,7 +47,7 @@ object FocusManager {
      * 返回 null 表示成功，否则返回错误提示文案。
      */
     suspend fun startFocus(minutes: Int): String? = withContext(Dispatchers.IO) {
-        if (minutes !in DURATIONS) return@withContext app.getString(R.string.focus_duration_invalid)
+        if (minutes !in durationRange) return@withContext app.getString(R.string.focus_duration_invalid)
         // 防御：排除自身，避免误暂停本应用
         val packages = FocusStore.blacklist().filter { it != BuildConfig.APPLICATION_ID }
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)

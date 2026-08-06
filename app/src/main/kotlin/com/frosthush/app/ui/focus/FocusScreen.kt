@@ -1,34 +1,41 @@
 package com.frosthush.app.ui.focus
 
+import androidx.compose.foundation.ExperimentalLayoutApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.Delete as OutlinedDelete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -50,8 +57,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import com.frosthush.app.R
 import com.frosthush.app.data.AppRepository
 import com.frosthush.app.data.FocusStore
@@ -188,11 +197,14 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     }
 
     if (showDurationDialog) {
-        DurationDialog(
-            selected = pendingMinutes,
-            onSelect = { pendingMinutes = it },
-            onCancel = { showDurationDialog = false },
-            onConfirm = { showDurationDialog = false; showWarningDialog = true },
+        FocusTimeDialog(
+            initial = pendingMinutes,
+            onDismiss = { showDurationDialog = false },
+            onStart = { minutes ->
+                pendingMinutes = minutes
+                showDurationDialog = false
+                showWarningDialog = true
+            },
         )
     }
     if (showWarningDialog) {
@@ -383,42 +395,197 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
     }
 }
 
-/** 时长选择对话框 */
+/** 开始专注的时间设置对话框：数字输入 + 预设快捷选择 + 保存/管理预设（与雹一致） */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DurationDialog(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    onCancel: () -> Unit,
-    onConfirm: () -> Unit,
+private fun FocusTimeDialog(
+    initial: Int,
+    onDismiss: () -> Unit,
+    onStart: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    var input by remember { mutableStateOf(if (initial in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) initial.toString() else "") }
+    var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
+    var showSavePreset by remember { mutableStateOf(false) }
+    var showManagePresets by remember { mutableStateOf(false) }
+
+    // 保存/管理预设对话框关闭后刷新预设列表
+    LaunchedEffect(showSavePreset, showManagePresets) {
+        presets = FocusStore.presets.toList()
+    }
+
+    if (showSavePreset) {
+        PresetSaveDialog(minutes = input.toIntOrNull() ?: 0, onDismiss = { showSavePreset = false })
+    }
+    if (showManagePresets) {
+        PresetManageDialog(onDismiss = { showManagePresets = false })
+    }
+
     AlertDialog(
-        onDismissRequest = onCancel,
+        onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.focus_select_duration)) },
         text = {
             Column {
-                FocusManager.DURATIONS.forEach { minutes ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onSelect(minutes) }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected == minutes, onClick = { onSelect(minutes) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            context.resources.getQuantityString(
-                                R.plurals.focus_duration_minutes, minutes, minutes
-                            ),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it.filter(Char::isDigit).take(3) },
+                    label = { Text(stringResource(R.string.focus_time_label)) },
+                    placeholder = { Text(stringResource(R.string.focus_time_hint)) },
+                    suffix = { Text(stringResource(R.string.focus_time_unit)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                if (presets.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.focus_empty_presets),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    FocusPresetChips(input = input, presets = presets, onSelect = { input = it.toString() })
+                }
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    TextButton(onClick = { showSavePreset = true }) {
+                        Text(stringResource(R.string.action_save_preset))
+                    }
+                    TextButton(onClick = { showManagePresets = true }) {
+                        Text(stringResource(R.string.action_manage_presets))
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_start)) }
+            TextButton(onClick = {
+                val minutes = input.toIntOrNull()
+                if (minutes != null && minutes in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
+                    onStart(minutes)
+                } else {
+                    Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                }
+            }) { Text(stringResource(R.string.action_start)) }
         },
         dismissButton = {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+/** 预设快捷选择 chips */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FocusPresetChips(input: String, presets: List<FocusStore.FocusPreset>, onSelect: (Int) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        presets.forEach { preset ->
+            FilterChip(
+                selected = preset.minutes.toString() == input,
+                onClick = { onSelect(preset.minutes) },
+                label = { Text("${preset.name} ${preset.minutes}") },
+            )
+        }
+    }
+}
+
+/** 保存为预设 */
+@Composable
+private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.action_save_preset)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.focus_preset_name)) },
+                    placeholder = { Text(stringResource(R.string.focus_preset_name_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = context.getString(R.string.focus_time_label) + " " + minutes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                when {
+                    minutes !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES ->
+                        Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                    name.isBlank() ->
+                        Toast.makeText(context, context.getString(R.string.focus_preset_name_required), Toast.LENGTH_SHORT).show()
+                    FocusStore.presets.size >= FocusStore.MAX_PRESETS ->
+                        Toast.makeText(context, context.getString(R.string.focus_preset_limit), Toast.LENGTH_SHORT).show()
+                    else -> {
+                        FocusStore.presets.add(FocusStore.FocusPreset(FocusStore.nextPresetId(), name.trim(), minutes))
+                        FocusStore.savePresets()
+                        Toast.makeText(context, context.getString(R.string.focus_preset_saved), Toast.LENGTH_SHORT).show()
+                        onDismiss()
+                    }
+                }
+            }) { Text(stringResource(R.string.action_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+/** 管理预设：列表 + 删除 */
+@Composable
+private fun PresetManageDialog(onDismiss: () -> Unit) {
+    var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.action_manage_presets)) },
+        text = {
+            if (presets.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.focus_empty_presets),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    items(presets, key = { it.id }) { preset ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${preset.name} ${preset.minutes}",
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+                            IconButton(onClick = {
+                                FocusStore.presets.removeAll { it.id == preset.id }
+                                FocusStore.savePresets()
+                                presets = FocusStore.presets.toList()
+                            }) {
+                                Icon(
+                                    imageVector = OutlinedDelete,
+                                    contentDescription = stringResource(R.string.action_delete),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
         },
     )
 }

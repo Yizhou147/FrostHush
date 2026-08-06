@@ -19,6 +19,12 @@ object FocusStore {
     private val sessionFile = File(dir, "session.json")
     private val historyFile = File(dir, "sessions.json")
     private val blacklistFile = File(dir, "blacklist.json")
+    private val presetsFile = File(dir, "presets.json")
+
+    /** 时长有效范围（分钟） */
+    const val MIN_MINUTES = 1
+    const val MAX_MINUTES = 240
+    const val MAX_PRESETS = 20
 
     /** 活动会话：{应用包名列表, 开始时间, 时长} */
     data class ActiveSession(
@@ -93,5 +99,35 @@ object FocusStore {
     fun saveBlacklist(list: List<String>) {
         dir.mkdirs()
         blacklistFile.writeText(JSONArray(list).toString())
+    }
+
+    // ---------- 专注时长预设 ----------
+
+    /** 预设：id 用于列表稳定 key */
+    data class FocusPreset(val id: Long, val name: String, val minutes: Int)
+
+    /** 预设列表 */
+    val presets: MutableList<FocusPreset> by lazy {
+        mutableListOf<FocusPreset>().apply {
+            runCatching {
+                val json = JSONArray(presetsFile.readText())
+                for (i in 0 until json.length()) {
+                    val obj = json.getJSONObject(i)
+                    // 兼容旧数据：无 id 字段时按索引生成唯一 id
+                    val id = if (obj.has("id")) obj.getLong("id") else System.currentTimeMillis() + i
+                    add(FocusPreset(id, obj.getString("name"), obj.getInt("minutes")))
+                }
+            }
+        }
+    }
+
+    /** 下一个可用的预设 id（取现有最大值 + 1，保证单调递增不冲突） */
+    fun nextPresetId(): Long = (presets.maxOfOrNull { it.id } ?: 0L) + 1
+
+    fun savePresets() {
+        dir.mkdirs()
+        presetsFile.writeText(JSONArray().apply {
+            presets.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)) }
+        }.toString())
     }
 }
