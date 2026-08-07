@@ -2,6 +2,7 @@ package com.frosthush.app.ui.focus
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -299,7 +300,11 @@ private fun AppCheckRow(
     enabled: Boolean = true,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        Modifier
+            .fillMaxWidth()
+            // 与主界面一致：点击整行切换选中（已导入的禁用行不可点击）
+            .clickable(enabled = enabled) { onToggle() }
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AppIcon(packageName, 36.dp)
