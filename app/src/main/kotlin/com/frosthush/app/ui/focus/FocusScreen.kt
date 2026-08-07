@@ -2,11 +2,9 @@ package com.frosthush.app.ui.focus
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -183,25 +180,15 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = {
-                    // 搜索展开：白色遮罩以搜索按键为中心（右端）向外扩散，覆盖"专注"标题；
-                    // 遮罩左侧显示返回箭头，内部为无边框输入框
+                    // 搜索展开：无遮罩/扩散动画，直接显示；搜索框无背景色（与顶栏同色），
+                    // 左侧返回箭头 + 无边框输入框
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                         if (!showSearch) {
                             Text(stringResource(R.string.tab_focus))
                         }
-                        AnimatedVisibility(
-                            visible = showSearch,
-                            enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
-                            exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
-                        ) {
+                        if (showSearch) {
                             Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        MaterialTheme.colorScheme.surfaceContainerLowest,
-                                        RoundedCornerShape(24.dp),
-                                    )
-                                    .padding(horizontal = 4.dp),
+                                Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconButton(onClick = { showSearch = false }) {
@@ -569,8 +556,14 @@ private fun IdleContent(
                             Text(pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         // 与雹一致：列表项右侧无删除图标，删除通过长按多选 + 顶栏/操作栏完成
+                        // 复选框固定 40dp：否则 M3 最小交互尺寸 48dp 会把行撑高，导致
+                        // 进入多选后每个列表项变高、下方列表间距被拉宽
                         if (selectionMode) {
-                            Checkbox(checked = isSelected, onCheckedChange = { onItemClick(pkg) })
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { onItemClick(pkg) },
+                                modifier = Modifier.size(40.dp),
+                            )
                         }
                     }
                     HorizontalDivider()
