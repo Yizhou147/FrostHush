@@ -65,7 +65,7 @@
     <string name="focus_finished_text">所有应用已恢复</string>
     <string name="focus_suspended_dialog">%1$s已暂停，请保持专注。</string>
     <string name="focus_selected_count">已选应用（%1$d）</string>
-    <string name="focus_search_hint">搜索名称、包名或拼音</string>
+    <string name="focus_search_hint">搜索…</string>
     <string name="focus_selected">已选 %1$d 项</string>
     <string name="focus_select_all">全选</string>
     <string name="focus_clear_selection">清空</string>

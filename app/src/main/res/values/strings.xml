@@ -65,7 +65,7 @@
     <string name="focus_finished_text">All apps have been restored</string>
     <string name="focus_suspended_dialog">%1$s has been paused. Please stay focused.</string>
     <string name="focus_selected_count">Selected apps (%1$d)</string>
-    <string name="focus_search_hint">Search name, package or pinyin</string>
+    <string name="focus_search_hint">Search…</string>
     <string name="focus_selected">%1$d selected</string>
     <string name="focus_select_all">Select all</string>
     <string name="focus_clear_selection">Clear</string>
