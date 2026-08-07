@@ -208,8 +208,14 @@ private fun TabContent(
     onImport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier) {
-        when (tab) {
+    // 切换底栏页面时淡入淡出过渡
+    AnimatedContent(
+        targetState = tab,
+        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+        label = "tabTransition",
+        modifier = modifier,
+    ) { current ->
+        when (current) {
             0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport)
             1 -> StatsScreen()
             2 -> SettingsScreen()
