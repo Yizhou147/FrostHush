@@ -72,10 +72,17 @@ object FocusStore {
     fun history(): List<HistoryRecord> = runCatching {
         if (!historyFile.exists()) return emptyList()
         val json = JSONArray(historyFile.readText())
-        (0 until json.length()).map { i ->
+        // 按 start 去重：并发结束会话曾可能写入重复记录（start 相同），
+        // 重复会让统计页 LazyColumn 以 start 为 key 时冲突闪退
+        val seen = HashSet<Long>()
+        val result = ArrayList<HistoryRecord>(json.length())
+        for (i in 0 until json.length()) {
             val obj = json.getJSONObject(i)
-            HistoryRecord(obj.getLong("start"), obj.getLong("end"))
+            val start = obj.getLong("start")
+            if (!seen.add(start)) continue
+            result.add(HistoryRecord(start, obj.getLong("end")))
         }
+        result
     }.getOrDefault(emptyList())
 
     fun addHistory(record: HistoryRecord) {

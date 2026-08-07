@@ -34,6 +34,9 @@ object FocusManager {
     /** 数据版本号：导入/移除/开始/结束时自增，驱动界面刷新 */
     val version = MutableStateFlow(0)
 
+    /** 结束专注的互斥锁：恢复/记历史/停服务可能被多线程并发触发，需串行化避免重复写历史 */
+    private val restoreLock = Any()
+
     fun shizukuReady(): Boolean = runCatching {
         !Shizuku.isPreV11() && Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
@@ -80,23 +83,30 @@ object FocusManager {
     /**
      * 结束专注：解除暂停全部应用 → 清理会话 → 记录历史 → 停止服务 → 结束通知。
      * 应在后台线程调用（暂停解除可能较慢）。
+     * 加锁串行化：FocusService / FocusLockScreen / FocusScreen 兜底可能并发触发，
+     * 若不加锁会同时读到同一会话并重复写入相同 start 的历史记录，
+     * 导致统计页 LazyColumn key 冲突闪退。
      */
-    fun restoreAndEnd(): Boolean {
-        val session = FocusStore.activeSession() ?: return false
-        FocusStore.clearActiveSession()
-        session.packages.forEach {
-            runCatching { HShizuku.setAppSuspendedForFocus(it, false) }
-        }
-        FocusStore.addHistory(
-            FocusStore.HistoryRecord(
-                session.startMillis,
-                minOf(session.endMillis, System.currentTimeMillis())
+    fun restoreAndEnd(): Boolean = synchronized(restoreLock) {
+        val session = FocusStore.activeSession()
+        if (session == null) {
+            false
+        } else {
+            FocusStore.clearActiveSession()
+            session.packages.forEach {
+                runCatching { HShizuku.setAppSuspendedForFocus(it, false) }
+            }
+            FocusStore.addHistory(
+                FocusStore.HistoryRecord(
+                    session.startMillis,
+                    minOf(session.endMillis, System.currentTimeMillis())
+                )
             )
-        )
-        app.stopService(Intent(app, FocusService::class.java))
-        if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
-        bumpVersion()
-        return true
+            app.stopService(Intent(app, FocusService::class.java))
+            if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
+            bumpVersion()
+            true
+        }
     }
 
     /**
