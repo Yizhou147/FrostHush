@@ -84,3 +84,23 @@ dependencies {
         exclude(group = "org.jetbrains.compose.foundation")
     }
 }
+
+// 本地构建产物自动同步到安卓宿主机下载目录（容器内该路径为宿主挂载点）。
+// 其他环境（如 GitHub Actions CI）不存在该目录时自动跳过，不影响云编译。
+gradle.projectsEvaluated {
+    tasks.named("assembleRelease") { doLast { syncApkToDownload("release") } }
+    tasks.named("assembleDebug") { doLast { syncApkToDownload("debug") } }
+}
+
+fun syncApkToDownload(variant: String) {
+    runCatching {
+        val destDir = file("/storage/emulated/0/download")
+        if (!destDir.isDirectory) return
+        val apk = layout.buildDirectory.file("outputs/apk/$variant/app-$variant.apk").get().asFile
+        if (!apk.exists()) return
+        val destName = if (variant == "release") "FrostHush-${android.defaultConfig.versionName}.apk"
+        else "FrostHush-${android.defaultConfig.versionName}-debug.apk"
+        copy { from(apk); into(destDir); rename { destName } }
+        println("APK 已复制到 $destDir/$destName")
+    }.onFailure { println("WARN: 复制 APK 到下载目录失败: $it") }
+}
