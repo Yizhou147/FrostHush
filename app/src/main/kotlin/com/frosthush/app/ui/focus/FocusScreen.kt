@@ -143,10 +143,16 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     }
 
     val repo = remember { AppRepository(context) }
-    val appNames = remember { mutableStateOf(mapOf<String, String>()) }
+    // 优先使用缓存的应用名称，避免进入页面时因分身跨用户读取慢而闪现包名
+    val appNames = remember { mutableStateOf(AppRepository.cachedAppNames()) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
-            appNames.value = repo.queryApps().associate { it.packageName to it.name }
+            // 先快速填充主应用名称（普通查询，立即显示），再异步补齐分身名称
+            val base = repo.queryApps(includeClones = false).associate { it.entry to it.displayName }
+            appNames.value = base
+            val full = repo.queryApps().associate { it.entry to it.displayName }
+            appNames.value = full
+            AppRepository.updateAppNameCache(full)
         }
     }
 
@@ -494,8 +500,9 @@ private fun IdleContent(
     val filtered = remember(blacklist, appNames, query) {
         val q = query.trim()
         if (q.isEmpty()) blacklist
-        else blacklist.filter { pkg ->
-            val name = appNames[pkg] ?: pkg
+        else blacklist.filter { entry ->
+            val name = appNames[entry] ?: entry
+            val pkg = FocusStore.parseEntry(entry).first
             FuzzySearch.search(name, q) || FuzzySearch.search(pkg, q) || PinyinSearch.searchPinyinAll(name, q)
         }
     }
@@ -552,14 +559,15 @@ private fun IdleContent(
             LazyColumn(
                 Modifier.fillMaxSize(),
             ) {
-                items(filtered, key = { it }) { pkg ->
-                    val isSelected = pkg in selected
+                items(filtered, key = { it }) { entry ->
+                    val pkg = FocusStore.parseEntry(entry).first
+                    val isSelected = entry in selected
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .combinedClickable(
-                                onClick = { onItemClick(pkg) },
-                                onLongClick = { onItemLongClick(pkg) },
+                                onClick = { onItemClick(entry) },
+                                onLongClick = { onItemLongClick(entry) },
                             )
                             .background(
                                 if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
@@ -570,7 +578,7 @@ private fun IdleContent(
                     ) {
                         AppIcon(pkg, 40.dp)
                         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                            Text(appNames[pkg] ?: pkg, style = MaterialTheme.typography.bodyLarge)
+                            Text(appNames[entry] ?: entry, style = MaterialTheme.typography.bodyLarge)
                             Text(pkg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         // 与雹一致：列表项右侧无删除图标，删除通过长按多选 + 顶栏/操作栏完成
@@ -579,7 +587,7 @@ private fun IdleContent(
                         if (selectionMode) {
                             Checkbox(
                                 checked = isSelected,
-                                onCheckedChange = { onItemClick(pkg) },
+                                onCheckedChange = { onItemClick(entry) },
                                 modifier = Modifier.size(40.dp),
                             )
                         }

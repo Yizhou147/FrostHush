@@ -66,7 +66,11 @@ import org.json.JSONArray
 fun ImportScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { AppRepository(context) }
-    val allApps = remember { repo.queryApps() }
+    // 后台线程加载：queryApps 在 Shizuku 可用时会跨用户读取分身（binder IPC），不能放主线程
+    var allApps by remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        allApps = withContext(Dispatchers.Default) { repo.queryApps() }
+    }
     var mode by rememberSaveable { mutableIntStateOf(0) } // 0 手动 1 剪贴板
 
     Scaffold(
@@ -107,8 +111,8 @@ fun ImportScreen(onBack: () -> Unit) {
 }
 
 private fun addToBlacklist(packages: Set<String>) {
-    // 过滤掉本应用，避免误把自己加入暂停黑名单
-    val filtered = packages.filter { it != BuildConfig.APPLICATION_ID }.toSet()
+    // 过滤掉本应用，避免误把自己加入暂停黑名单（条目可能是 包名 或 包名@userId）
+    val filtered = packages.filter { FocusStore.parseEntry(it).first != BuildConfig.APPLICATION_ID }.toSet()
     if (filtered.isEmpty()) return
     FocusStore.saveBlacklist((FocusStore.blacklist() + filtered).distinct())
     FocusManager.bumpVersion()
@@ -134,7 +138,8 @@ private fun ManualImportTab(
             val base = when (filter) {
                 0 -> allApps
                 1 -> allApps.filter { !it.isSystem }
-                else -> allApps.filter { it.isSystem }
+                2 -> allApps.filter { it.isSystem }
+                else -> allApps.filter { it.isClone } // 3 用户双开应用
             }
             repo.filter(base, query)
         }
@@ -153,6 +158,7 @@ private fun ManualImportTab(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(selected = filter == 0, onClick = { filter = 0 }, label = { Text(stringResource(R.string.import_filter_all)) })
             FilterChip(selected = filter == 1, onClick = { filter = 1 }, label = { Text(stringResource(R.string.import_filter_user)) })
+            FilterChip(selected = filter == 3, onClick = { filter = 3 }, label = { Text(stringResource(R.string.import_filter_clone)) })
             FilterChip(selected = filter == 2, onClick = { filter = 2 }, label = { Text(stringResource(R.string.import_filter_system)) })
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -162,7 +168,7 @@ private fun ManualImportTab(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { selected = filtered.map { it.packageName }.filter { it !in blacklist }.toSet() }) {
+            TextButton(onClick = { selected = filtered.map { it.entry }.filter { it !in blacklist }.toSet() }) {
                 Text(stringResource(R.string.import_select_all))
             }
             TextButton(onClick = { selected = emptySet() }) {
@@ -178,16 +184,17 @@ private fun ManualImportTab(
             }
         } else {
             LazyColumn(Modifier.weight(1f)) {
-                items(filtered, key = { it.packageName }) { app ->
-                    val alreadyImported = app.packageName in blacklist
+                // key 用条目（主应用=包名，分身=包名@userId），同一包名的主/分身不会冲突
+                items(filtered, key = { it.entry }) { app ->
+                    val alreadyImported = app.entry in blacklist
                     AppCheckRow(
                         packageName = app.packageName,
-                        name = app.name,
-                        checked = alreadyImported || app.packageName in selected,
+                        name = app.displayName,
+                        checked = alreadyImported || app.entry in selected,
                         enabled = !alreadyImported,
                         onToggle = {
-                            selected = if (app.packageName in selected) selected - app.packageName
-                            else selected + app.packageName
+                            selected = if (app.entry in selected) selected - app.entry
+                            else selected + app.entry
                         },
                     )
                 }
@@ -210,15 +217,20 @@ private fun ClipboardImportTab(
     repo: AppRepository,
     onAdd: (Set<String>) -> Unit,
 ) {
-    val installed = remember { repo.queryApps() }
-    val installedNames = remember(installed) { installed.map { it.packageName }.toSet() }
-    val nameMap = remember(installed) { installed.associate { it.packageName to it.name } }
+    val installed = remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        installed.value = withContext(Dispatchers.Default) { repo.queryApps() }
+    }
+    val installedNames = remember(installed.value) { installed.value.map { it.packageName }.toSet() }
+    val nameMap = remember(installed.value) { installed.value.associate { it.packageName to it.name } }
     // 已导入黑名单：显示已勾选并禁用，不参与默认全选
     val blacklist = remember { FocusStore.blacklist().toSet() }
     var packages by remember { mutableStateOf(listOf<String>()) }
     var selected by remember { mutableStateOf(setOf<String>()) }
 
-    LaunchedEffect(Unit) {
+    // 应用列表加载完成后解析剪贴板（installed 空时为加载中，跳过）
+    LaunchedEffect(installed.value) {
+        if (installed.value.isEmpty()) return@LaunchedEffect
         val text = runCatching {
             val clip = context.getSystemService(ClipboardManager::class.java)
             clip?.primaryClip

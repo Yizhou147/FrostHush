@@ -62,7 +62,10 @@ object FocusManager {
         startFocusService()
         bumpVersion()
         var suspended = 0
-        packages.forEach { if (HShizuku.setAppSuspendedForFocus(it, true)) suspended++ }
+        packages.forEach { entry ->
+            val (pkg, userId) = FocusStore.parseEntry(entry)
+            if (HShizuku.setAppSuspendedForFocus(pkg, true, userId)) suspended++
+        }
         if (suspended == 0) {
             // 全部失败：回滚会话、停止服务，并再次刷新 UI 退出全屏专注
             FocusStore.clearActiveSession()
@@ -93,8 +96,9 @@ object FocusManager {
             false
         } else {
             FocusStore.clearActiveSession()
-            session.packages.forEach {
-                runCatching { HShizuku.setAppSuspendedForFocus(it, false) }
+            session.packages.forEach { entry ->
+                val (pkg, userId) = FocusStore.parseEntry(entry)
+                runCatching { HShizuku.setAppSuspendedForFocus(pkg, false, userId) }
             }
             FocusStore.addHistory(
                 FocusStore.HistoryRecord(
@@ -121,7 +125,10 @@ object FocusManager {
         } else {
             // 未到点：若 Shizuku 可用则重新暂停原应用，并继续倒计时
             if (shizukuReady()) {
-                session.packages.forEach { runCatching { HShizuku.setAppSuspendedForFocus(it, true) } }
+                session.packages.forEach { entry ->
+                    val (pkg, userId) = FocusStore.parseEntry(entry)
+                    runCatching { HShizuku.setAppSuspendedForFocus(pkg, true, userId) }
+                }
             }
             startFocusService(context)
         }
@@ -133,7 +140,10 @@ object FocusManager {
         val session = FocusStore.activeSession() ?: return
         if (session.endMillis <= System.currentTimeMillis()) return
         Thread {
-            session.packages.forEach { runCatching { HShizuku.setAppSuspendedForFocus(it, true) } }
+            session.packages.forEach { entry ->
+                val (pkg, userId) = FocusStore.parseEntry(entry)
+                runCatching { HShizuku.setAppSuspendedForFocus(pkg, true, userId) }
+            }
         }.start()
     }
 

@@ -225,4 +225,5 @@ private fun checkNotification(context: Context): Boolean =
     } else true // 低版本自动视为已获取
 
 private fun checkApps(context: Context): Boolean =
-    runCatching { AppRepository(context).queryApps().isNotEmpty() }.getOrDefault(false)
+    // includeClones=false：仅检查主用户应用列表，避免 Shizuku 跨用户 IPC（主线程调用）
+    runCatching { AppRepository(context).queryApps(includeClones = false).isNotEmpty() }.getOrDefault(false)

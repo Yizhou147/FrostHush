@@ -71,6 +71,7 @@
     <string name="focus_clear_selection">Clear</string>
     <string name="focus_preset_drag_hint">Long press and drag to reorder</string>
     <string name="operation_failed">Operation failed</string>
+    <string name="app_clone_suffix">%1$s (clone)</string>
     <plurals name="focus_apps_paused">
         <item quantity="one">%1$d app paused</item>
         <item quantity="other">%1$d apps paused</item>
@@ -88,6 +89,7 @@
     <string name="import_filter_all">All</string>
     <string name="import_filter_user">User apps</string>
     <string name="import_filter_system">System apps</string>
+    <string name="import_filter_clone">Cloned apps</string>
     <string name="import_select_all">Select all</string>
     <string name="import_clear">Clear</string>
     <string name="import_add_count">Add (%1$d)</string>

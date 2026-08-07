@@ -7,11 +7,14 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Process
+import android.os.ParcelFileDescriptor
+import android.os.UserHandle
 import androidx.annotation.RequiresApi
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.R
 import com.frosthush.app.util.Targets
+import moe.shizuku.server.IShizukuService
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuBinderWrapper
@@ -21,10 +24,12 @@ import rikka.shizuku.SystemServiceHelper
  * Shizuku 系统接口封装（复用 Hail 的 HShizuku 实现）：
  * 专注模式通过 IPackageManager.setPackagesSuspendedAsUser 暂停应用，
  * 暂停弹窗文案定制为「xx已暂停，请保持专注。」（SuspendDialogInfo.setMessage）。
+ * 支持应用分身：userId 参数指定目标用户空间（分身如小米 user 999），默认当前用户。
  */
 object HShizuku {
     val isRoot get() = Shizuku.getUid() == 0
     private val callerPackage get() = if (isRoot) BuildConfig.APPLICATION_ID else "com.android.shell"
+    private val myUserId get() = Process.myUserHandle().hashCode()
 
     private fun asInterface(className: String, original: IBinder): Any {
         val stub = Class.forName("$className\$Stub")
@@ -35,24 +40,24 @@ object HShizuku {
     private fun asInterface(className: String, serviceName: String): Any =
         asInterface(className, SystemServiceHelper.getSystemService(serviceName))
 
-    /** 强制停止应用（暂停前调用，使暂停立即生效） */
-    fun forceStopApp(packageName: String): Boolean = runCatching {
+    /** 强制停止应用（暂停前调用，使暂停立即生效）；userId 指定目标用户（分身） */
+    fun forceStopApp(packageName: String, userId: Int = myUserId): Boolean = runCatching {
         val am = asInterface("android.app.IActivityManager", Context.ACTIVITY_SERVICE)
         if (Targets.P) HiddenApiBypass.invoke(
-            am::class.java, am, "forceStopPackage", packageName, Process.myUserHandle().hashCode()
+            am::class.java, am, "forceStopPackage", packageName, userId
         ) else am::class.java.getMethod(
             "forceStopPackage", String::class.java, Int::class.java
-        ).invoke(am, packageName, Process.myUserHandle().hashCode())
+        ).invoke(am, packageName, userId)
         true
     }.getOrElse { false }
 
     /** 专注模式专用暂停：系统弹窗文案为「xx已暂停，请保持专注。」且不显示"取消暂停应用"按钮 */
-    fun setAppSuspendedForFocus(packageName: String, suspended: Boolean): Boolean {
+    fun setAppSuspendedForFocus(packageName: String, suspended: Boolean, userId: Int = myUserId): Boolean {
         // 硬防御：绝不允许暂停自身（黑名单历史数据/剪贴板导入可能误带本应用）
         if (packageName == BuildConfig.APPLICATION_ID) return false
-        if (getApplicationInfoOrNull(packageName) == null) return false
-        if (Targets.P) setAppRestricted(packageName, suspended)
-        if (suspended) forceStopApp(packageName)
+        if (getApplicationInfoOrNull(packageName, userId) == null) return false
+        if (Targets.P) setAppRestricted(packageName, userId, suspended)
+        if (suspended) forceStopApp(packageName, userId)
         return runCatching {
             val pm = asInterface("android.content.pm.IPackageManager", "package")
             (when {
@@ -69,29 +74,29 @@ object HShizuku {
                         if (suspended) focusSuspendDialogInfo else null,
                         0,
                         callerPackage,
-                        Process.myUserHandle().hashCode(), /*suspendingUserId*/
-                        Process.myUserHandle().hashCode()  /*targetUserId*/
+                        myUserId, /*suspendingUserId*/
+                        userId      /*targetUserId*/
                     )
                 }.getOrElse {
-                    if (it is NoSuchMethodException) setPackagesSuspendedAsUserSinceQ(pm, packageName, suspended)
+                    if (it is NoSuchMethodException) setPackagesSuspendedAsUserSinceQ(pm, packageName, suspended, userId)
                     else throw it
                 }
 
                 // Android 10-13：带 SuspendDialogInfo 的 7 参数版本
                 Targets.Q -> runCatching {
-                    setPackagesSuspendedAsUserSinceQ(pm, packageName, suspended)
+                    setPackagesSuspendedAsUserSinceQ(pm, packageName, suspended, userId)
                 }.getOrElse {
-                    if (it is NoSuchMethodException) setPackagesSuspendedAsUserSinceP(pm, packageName, suspended)
+                    if (it is NoSuchMethodException) setPackagesSuspendedAsUserSinceP(pm, packageName, suspended, userId)
                     else throw it
                 }
 
                 // Android 9：带 dialogMessage（CharSequence）的 7 参数版本
-                Targets.P -> setPackagesSuspendedAsUserSinceP(pm, packageName, suspended)
+                Targets.P -> setPackagesSuspendedAsUserSinceP(pm, packageName, suspended, userId)
 
                 // Android 7-8：3 参数版本（无自定义弹窗）
                 Targets.N -> pm::class.java.getMethod(
                     "setPackagesSuspendedAsUser", Array<String>::class.java, Boolean::class.java, Int::class.java
-                ).invoke(pm, arrayOf(packageName), suspended, Process.myUserHandle().hashCode())
+                ).invoke(pm, arrayOf(packageName), suspended, userId)
 
                 else -> return false // Android 6 及以下不支持暂停
             } as Array<*>).isEmpty()
@@ -99,7 +104,7 @@ object HShizuku {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    private fun setPackagesSuspendedAsUserSinceQ(pm: Any, packageName: String, suspended: Boolean): Any =
+    private fun setPackagesSuspendedAsUserSinceQ(pm: Any, packageName: String, suspended: Boolean, userId: Int): Any =
         HiddenApiBypass.invoke(
             pm::class.java,
             pm,
@@ -110,11 +115,11 @@ object HShizuku {
             null,
             if (suspended) focusSuspendDialogInfo else null,
             callerPackage,
-            Process.myUserHandle().hashCode()
+            userId
         )
 
     @RequiresApi(Build.VERSION_CODES.P)
-    private fun setPackagesSuspendedAsUserSinceP(pm: Any, packageName: String, suspended: Boolean): Any =
+    private fun setPackagesSuspendedAsUserSinceP(pm: Any, packageName: String, suspended: Boolean, userId: Int): Any =
         HiddenApiBypass.invoke(
             pm::class.java,
             pm,
@@ -125,7 +130,7 @@ object HShizuku {
             null,
             null /*dialogMessage*/,
             callerPackage,
-            Process.myUserHandle().hashCode()
+            userId
         )
 
     /** 原版暂停弹窗信息：不显示"取消暂停应用"按钮，仅保留"确定" */
@@ -155,37 +160,98 @@ object HShizuku {
         }
 
     @RequiresApi(Build.VERSION_CODES.P)
-    fun setAppRestricted(packageName: String, restricted: Boolean): Boolean = runCatching {
+    fun setAppRestricted(packageName: String, userId: Int = myUserId, restricted: Boolean): Boolean = runCatching {
         val appops = asInterface("com.android.internal.app.IAppOpsService", Context.APP_OPS_SERVICE)
         HiddenApiBypass.invoke(
             appops::class.java,
             appops,
             "setMode",
             HiddenApiBypass.invoke(AppOpsManager::class.java, null, "strOpToOp", "android:run_any_in_background"),
-            packageUid(packageName),
+            packageUid(packageName, userId),
             packageName,
             if (restricted) AppOpsManager.MODE_IGNORED else AppOpsManager.MODE_ALLOWED
         )
         true
     }.getOrElse { false }
 
-    fun packageUid(packageName: String): Int = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        app.packageManager.getPackageUid(
-            packageName, PackageManager.PackageInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
-        )
-    } else {
-        @Suppress("DEPRECATION")
-        app.packageManager.getPackageUid(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES)
+    /** 通过 Shizuku 服务端（shell 权限）执行命令，返回 stdout；失败返回 null */
+    fun execute(command: String): String? = runCatching {
+        val service: IShizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder()) ?: return null
+        val process = service.newProcess(arrayOf("sh", "-c", command), null, null) ?: return null
+        val pfd = process.inputStream ?: return null
+        ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
+    }.getOrElse {
+        android.util.Log.e("FrostHush", "Shizuku 执行命令失败: $command", it)
+        null
     }
 
-    fun getApplicationInfoOrNull(packageName: String): android.content.pm.ApplicationInfo? = runCatching {
+    /**
+     * 指定用户已安装包名列表（分身/XSpace 等用户空间），返回 (包名, 是否系统分区路径)。
+     * 执行 `pm list packages --user <id> -f`（shell 有跨用户权限）；-f 带 APK 路径，
+     * 系统应用在 /system|/product|/vendor|/system_ext 等分区，用户应用在 /data/app。
+     * 注：HyperOS 的 IPackageManager AIDL 接口被精简，无法走 binder 反射，只能靠 shell 命令。
+     */
+    fun listPackagesForUser(userId: Int): List<Pair<String, Boolean>> = runCatching {
+        val out = execute("pm list packages --user $userId -f") ?: return emptyList()
+        out.lineSequence().mapNotNull { line ->
+            if (!line.startsWith("package:")) return@mapNotNull null
+            val body = line.removePrefix("package:")
+            val eq = body.lastIndexOf('=')
+            if (eq <= 0) return@mapNotNull null
+            val path = body.substring(0, eq)
+            val pkg = body.substring(eq + 1)
+            if (pkg.isBlank()) return@mapNotNull null
+            val sysByPath = path.startsWith("/system/") || path.startsWith("/system_ext/") ||
+                path.startsWith("/product/") || path.startsWith("/vendor/") || path.startsWith("/odm/")
+            pkg to sysByPath
+        }.toList()
+    }.getOrElse { emptyList() }
+
+    /**
+     * 构造 UserHandle：本地 android.jar 为裁剪版，缺 UserHandle(int) 构造器与 of()，
+     * 运行时系统均支持（API 17+），用反射构造。
+     */
+    private fun userHandleOf(userId: Int): Any =
+        UserHandle::class.java.getConstructor(Int::class.java).newInstance(userId)
+
+    /** 指定用户的包 uid；分身（其他用户）用反射调 getPackageUid(String, int, UserHandle)（API 24+） */
+    fun packageUid(packageName: String, userId: Int = myUserId): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            app.packageManager.getApplicationInfo(
-                packageName, PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
-            )
+            if (userId == myUserId) {
+                return app.packageManager.getPackageUid(
+                    packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
+                )
+            }
+        } else if (userId == myUserId) {
+            @Suppress("DEPRECATION")
+            return app.packageManager.getPackageUid(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES)
+        }
+        @Suppress("DEPRECATION")
+        return PackageManager::class.java
+            .getMethod("getPackageUid", String::class.java, Int::class.java, UserHandle::class.java)
+            .invoke(app.packageManager, packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, userHandleOf(userId)) as Int
+    }
+
+    /**
+     * 指定用户的应用信息；分身（其他用户）用反射调 getApplicationInfoAsUser(String, int, UserHandle)（API 24+）。
+     * 本地 android.jar 裁剪缺失这些重载，运行时系统均支持。
+     */
+    fun getApplicationInfoOrNull(packageName: String, userId: Int = myUserId): android.content.pm.ApplicationInfo? = runCatching {
+        if (userId == myUserId) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                app.packageManager.getApplicationInfo(
+                    packageName, PackageManager.ApplicationInfoFlags.of(PackageManager.MATCH_UNINSTALLED_PACKAGES.toLong())
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                app.packageManager.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES)
+            }
         } else {
             @Suppress("DEPRECATION")
-            app.packageManager.getApplicationInfo(packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES)
+            PackageManager::class.java
+                .getMethod("getApplicationInfoAsUser", String::class.java, Int::class.java, UserHandle::class.java)
+                .invoke(app.packageManager, packageName, PackageManager.MATCH_UNINSTALLED_PACKAGES, userHandleOf(userId)) as android.content.pm.ApplicationInfo
         }
     }.getOrNull()
 }

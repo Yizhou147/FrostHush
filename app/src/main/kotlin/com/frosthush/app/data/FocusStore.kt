@@ -1,5 +1,6 @@
 package com.frosthush.app.data
 
+import android.os.Process
 import com.frosthush.app.FrostHushApp.Companion.app
 import org.json.JSONArray
 import org.json.JSONObject
@@ -106,6 +107,24 @@ object FocusStore {
     fun saveBlacklist(list: List<String>) {
         dir.mkdirs()
         blacklistFile.writeText(JSONArray(list).toString())
+    }
+
+    // ---------- 黑名单条目（应用分身支持） ----------
+
+    /**
+     * 条目编码：主应用为纯包名（兼容旧数据），分身附加 @userId 与主应用区分。
+     * 包名不含 @，可安全用 @ 分隔。
+     */
+    fun entryOf(packageName: String, userId: Int): String =
+        if (userId == Process.myUserHandle().hashCode()) packageName else "$packageName@$userId"
+
+    /** 解析条目 → (包名, userId)；无 @ 的旧数据视为当前用户主应用 */
+    fun parseEntry(entry: String): Pair<String, Int> {
+        val i = entry.lastIndexOf('@')
+        if (i <= 0) return entry to Process.myUserHandle().hashCode()
+        val pkg = entry.substring(0, i)
+        val uid = entry.substring(i + 1).toIntOrNull() ?: Process.myUserHandle().hashCode()
+        return pkg to uid
     }
 
     // ---------- 专注时长预设 ----------

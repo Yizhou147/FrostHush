@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
+    implementation(libs.shizuku.aidl)
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
