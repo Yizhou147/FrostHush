@@ -25,11 +25,12 @@ object MiuiIsland {
      * 构建岛通知扩展参数（对齐官方 HyperOS 3 param_v2 结构）。
      *
      * @param frontTitle 前置文案（如"专注模式中"）
-     * @param remainingText 倒计时正文（如"25:00"）
+     * @param endMillis 专注结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染，
+     *   应用无需每秒刷新通知，避免翻页动画/闪烁/抖动
      * @param contentText 通知内容文案（如"剩余 25:00"）
      */
     fun buildIslandExtras(
-        context: Context, frontTitle: String, remainingText: String, contentText: String
+        context: Context, frontTitle: String, endMillis: Long, contentText: String
     ): Bundle {
         val param = JSONObject().put(
             "param_v2", JSONObject()
@@ -60,13 +61,18 @@ object MiuiIsland {
                                         )
                                 )
                                 // 大岛 B 区（右侧）：等宽数字倒计时。
-                                // 使用官方等宽数字组件 sameWidthDigitInfo 替代普通文本组件：
-                                // 等宽字形下每秒倒计时的整体宽度恒定，避免系统按文本宽度
-                                // 居中重排导致数字抖动（0/1/8 等字形宽度不一引起的秒级跳动）
+                                // 用官方等宽数字组件 sameWidthDigitInfo + timerInfo：
+                                // 系统根据 timerWhen 原生渲染秒级倒计时（等宽字形 + 无抖动），
+                                // 应用不每秒刷新通知；turnAnim=false 关闭翻页动画避免闪烁
                                 .put(
                                     "sameWidthDigitInfo", JSONObject()
-                                        .put("digit", remainingText)
-                                        .put("content", "")
+                                        .put(
+                                            "timerInfo", JSONObject()
+                                                .put("timerType", -1)
+                                                .put("timerWhen", endMillis)
+                                                .put("timerSystemCurrent", System.currentTimeMillis())
+                                        )
+                                        .put("turnAnim", false)
                                         .put("showHighlightColor", false)
                                 )
                         )

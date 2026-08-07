@@ -38,7 +38,8 @@ class FocusService : Service() {
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return
             }
-            updateNotification(remaining)
+            // 岛上的倒计时由系统根据 timerInfo 原生渲染，无需每秒刷新通知；
+            // 每秒 notify 会导致岛翻页动画 / 闪烁 / 抖动
             handler.postDelayed(this, 1000L)
         }
     }
@@ -83,7 +84,9 @@ class FocusService : Service() {
         // HyperOS 超级岛：仅当设置开启时才注入岛参数
         if (islandEnabled) {
             runCatching {
-                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, remainingText, contentText))
+                val endMillis = FocusStore.activeSession()?.endMillis
+                    ?: (System.currentTimeMillis() + remaining)
+                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, endMillis, contentText))
             }
         }
         return builder.build()
