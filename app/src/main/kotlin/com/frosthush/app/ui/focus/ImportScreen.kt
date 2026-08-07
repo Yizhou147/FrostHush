@@ -114,7 +114,7 @@ private fun addToBlacklist(packages: Set<String>) {
     FocusManager.bumpVersion()
 }
 
-/** 手动导入：搜索 + 分类筛选 + 应用列表 */
+/** 手动导入：搜索 + 分类筛选 + 应用列表（已导入的显示已勾选并禁用，不能重复导入） */
 @Composable
 private fun ManualImportTab(
     repo: AppRepository,
@@ -125,6 +125,8 @@ private fun ManualImportTab(
     var filter by rememberSaveable { mutableIntStateOf(1) } // 0 全部 1 用户应用（默认） 2 系统应用
     var selected by remember { mutableStateOf(setOf<String>()) }
     var filtered by remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
+    // 已导入黑名单：这些应用已勾选且禁用，不可重复导入
+    val blacklist = remember { FocusStore.blacklist().toSet() }
 
     // 后台线程过滤（FuzzySearch + 拼音搜索）
     LaunchedEffect(allApps, query, filter) {
@@ -160,7 +162,7 @@ private fun ManualImportTab(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { selected = filtered.map { it.packageName }.toSet() }) {
+            TextButton(onClick = { selected = filtered.map { it.packageName }.filter { it !in blacklist }.toSet() }) {
                 Text(stringResource(R.string.import_select_all))
             }
             TextButton(onClick = { selected = emptySet() }) {
@@ -177,10 +179,12 @@ private fun ManualImportTab(
         } else {
             LazyColumn(Modifier.weight(1f)) {
                 items(filtered, key = { it.packageName }) { app ->
+                    val alreadyImported = app.packageName in blacklist
                     AppCheckRow(
                         packageName = app.packageName,
                         name = app.name,
-                        checked = app.packageName in selected,
+                        checked = alreadyImported || app.packageName in selected,
+                        enabled = !alreadyImported,
                         onToggle = {
                             selected = if (app.packageName in selected) selected - app.packageName
                             else selected + app.packageName
@@ -209,6 +213,8 @@ private fun ClipboardImportTab(
     val installed = remember { repo.queryApps() }
     val installedNames = remember(installed) { installed.map { it.packageName }.toSet() }
     val nameMap = remember(installed) { installed.associate { it.packageName to it.name } }
+    // 已导入黑名单：显示已勾选并禁用，不参与默认全选
+    val blacklist = remember { FocusStore.blacklist().toSet() }
     var packages by remember { mutableStateOf(listOf<String>()) }
     var selected by remember { mutableStateOf(setOf<String>()) }
 
@@ -238,7 +244,7 @@ private fun ClipboardImportTab(
             pkgs.distinct().filter { it in installedNames }
         }
         packages = parsed
-        selected = parsed.toSet() // 默认全选
+        selected = parsed.filter { it !in blacklist }.toSet() // 默认全选未导入的
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -262,10 +268,12 @@ private fun ClipboardImportTab(
         } else {
             LazyColumn(Modifier.weight(1f)) {
                 items(packages, key = { it }) { pkg ->
+                    val alreadyImported = pkg in blacklist
                     AppCheckRow(
                         packageName = pkg,
                         name = nameMap[pkg] ?: pkg,
-                        checked = pkg in selected,
+                        checked = alreadyImported || pkg in selected,
+                        enabled = !alreadyImported,
                         onToggle = {
                             selected = if (pkg in selected) selected - pkg else selected + pkg
                         },
@@ -289,12 +297,13 @@ private fun AppCheckRow(
     name: String,
     checked: Boolean,
     onToggle: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = checked, onCheckedChange = { onToggle() })
+        Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled)
         AppIcon(packageName, 36.dp)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
