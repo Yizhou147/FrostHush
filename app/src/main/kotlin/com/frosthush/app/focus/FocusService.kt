@@ -93,13 +93,10 @@ class FocusService : Service() {
             runCatching {
                 val session = FocusStore.activeSession()
                 val endMillis = session?.endMillis ?: (System.currentTimeMillis() + remaining)
-                // 岛的 ticker/倒计时文案用会话初始值（而非每秒变化的 contentText），
-                // 保证每秒 notify 时岛参数逐字节一致，只更新通知卡片、岛不重渲染
-                val islandText = session?.let {
-                    getString(R.string.focus_remaining, FocusManager.countdownText(it.endMillis - it.startMillis))
-                } ?: contentText
                 val anchor = if (islandTimerAnchor > 0L) islandTimerAnchor else System.currentTimeMillis()
-                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, endMillis, anchor, islandText))
+                // 卡片字段（ticker/hintInfo/aodTitle）用每秒更新的 contentText 让卡片走秒；
+                // 岛 B 区 timerInfo 用会话内固定参数（endMillis/anchor），岛不被重渲染
+                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, endMillis, anchor, contentText))
             }
         }
         return builder.build()

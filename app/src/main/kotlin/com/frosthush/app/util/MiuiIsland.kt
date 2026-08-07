@@ -28,7 +28,8 @@ object MiuiIsland {
      * @param endMillis 专注结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染
      * @param timerSystemCurrent 计时锚点：会话内固定不变，保证每秒 notify 时
      *   岛参数逐字节一致（只更新通知卡片，岛不重渲染、不抖动/闪烁）
-     * @param contentText 岛 ticker/展开卡片文案（会话初始值，固定不变）
+     * @param contentText 通知卡片文案（如"剩余 25:00"，每秒刷新），
+     *   用于 ticker/aodTitle/hintInfo 让通知卡片走秒
      */
     fun buildIslandExtras(
         context: Context, frontTitle: String, endMillis: Long, timerSystemCurrent: Long, contentText: String
