@@ -17,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -303,7 +302,6 @@ private fun AppCheckRow(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled)
         AppIcon(packageName, 36.dp)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
@@ -314,8 +312,7 @@ private fun AppCheckRow(
                 maxLines = 1,
             )
         }
-        if (checked) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        }
+        // 与主界面一致：勾选框只在右侧
+        Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled)
     }
 }
