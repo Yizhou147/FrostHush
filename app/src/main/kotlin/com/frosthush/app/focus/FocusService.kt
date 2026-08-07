@@ -38,17 +38,24 @@ class FocusService : Service() {
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return
             }
-            // 岛上的倒计时由系统根据 timerInfo 原生渲染，无需每秒刷新通知；
-            // 每秒 notify 会导致岛翻页动画 / 闪烁 / 抖动
+            // 每秒刷新通知卡片文案（对齐番茄Todo：卡片剩余时间逐秒走）。
+            // 岛不会跟着重渲染：岛参数（结束时间戳/锚点/文案）在整个会话内固定不变，
+            // 每次 notify 的 miui.focus.param 逐字节一致，系统只更新卡片、
+            // 岛由 timerInfo 原生倒计时
+            updateNotification(remaining)
             handler.postDelayed(this, 1000L)
         }
     }
+
+    // timerSystemCurrent 锚点：会话开始时固定一次，保证每秒 notify 的岛参数完全一致
+    private var islandTimerAnchor = 0L
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 前台服务必须成功启动：startForegroundService 后若 5 秒内未调用 startForeground，
         // 系统会抛 ForegroundServiceDidNotStartInTimeException 直接闪退。
         // 因此 notify（通知权限被拒时会抛 SecurityException）与 startForeground 分开保护，
         // notify 失败绝不能连带跳过 startForeground。
+        islandTimerAnchor = System.currentTimeMillis()
         runCatching { createNotificationChannel() }
         val notification = runCatching { buildNotification(remainingMillis()) }.getOrElse { fallbackNotification() }
         runCatching { NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification) }
@@ -84,9 +91,15 @@ class FocusService : Service() {
         // HyperOS 超级岛：仅当设置开启时才注入岛参数
         if (islandEnabled) {
             runCatching {
-                val endMillis = FocusStore.activeSession()?.endMillis
-                    ?: (System.currentTimeMillis() + remaining)
-                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, endMillis, contentText))
+                val session = FocusStore.activeSession()
+                val endMillis = session?.endMillis ?: (System.currentTimeMillis() + remaining)
+                // 岛的 ticker/倒计时文案用会话初始值（而非每秒变化的 contentText），
+                // 保证每秒 notify 时岛参数逐字节一致，只更新通知卡片、岛不重渲染
+                val islandText = session?.let {
+                    getString(R.string.focus_remaining, FocusManager.countdownText(it.endMillis - it.startMillis))
+                } ?: contentText
+                val anchor = if (islandTimerAnchor > 0L) islandTimerAnchor else System.currentTimeMillis()
+                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, endMillis, anchor, islandText))
             }
         }
         return builder.build()

@@ -25,12 +25,13 @@ object MiuiIsland {
      * 构建岛通知扩展参数（对齐官方 HyperOS 3 param_v2 结构）。
      *
      * @param frontTitle 前置文案（如"专注模式中"）
-     * @param endMillis 专注结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染，
-     *   应用无需每秒刷新通知，避免翻页动画/闪烁/抖动
-     * @param contentText 通知内容文案（如"剩余 25:00"）
+     * @param endMillis 专注结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染
+     * @param timerSystemCurrent 计时锚点：会话内固定不变，保证每秒 notify 时
+     *   岛参数逐字节一致（只更新通知卡片，岛不重渲染、不抖动/闪烁）
+     * @param contentText 岛 ticker/展开卡片文案（会话初始值，固定不变）
      */
     fun buildIslandExtras(
-        context: Context, frontTitle: String, endMillis: Long, contentText: String
+        context: Context, frontTitle: String, endMillis: Long, timerSystemCurrent: Long, contentText: String
     ): Bundle {
         val param = JSONObject().put(
             "param_v2", JSONObject()
@@ -62,15 +63,15 @@ object MiuiIsland {
                                 )
                                 // 大岛 B 区（右侧）：等宽数字倒计时。
                                 // 用官方等宽数字组件 sameWidthDigitInfo + timerInfo：
-                                // 系统根据 timerWhen 原生渲染秒级倒计时（等宽字形 + 无抖动），
-                                // 应用不每秒刷新通知；turnAnim=false 关闭翻页动画避免闪烁
+                                // 系统根据 timerWhen 原生渲染秒级倒计时（等宽字形 + 无抖动）；
+                                // turnAnim=false 关闭翻页动画。参数会话内固定，每秒 notify 不触发重渲染
                                 .put(
                                     "sameWidthDigitInfo", JSONObject()
                                         .put(
                                             "timerInfo", JSONObject()
                                                 .put("timerType", -1)
                                                 .put("timerWhen", endMillis)
-                                                .put("timerSystemCurrent", System.currentTimeMillis())
+                                                .put("timerSystemCurrent", timerSystemCurrent)
                                         )
                                         .put("turnAnim", false)
                                         .put("showHighlightColor", false)
