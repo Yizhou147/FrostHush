@@ -1,5 +1,8 @@
 package com.frosthush.app.ui.about
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -8,12 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Copyright
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.ui.settings.SettingCard
 
 /**
- * 关于页：
- * 图标、应用名、版本号、简介、开源声明、隐私说明。
+ * 关于页（与设置页同款规整卡片）：
+ * 图标 / 应用名 / 版本 / 简介；雹原版与本项目仓库链接（点击用浏览器打开）；
+ * 开源声明、隐私说明。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,56 +59,77 @@ fun AboutScreen() {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-        Spacer(Modifier.height(24.dp))
-        // 应用图标：直接取已安装应用图标（系统解码，规避 adaptive icon 资源加载崩溃）
-        AppIcon(packageName = context.packageName, size = 96.dp, corner = 20.dp)
-        Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            stringResource(R.string.app_description),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        )
-        Spacer(Modifier.height(24.dp))
-
-        InfoCard(
-            title = stringResource(R.string.about_opensource),
-            text = stringResource(R.string.about_opensource_text),
-        )
-        Spacer(Modifier.height(8.dp))
-        InfoCard(
-            title = stringResource(R.string.about_privacy),
-            text = stringResource(R.string.about_privacy_text),
-        )
-    }
-    }
-}
-
-@Composable
-private fun InfoCard(title: String, text: String) {
-    Card(
-        Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(24.dp))
+            // 应用图标：直接取已安装应用图标（系统解码，规避 adaptive icon 资源加载崩溃）
+            AppIcon(packageName = context.packageName, size = 96.dp, corner = 20.dp)
+            Spacer(Modifier.height(16.dp))
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(4.dp))
             Text(
-                text,
-                style = MaterialTheme.typography.bodySmall,
+                stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.app_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            )
+            Spacer(Modifier.height(24.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingCard(
+                    icon = Icons.Filled.Link,
+                    title = stringResource(R.string.about_hail_title),
+                    summary = stringResource(R.string.about_hail_url),
+                    onClick = { openUrl(context, HAIL_URL) },
+                    trailing = { ChevronTrailing() },
+                )
+                SettingCard(
+                    icon = Icons.Filled.Code,
+                    title = stringResource(R.string.about_project_title),
+                    summary = stringResource(R.string.about_project_url),
+                    onClick = { openUrl(context, PROJECT_URL) },
+                    trailing = { ChevronTrailing() },
+                )
+                SettingCard(
+                    icon = Icons.Filled.Copyright,
+                    title = stringResource(R.string.about_opensource),
+                    summary = stringResource(R.string.about_opensource_summary),
+                    onClick = {},
+                    trailing = {},
+                )
+                SettingCard(
+                    icon = Icons.Filled.PrivacyTip,
+                    title = stringResource(R.string.about_privacy),
+                    summary = stringResource(R.string.about_privacy_text),
+                    onClick = {},
+                    trailing = {},
+                )
+            }
         }
     }
 }
+
+/** 链接卡片右侧箭头 */
+@Composable
+private fun ChevronTrailing() {
+    Icon(
+        Icons.Filled.ChevronRight,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+/** 用系统浏览器打开链接 */
+private fun openUrl(context: Context, url: String) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
+}
+
+private const val HAIL_URL = "https://github.com/aistra0528/Hail"
+private const val PROJECT_URL = "https://github.com/Yizhou147/FrostHush"

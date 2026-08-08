@@ -5,7 +5,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import com.frosthush.app.data.SettingsStore
 
 /** 亮色主题：与雹的 md_theme_*（values/colors.xml）一致 */
 private val LightColors = lightColorScheme(
@@ -111,8 +114,15 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun FrostHushTheme(content: @Composable () -> Unit) {
+    // 主题模式：0 跟随系统 / 1 浅色 / 2 深色
+    val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
+    val dark = when (themeMode) {
+        SettingsStore.THEME_LIGHT -> false
+        SettingsStore.THEME_DARK -> true
+        else -> isSystemInDarkTheme()
+    }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
+        colorScheme = if (dark) DarkColors else LightColors,
         content = content
     )
 }

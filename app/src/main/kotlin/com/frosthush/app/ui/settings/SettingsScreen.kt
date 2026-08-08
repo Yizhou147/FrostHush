@@ -1,5 +1,7 @@
 package com.frosthush.app.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -15,9 +18,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -26,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -42,28 +52,105 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.focus.FocusManager
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 设置页：
  * - 默认专注时长（选择列表）
- * - 专注结束通知开关
- * - 小米超级岛开关
+ * - 专注结束通知 / 小米超级岛开关
+ * - 主题模式（跟随系统 / 浅色 / 深色）
+ * - 开始前二次确认开关
+ * - 数据：导出专注统计、导出/导入应用配置（SAF 文件选择）、清空统计
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val context = LocalContext.current
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
     val notifyFinish by SettingsStore.notifyFinishEnabled
         .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
     val focusIsland by SettingsStore.focusIslandEnabled
         .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
+    val themeMode by SettingsStore.themeMode
+        .collectAsState(initial = SettingsStore.cache.themeMode)
+    val confirmBeforeStart by SettingsStore.confirmBeforeStart
+        .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
     var showDurationDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var showClearStatsDialog by remember { mutableStateOf(false) }
+    var confirmImport by remember { mutableStateOf(false) }
+
+    val themeLabel = when (themeMode) {
+        SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
+        SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
+        else -> stringResource(R.string.settings_theme_system)
+    }
+    val dateTag = remember { SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) }
+
+    // 导出专注统计 → 系统文件选择器保存
+    val statsExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            val ok = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(FocusStore.exportStatsJson().toByteArray())
+                } != null
+            }.getOrDefault(false)
+            Toast.makeText(
+                context,
+                context.getString(if (ok) R.string.settings_export_success else R.string.settings_export_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    // 导出应用配置 → 系统文件选择器保存
+    val configExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            val ok = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use {
+                    it.write(FocusStore.exportConfigJson().toByteArray())
+                } != null
+            }.getOrDefault(false)
+            Toast.makeText(
+                context,
+                context.getString(if (ok) R.string.settings_export_success else R.string.settings_export_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    // 导入应用配置 → 系统文件选择器打开
+    val configImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val ok = runCatching {
+                val text = context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.use { it.readText() } ?: ""
+                FocusStore.importConfigJson(text)
+            }.getOrDefault(false)
+            if (ok) FocusManager.bumpVersion() // 刷新应用集 / 计划页
+            Toast.makeText(
+                context,
+                context.getString(if (ok) R.string.settings_import_success else R.string.settings_import_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -101,12 +188,86 @@ fun SettingsScreen() {
                 },
             )
             SettingCard(
-                icon = Icons.Filled.Star,
+                icon = Icons.Filled.Android,
                 title = stringResource(R.string.settings_focus_island),
                 summary = stringResource(R.string.settings_focus_island_summary),
                 onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
                 trailing = {
                     Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.DarkMode,
+                title = stringResource(R.string.settings_theme),
+                summary = stringResource(R.string.settings_theme_summary, themeLabel),
+                onClick = { showThemeDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.Security,
+                title = stringResource(R.string.settings_confirm_before_start),
+                summary = stringResource(R.string.settings_confirm_before_start_summary),
+                onClick = { SettingsStore.setConfirmBeforeStart(!confirmBeforeStart) },
+                trailing = {
+                    Switch(checked = confirmBeforeStart, onCheckedChange = { SettingsStore.setConfirmBeforeStart(it) })
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.BarChart,
+                title = stringResource(R.string.settings_export_stats),
+                summary = stringResource(R.string.settings_export_stats_summary),
+                onClick = { statsExportLauncher.launch("frosthush-stats-$dateTag.json") },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.FileDownload,
+                title = stringResource(R.string.settings_export_config),
+                summary = stringResource(R.string.settings_export_config_summary),
+                onClick = { configExportLauncher.launch("frosthush-config-$dateTag.json") },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.FileOpen,
+                title = stringResource(R.string.settings_import_config),
+                summary = stringResource(R.string.settings_import_config_summary),
+                onClick = { confirmImport = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.DeleteSweep,
+                title = stringResource(R.string.settings_clear_stats),
+                summary = stringResource(R.string.settings_clear_stats_summary),
+                onClick = { showClearStatsDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
                 },
             )
         }
@@ -119,11 +280,87 @@ fun SettingsScreen() {
             onCancel = { showDurationDialog = false },
         )
     }
+    if (showThemeDialog) {
+        ThemeDialog(
+            selected = themeMode,
+            onSelect = { SettingsStore.setThemeMode(it) },
+            onDismiss = { showThemeDialog = false },
+        )
+    }
+    if (showClearStatsDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearStatsDialog = false },
+            title = { Text(stringResource(R.string.settings_clear_stats)) },
+            text = { Text(stringResource(R.string.settings_clear_stats_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    FocusStore.clearHistory()
+                    FocusManager.bumpVersion()
+                    showClearStatsDialog = false
+                    Toast.makeText(context, context.getString(R.string.settings_cleared), Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearStatsDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+    if (confirmImport) {
+        AlertDialog(
+            onDismissRequest = { confirmImport = false },
+            title = { Text(stringResource(R.string.settings_import_config)) },
+            text = { Text(stringResource(R.string.settings_import_config_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmImport = false
+                    configImportLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmImport = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
-/** 设置条目卡片 */
+/** 主题模式选择对话框 */
 @Composable
-private fun SettingCard(
+private fun ThemeDialog(selected: Int, onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
+    val options = listOf(
+        SettingsStore.THEME_SYSTEM to stringResource(R.string.settings_theme_system),
+        SettingsStore.THEME_LIGHT to stringResource(R.string.settings_theme_light),
+        SettingsStore.THEME_DARK to stringResource(R.string.settings_theme_dark),
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_theme)) },
+        text = {
+            Column {
+                options.forEach { (mode, label) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSelect(mode) }.padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
+        },
+    )
+}
+
+/** 设置条目卡片（internal 供关于页复用，等高 64dp 统一规整） */
+@Composable
+internal fun SettingCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     summary: String,
@@ -136,19 +373,22 @@ private fun SettingCard(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ),
     ) {
+        // 固定行高保证所有设置项卡片等高，标题/摘要均单行省略，视觉规整
         Row(
-            Modifier.padding(16.dp),
+            Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.size(2.dp))
                 Text(
                     summary,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Spacer(Modifier.width(8.dp))

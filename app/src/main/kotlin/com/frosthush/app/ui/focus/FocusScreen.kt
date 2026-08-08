@@ -1,16 +1,21 @@
 package com.frosthush.app.ui.focus
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +41,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -73,12 +78,17 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -87,6 +97,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import android.widget.Toast
 import com.frosthush.app.R
 import com.frosthush.app.data.AppRepository
@@ -101,8 +112,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.roundToInt
 
 /**
  * 专注页（首页）：
@@ -121,6 +131,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
     val shizukuState by ShizukuManager.state.collectAsState()
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
+    val confirmBeforeStart by SettingsStore.confirmBeforeStart
+        .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
 
     var session by remember { mutableStateOf(FocusStore.activeSession()) }
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
@@ -144,6 +156,16 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
             keyboardController?.show()
         } else {
             keyboardController?.hide()
+        }
+    }
+
+    // 系统返回：搜索模式下退出搜索，选择模式下退出选择；两者都非激活时放行退出应用
+    BackHandler(enabled = showSearch || selectionMode) {
+        if (showSearch) {
+            showSearch = false
+        } else if (selectionMode) {
+            selectionMode = false
+            selected = emptySet()
         }
     }
 
@@ -266,7 +288,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                     }
                     IconButton(onClick = onOpenGroups) {
                         Icon(
-                            Icons.Filled.Groups,
+                            Icons.Outlined.Folder,
                             contentDescription = stringResource(R.string.group_title),
                         )
                     }
@@ -374,7 +396,15 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
             onStart = { minutes ->
                 pendingMinutes = minutes
                 showDurationDialog = false
-                showWarningDialog = true
+                // 二次确认开关关闭时跳过警告直接开始
+                if (confirmBeforeStart) {
+                    showWarningDialog = true
+                } else {
+                    scope.launch {
+                        val err = FocusManager.startFocus(minutes)
+                        if (err != null) snackbarHostState.showSnackbar(err)
+                    }
+                }
             },
         )
     }
@@ -789,7 +819,12 @@ private fun FocusPresetChips(input: String, presets: List<FocusStore.FocusPreset
             FilterChip(
                 selected = preset.minutes.toString() == input,
                 onClick = { onSelect(preset.minutes) },
-                label = { Text("${preset.name} ${preset.minutes}") },
+                label = {
+                    Text(
+                        // 名称为空时只显示时长数字（不带单位），避免「30 分钟」与时长重复
+                        text = if (preset.name.isBlank()) "${preset.minutes}" else "${preset.name} ${preset.minutes}",
+                    )
+                },
             )
         }
     }
@@ -829,10 +864,8 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
                     FocusStore.presets.size >= FocusStore.MAX_PRESETS ->
                         Toast.makeText(context, context.getString(R.string.focus_preset_limit), Toast.LENGTH_SHORT).show()
                     else -> {
-                        // 允许不命名：留空时自动用「N 分钟」作为名称
-                        val presetName = if (name.isBlank()) {
-                            context.resources.getQuantityString(R.plurals.focus_duration_minutes, minutes, minutes)
-                        } else name.trim()
+                        // 名称可留空：不自动命名（预设本身会显示时长），留空则保存空名称
+                        val presetName = name.trim()
                         FocusStore.presets.add(FocusStore.FocusPreset(FocusStore.nextPresetId(), presetName, minutes))
                         FocusStore.savePresets()
                         Toast.makeText(context, context.getString(R.string.focus_preset_saved), Toast.LENGTH_SHORT).show()
@@ -847,20 +880,16 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
     )
 }
 
-/** 管理预设：长按拖动排序 + 删除 */
+/** 管理预设：长按拖动排序（与应用集/计划列表同款：行放大跟手，其余行 animateItem 平滑让位）+ 删除 */
 @Composable
 private fun PresetManageDialog(onDismiss: () -> Unit) {
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     val listState = rememberLazyListState()
-    val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
-        if (from.index != to.index) {
-            // 更新本地列表并同步数据源持久化
-            presets = presets.toMutableList().apply { add(to.index, removeAt(from.index)) }
-            FocusStore.presets.clear()
-            FocusStore.presets.addAll(presets)
-            FocusStore.savePresets()
-        }
-    }
+    var draggingId by remember { mutableStateOf<Long?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var draggedHeightPx by remember { mutableStateOf(0f) }
+    val latestPresets by rememberUpdatedState(presets)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.action_manage_presets)) },
@@ -881,14 +910,67 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
                     )
                     LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
                         items(presets, key = { it.id }) { preset ->
-                            ReorderableItem(reorderableState, key = preset.id) {
+                            val isDragging = draggingId == preset.id
+                            val scale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.04f else 1f,
+                                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                                label = "presetDragScale",
+                            )
+                            Column(
+                                modifier = (if (isDragging) Modifier else Modifier.animateItem())
+                                    // 被拖项禁用让位动画（仅跟手），其余项 animateItem 平滑让位
+                                    .graphicsLayer {
+                                        translationY = if (isDragging) dragOffsetY else 0f
+                                    }
+                                    .zIndex(if (isDragging) 1f else 0f)
+                                    .scale(scale)
+                                    .onGloballyPositioned {
+                                        if (isDragging) draggedHeightPx = it.size.height.toFloat()
+                                    }
+                                    .pointerInput(preset.id) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                draggingId = preset.id
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggingId = null
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragEnd = {
+                                                draggingId = null
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, amount ->
+                                                change.consume()
+                                                if (draggingId != preset.id) return@detectDragGesturesAfterLongPress
+                                                dragOffsetY += amount.y
+                                                val list = latestPresets
+                                                val currentIndex = list.indexOfFirst { it.id == preset.id }
+                                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
+                                                val h = draggedHeightPx.takeIf { it > 0f }
+                                                    ?: 48.dp.toPx()
+                                                val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
+                                                    .coerceIn(0, list.size - 1)
+                                                if (targetIndex != currentIndex) {
+                                                    val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
+                                                    presets = newList
+                                                    FocusStore.presets.clear()
+                                                    FocusStore.presets.addAll(newList)
+                                                    FocusStore.savePresets()
+                                                    dragOffsetY -= (targetIndex - currentIndex) * h
+                                                }
+                                            },
+                                        )
+                                    },
+                            ) {
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                        .longPressDraggableHandle(),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        text = "${preset.name} ${preset.minutes}",
+                                        // 名称为空时只显示时长数字（不带单位），避免「30 分钟」与时长重复
+                                        text = if (preset.name.isBlank()) "${preset.minutes}" else "${preset.name} ${preset.minutes}",
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyLarge,
                                     )

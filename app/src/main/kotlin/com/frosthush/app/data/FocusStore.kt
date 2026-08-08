@@ -477,4 +477,108 @@ object FocusStore {
     fun todayCode(): Int = Calendar.getInstance().let {
         it.get(Calendar.YEAR) * 10000 + (it.get(Calendar.MONTH) + 1) * 100 + it.get(Calendar.DAY_OF_MONTH)
     }
+
+    // ---------- 统计清空 / 导入导出 ----------
+
+    /** 清空全部专注统计 */
+    fun clearHistory() {
+        runCatching { historyFile.delete() }
+    }
+
+    /** 导出专注统计：JSON [{start,end},...] 字符串 */
+    fun exportStatsJson(): String = JSONArray().apply {
+        history().forEach { put(JSONObject().put("start", it.start).put("end", it.end)) }
+    }.toString()
+
+    private const val CONFIG_VERSION = 1
+
+    /** 导出应用配置：应用集 + 专注计划 + 预设 + 选中集，JSON 对象字符串 */
+    fun exportConfigJson(): String = JSONObject().apply {
+        put("version", CONFIG_VERSION)
+        put("appGroups", JSONArray().apply {
+            appGroups().forEach { g ->
+                put(JSONObject().apply {
+                    put("id", g.id)
+                    put("name", g.name)
+                    put("entries", JSONArray(g.entries))
+                    put("isDefault", g.isDefault)
+                })
+            }
+        })
+        put("selectedGroupId", selectedGroupId() ?: JSONObject.NULL)
+        put("focusPlans", JSONArray().apply {
+            focusPlans().forEach { p ->
+                put(JSONObject().apply {
+                    put("id", p.id)
+                    put("name", p.name)
+                    put("start", p.startMinute)
+                    put("end", p.endMinute)
+                    put("weekdays", JSONArray(p.weekdays))
+                    p.appGroupId?.let { put("appGroupId", it) }
+                    p.directEntries?.let { put("directEntries", JSONArray(it)) }
+                    put("enabled", p.enabled)
+                })
+            }
+        })
+        put("presets", JSONArray().apply {
+            presets.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)) }
+        })
+    }.toString()
+
+    /** 导入应用配置：解析校验后写回（应用集先写、计划后写保持引用），成功返回 true */
+    fun importConfigJson(text: String): Boolean = runCatching {
+        val root = JSONObject(text)
+        if (root.optInt("version", 0) != CONFIG_VERSION) return false
+        val groups = root.getJSONArray("appGroups").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                AppGroup(
+                    id = o.getLong("id"),
+                    name = o.getString("name"),
+                    entries = o.optJSONArray("entries")?.let { e ->
+                        (0 until e.length()).map { e.getString(it) }
+                    } ?: emptyList(),
+                    isDefault = o.optBoolean("isDefault", false),
+                )
+            }
+        }
+        val selected = if (root.isNull("selectedGroupId")) null
+        else root.optLong("selectedGroupId").takeIf { it > 0 }
+        val plans = root.getJSONArray("focusPlans").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                FocusPlan(
+                    id = o.getLong("id"),
+                    name = o.getString("name"),
+                    startMinute = o.getInt("start"),
+                    endMinute = o.getInt("end"),
+                    weekdays = o.optJSONArray("weekdays")?.let { w ->
+                        (0 until w.length()).map { w.getInt(it) }.toSet()
+                    } ?: emptySet(),
+                    appGroupId = if (o.has("appGroupId")) o.getLong("appGroupId") else null,
+                    directEntries = if (o.has("directEntries")) {
+                        o.getJSONArray("directEntries").let { e -> (0 until e.length()).map { e.getString(it) } }
+                    } else null,
+                    enabled = o.optBoolean("enabled", true),
+                )
+            }
+        }
+        val presetList = root.getJSONArray("presets").let { arr ->
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                FocusPreset(
+                    id = if (o.has("id")) o.getLong("id") else System.currentTimeMillis() + i,
+                    name = o.getString("name"),
+                    minutes = o.getInt("minutes"),
+                )
+            }
+        }
+        saveAppGroups(groups)
+        saveFocusPlans(plans)
+        presets.clear()
+        presets.addAll(presetList)
+        savePresets()
+        setSelectedGroupId(selected)
+        true
+    }.getOrDefault(false)
 }

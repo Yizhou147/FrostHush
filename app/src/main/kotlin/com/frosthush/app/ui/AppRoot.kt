@@ -106,9 +106,6 @@ fun AppRoot() {
     }
 }
 
-/** 底栏 / 侧边栏容器色：浅灰（对应雹的 surfaceContainer） */
-private val NavContainer = Color(0xFFECEEF4)
-
 @Composable
 private fun MainScaffold() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -229,7 +226,7 @@ private fun MainTabs(
                 // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
                 // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
                 // 内部 NavigationBar 仅负责内容并避让操作杆。
-                Box(Modifier.fillMaxWidth().background(NavContainer)) {
+                Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
                     NavigationBar(
                         containerColor = Color.Transparent,
                         windowInsets = WindowInsets.navigationBars,

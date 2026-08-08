@@ -24,14 +24,21 @@ object SettingsStore {
         val defaultFocusMinutes: Int = DEFAULT_FOCUS_MINUTES,
         val notifyFinishEnabled: Boolean = true,
         val focusIslandEnabled: Boolean = true,
+        val themeMode: Int = THEME_SYSTEM, // 0 跟随系统 / 1 浅色 / 2 深色
+        val confirmBeforeStart: Boolean = true,
         val welcomeDone: Boolean = false,
     )
 
     const val DEFAULT_FOCUS_MINUTES = 30
+    const val THEME_SYSTEM = 0
+    const val THEME_LIGHT = 1
+    const val THEME_DARK = 2
 
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
     private val KEY_FOCUS_ISLAND = booleanPreferencesKey("focus_island_enabled")
+    private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
+    private val KEY_CONFIRM_BEFORE_START = booleanPreferencesKey("confirm_before_start")
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
 
     /** 内存缓存：供不便于挂起的后台代码同步读取 */
@@ -48,6 +55,8 @@ object SettingsStore {
                     defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
                     focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: true,
+                    themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
+                    confirmBeforeStart = prefs[KEY_CONFIRM_BEFORE_START] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
                 )
             }
@@ -57,6 +66,8 @@ object SettingsStore {
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
     val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: true }
+    val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
+    val confirmBeforeStart: Flow<Boolean> = app.dataStore.data.map { it[KEY_CONFIRM_BEFORE_START] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
 
     fun setDefaultFocusMinutes(minutes: Int) {
@@ -77,6 +88,20 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_FOCUS_ISLAND] = enabled }
             cache = cache.copy(focusIslandEnabled = enabled)
+        }
+    }
+
+    fun setThemeMode(mode: Int) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_THEME_MODE] = mode }
+            cache = cache.copy(themeMode = mode)
+        }
+    }
+
+    fun setConfirmBeforeStart(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_CONFIRM_BEFORE_START] = enabled }
+            cache = cache.copy(confirmBeforeStart = enabled)
         }
     }
 

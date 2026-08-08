@@ -7,6 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.core.view.WindowCompat
+import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.ui.AppRoot
 import com.frosthush.app.ui.theme.FrostHushTheme
 
@@ -30,6 +36,18 @@ class MainActivity : ComponentActivity() {
             window.isStatusBarContrastEnforced = false
         }
         setContent {
+            // 系统栏图标深浅随主题模式：强制浅色→深色图标，强制深色→浅色图标
+            val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
+            val dark = when (themeMode) {
+                SettingsStore.THEME_LIGHT -> false
+                SettingsStore.THEME_DARK -> true
+                else -> isSystemInDarkTheme()
+            }
+            LaunchedEffect(dark) {
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = !dark
+                controller.isAppearanceLightNavigationBars = !dark
+            }
             FrostHushTheme {
                 AppRoot()
             }

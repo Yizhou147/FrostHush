@@ -48,7 +48,7 @@
     <string name="focus_time_unit">min</string>
     <string name="focus_time_invalid">请输入 1-240 之间的时长</string>
     <string name="focus_empty_presets">暂无预设，可保存常用时长</string>
-    <string name="focus_preset_name">预设名称</string>
+    <string name="focus_preset_name">预设名称（可留空）</string>
     <string name="focus_preset_name_hint">如：午休、阅读</string>
     <string name="focus_preset_name_required">请输入预设名称</string>
     <string name="focus_preset_limit">预设数量已达上限</string>
@@ -119,12 +119,39 @@
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
     <string name="settings_focus_island_summary">专注时通过小米超级岛展示倒计时；需先用 HyperCeiler 解锁焦点通知白名单</string>
+    <string name="settings_theme">主题模式</string>
+    <string name="settings_theme_summary">当前：%1$s</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_confirm_before_start">开始前二次确认</string>
+    <string name="settings_confirm_before_start_summary">开始专注前弹出「不可中途退出」确认</string>
+    <string name="settings_export_stats">导出专注统计</string>
+    <string name="settings_export_stats_summary">保存会话记录为 JSON 文件</string>
+    <string name="settings_export_config">导出应用配置</string>
+    <string name="settings_export_config_summary">导出应用集、专注计划与时长预设</string>
+    <string name="settings_import_config">导入应用配置</string>
+    <string name="settings_import_config_summary">从 JSON 文件恢复配置（覆盖当前）</string>
+    <string name="settings_import_config_confirm">导入将覆盖当前的应用集、专注计划与时长预设，是否继续？</string>
+    <string name="settings_clear_stats">清空专注统计</string>
+    <string name="settings_clear_stats_summary">删除全部会话记录</string>
+    <string name="settings_clear_stats_confirm">确定要清空全部专注统计吗？此操作不可撤销。</string>
+    <string name="settings_export_success">已导出</string>
+    <string name="settings_export_failed">导出失败</string>
+    <string name="settings_import_success">配置已导入</string>
+    <string name="settings_import_failed">导入失败：文件格式无效</string>
+    <string name="settings_cleared">统计已清空</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">专注模式进行中</string>
 
     <!-- 关于 -->
     <string name="about_version">版本 %s</string>
+    <string name="about_hail_title">雹（Hail）</string>
+    <string name="about_hail_url">github.com/aistra0528/Hail</string>
+    <string name="about_project_title">霜息（FrostHush）仓库</string>
+    <string name="about_project_url">github.com/Yizhou147/FrostHush</string>
+    <string name="about_opensource_summary">GPL-3.0 开源 · 专注逻辑参考雹的自写实现</string>
     <string name="about_opensource">开源声明</string>
     <string name="about_opensource_text">雹（Hail，https://github.com/aistra0528/Hail）本体不含专注模式；专注模式是在雹基础上额外添加的功能。本项目将其独立为完整的专注应用，不含雹的冻结/停止等其他功能。</string>
     <string name="about_privacy">隐私说明</string>
@@ -181,6 +208,7 @@
     <string name="plan_binding_direct_count">直选 %1$d 个应用</string>
     <string name="plan_default_group">默认集</string>
     <string name="plan_group_deleted">应用集已删除（回退默认集）</string>
+    <string name="plan_binding_group_label">应用集：%1$s</string>
     <string name="plan_time_range">%1$s - %2$s</string>
     <string name="plan_time_range_cross">%1$s - 次日%2$s</string>
     <string name="plan_full_day">全天</string>

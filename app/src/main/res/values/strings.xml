@@ -48,7 +48,7 @@
     <string name="focus_time_unit">min</string>
     <string name="focus_time_invalid">Enter a duration between 1 and 240 minutes</string>
     <string name="focus_empty_presets">No presets yet; save your common durations</string>
-    <string name="focus_preset_name">Preset name</string>
+    <string name="focus_preset_name">Preset name (optional)</string>
     <string name="focus_preset_name_hint">e.g. nap, reading</string>
     <string name="focus_preset_name_required">Please enter a preset name</string>
     <string name="focus_preset_limit">Preset limit reached</string>
@@ -121,12 +121,39 @@
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
     <string name="settings_focus_island_summary">Show the countdown in the Xiaomi Super Island during focus. Requires unlocking the focus notification whitelist via HyperCeiler</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_summary">Current: %1$s</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_confirm_before_start">Confirm before starting</string>
+    <string name="settings_confirm_before_start_summary">Show the "cannot exit midway" warning before starting focus</string>
+    <string name="settings_export_stats">Export focus stats</string>
+    <string name="settings_export_stats_summary">Save session history as a JSON file</string>
+    <string name="settings_export_config">Export app config</string>
+    <string name="settings_export_config_summary">Export app groups, focus plans and duration presets</string>
+    <string name="settings_import_config">Import app config</string>
+    <string name="settings_import_config_summary">Restore config from a JSON file (overwrites current)</string>
+    <string name="settings_import_config_confirm">Importing will overwrite current app groups, focus plans and duration presets. Continue?</string>
+    <string name="settings_clear_stats">Clear focus stats</string>
+    <string name="settings_clear_stats_summary">Delete all session history</string>
+    <string name="settings_clear_stats_confirm">Clear all focus stats? This cannot be undone.</string>
+    <string name="settings_export_success">Exported</string>
+    <string name="settings_export_failed">Export failed</string>
+    <string name="settings_import_success">Config imported</string>
+    <string name="settings_import_failed">Import failed: invalid file format</string>
+    <string name="settings_cleared">Stats cleared</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">Focus mode active</string>
 
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
+    <string name="about_hail_title">Hail</string>
+    <string name="about_hail_url">github.com/aistra0528/Hail</string>
+    <string name="about_project_title">FrostHush repository</string>
+    <string name="about_project_url">github.com/Yizhou147/FrostHush</string>
+    <string name="about_opensource_summary">GPL-3.0 · focus logic based on Hail\'s implementation</string>
     <string name="about_opensource">Open source notice</string>
     <string name="about_opensource_text">Hail (https://github.com/aistra0528/Hail) itself does not include a focus mode; focus mode was added on top of it. This standalone app is extracted from that feature and does not include Hail\'s freeze/stop features.</string>
     <string name="about_privacy">Privacy</string>
@@ -183,6 +210,7 @@
     <string name="plan_binding_direct_count">%1$d direct apps</string>
     <string name="plan_default_group">Default group</string>
     <string name="plan_group_deleted">Group deleted (falls back to default)</string>
+    <string name="plan_binding_group_label">Group: %1$s</string>
     <string name="plan_time_range">%1$s - %2$s</string>
     <string name="plan_time_range_cross">%1$s - next day %2$s</string>
     <string name="plan_full_day">All day</string>

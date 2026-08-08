@@ -1,5 +1,6 @@
 package com.frosthush.app.ui.plan
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -86,6 +87,12 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
     val groupNames = remember(version) { FocusStore.appGroups().associate { it.id to it.name } }
     var selectionMode by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<Long>()) }
+
+    // 系统返回：选择模式下退出选择模式，否则放行退出应用
+    BackHandler(enabled = selectionMode) {
+        selectionMode = false
+        selected = emptySet()
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -274,11 +281,13 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
     }
 }
 
-/** 计划绑定的展示文案：应用集名 / 直选数 / 默认集 */
+/** 计划绑定的展示文案：应用集名（带「应用集：」前缀）/ 直选数 / 默认集 */
 @Composable
 private fun bindingText(context: android.content.Context, plan: FocusPlan, groupNames: Map<Long, String>): String = when {
-    plan.appGroupId != null -> groupNames[plan.appGroupId]
-        ?: context.getString(R.string.plan_group_deleted)
+    plan.appGroupId != null -> context.getString(
+        R.string.plan_binding_group_label,
+        groupNames[plan.appGroupId] ?: context.getString(R.string.plan_group_deleted),
+    )
     !plan.directEntries.isNullOrEmpty() -> context.getString(R.string.plan_binding_direct_count, plan.directEntries!!.size)
     else -> context.getString(R.string.plan_default_group)
 }
