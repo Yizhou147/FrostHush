@@ -23,6 +23,7 @@
 
     <!-- 底栏 -->
     <string name="tab_focus">Focus</string>
+    <string name="tab_plan">Plans</string>
     <string name="tab_stats">Stats</string>
     <string name="tab_settings">Settings</string>
     <string name="tab_about">About</string>
@@ -130,4 +131,79 @@
     <string name="about_opensource_text">Hail (https://github.com/aistra0528/Hail) itself does not include a focus mode; focus mode was added on top of it. This standalone app is extracted from that feature and does not include Hail\'s freeze/stop features.</string>
     <string name="about_privacy">Privacy</string>
     <string name="about_privacy_text">All data is stored locally on your device and never uploaded.</string>
+
+    <!-- 应用集 -->
+    <string name="group_title">App groups</string>
+    <string name="group_action_new">New app group</string>
+    <string name="group_action_edit">Edit app group</string>
+    <string name="group_name">Group name</string>
+    <string name="group_name_hint">e.g. work, entertainment</string>
+    <string name="group_name_required">Please enter a group name</string>
+    <string name="group_select_apps_count">Select apps (%1$d)</string>
+    <string name="group_no_apps">No apps selected yet. Import some on the Focus page, then manage them here.</string>
+    <string name="group_items_count">%1$d apps</string>
+    <string name="group_default">Default</string>
+    <string name="group_default_badge">Default</string>
+    <string name="group_set_default">Set default</string>
+    <string name="group_empty">No app groups yet. Tap + to create one.</string>
+    <string name="group_selected">%1$d selected</string>
+    <string name="group_delete_default_fallback">Default group deleted; the selected apps list is now empty</string>
+    <string name="group_delete_confirm_title">Delete app group</string>
+    <string name="group_delete_confirm_general">Delete the selected app groups?</string>
+    <string name="group_delete_confirm_text">The selected app group is used by a focus plan. Deleting it makes those plans fall back to the default group. Delete?</string>
+
+    <!-- 通用应用选择 -->
+    <string name="app_select_title">Select apps</string>
+    <string name="app_select_confirm">OK (%1$d)</string>
+
+    <!-- 专注计划 -->
+    <string name="plan_title">Focus plans</string>
+    <string name="plan_new">New plan</string>
+    <string name="plan_edit_title">Edit plan</string>
+    <string name="plan_name">Plan name</string>
+    <string name="plan_name_hint">e.g. work focus, wind down</string>
+    <string name="plan_name_required">Please enter a plan name</string>
+    <string name="plan_start_time">Start</string>
+    <string name="plan_end_time">End</string>
+    <string name="plan_weekdays">Repeat</string>
+    <string name="plan_weekdays_required">Select at least one day</string>
+    <string name="plan_weekday_mon">M</string>
+    <string name="plan_weekday_tue">T</string>
+    <string name="plan_weekday_wed">W</string>
+    <string name="plan_weekday_thu">T</string>
+    <string name="plan_weekday_fri">F</string>
+    <string name="plan_weekday_sat">S</string>
+    <string name="plan_weekday_sun">S</string>
+    <string name="plan_workdays">Weekdays</string>
+    <string name="plan_weekend">Weekend</string>
+    <string name="plan_bind_title">Focus target</string>
+    <string name="plan_bind_group">From app group</string>
+    <string name="plan_bind_direct">Direct apps</string>
+    <string name="plan_direct_count">Select apps (%1$d)</string>
+    <string name="plan_binding_direct_count">%1$d direct apps</string>
+    <string name="plan_default_group">Default group</string>
+    <string name="plan_group_deleted">Group deleted (falls back to default)</string>
+    <string name="plan_time_range">%1$s - %2$s</string>
+    <string name="plan_time_range_cross">%1$s - next day %2$s</string>
+    <string name="plan_full_day">All day</string>
+    <string name="plan_full_day_confirm">Start equals end, which means an all-day (24-hour) focus session. Continue?</string>
+    <string name="plan_time_title">Select time</string>
+    <string name="plan_cross_midnight_hint">End time is before start time; focus ends the next day</string>
+    <string name="plan_once_only">Once</string>
+    <string name="plan_once_only_hint">This plan runs only once and is disabled afterward</string>
+    <string name="plan_empty">No focus plans yet. Tap + to create one.</string>
+    <string name="plan_notification_channel">Plans</string>
+    <string name="plan_reminder_title">Focus reminder</string>
+    <string name="plan_reminder_text">Plan "%1$s" will start focus in 15 seconds</string>
+    <string name="plan_start_failed_title">Plan failed to start</string>
+    <string name="plan_start_failed_shizuku">Plan failed to start. Please grant Shizuku permission.</string>
+    <string name="plan_start_failed_empty">Plan failed to start. The app group is empty or the apps were uninstalled.</string>
+    <string name="plan_pending_title">A focus plan is waiting to start</string>
+    <string name="plan_pending_text">Plan "%1$s" is due. Start now?</string>
+    <string name="plan_pending_continue">Continue</string>
+    <string name="plan_pending_stop">Stop</string>
+    <string name="plan_pending_stopped">Stopped</string>
+    <string name="plan_pending_stopped_text">Plan "%1$s" was not started</string>
+    <string name="plan_once_done_title">Plan finished</string>
+    <string name="plan_once_done_text">Plan "%1$s" finished and was disabled</string>
 </resources>

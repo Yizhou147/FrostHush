@@ -14,7 +14,9 @@ import com.frosthush.app.focus.HShizuku
 import com.frosthush.app.util.AppNameComparator
 import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
+import org.json.JSONObject
 import rikka.shizuku.Shizuku
+import java.io.File
 
 /**
  * 已安装应用查询（QUERY_ALL_PACKAGES）+ 图标缓存 + 搜索过滤。
@@ -23,15 +25,40 @@ import rikka.shizuku.Shizuku
 class AppRepository(private val context: Context) {
 
     companion object {
-        /** 应用名称映射缓存（entry → displayName）：避免进入页面时名称加载慢导致闪现包名 */
+        /** 应用名称映射缓存（entry → displayName）：避免进入页面时名称加载慢导致闪现裸包名 */
         @Volatile
         private var appNameCache: Map<String, String>? = null
 
-        /** 已缓存的应用名称映射（无缓存时为空 Map） */
-        fun cachedAppNames(): Map<String, String> = appNameCache.orEmpty()
+        /** 名称缓存磁盘持久化文件：分身名称读取走 Shizuku IPC 较慢，落盘后新进程可秒读 */
+        private val appNameFile = File(app.filesDir, "appNames.json")
+
+        /**
+         * 已缓存的应用名称映射（内存优先，未加载时读磁盘缓存；无缓存返回空 Map）。
+         * 调用方可放心在主线程执行：命中时是纯内存读。
+         */
+        fun cachedAppNames(): Map<String, String> {
+            appNameCache?.let { return it }
+            val fromDisk = runCatching {
+                if (!appNameFile.exists()) return emptyMap()
+                val json = JSONObject(appNameFile.readText())
+                val map = LinkedHashMap<String, String>(json.length())
+                val it = json.keys()
+                while (it.hasNext()) {
+                    val key = it.next()
+                    map[key] = json.optString(key)
+                }
+                map
+            }.getOrDefault(emptyMap())
+            appNameCache = fromDisk
+            return fromDisk
+        }
 
         fun updateAppNameCache(names: Map<String, String>) {
             appNameCache = names
+            runCatching {
+                appNameFile.parentFile?.mkdirs()
+                appNameFile.writeText(JSONObject(names).toString())
+            }
         }
     }
 

@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -46,6 +49,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -79,6 +83,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -108,7 +113,7 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
+fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -143,16 +148,18 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
     }
 
     val repo = remember { AppRepository(context) }
-    // 优先使用缓存的应用名称，避免进入页面时因分身跨用户读取慢而闪现包名
+    // 优先使用缓存的应用名称（内存/磁盘），避免进入页面时因分身跨用户读取慢而闪现包名
     val appNames = remember { mutableStateOf(AppRepository.cachedAppNames()) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.Default) {
-            // 先快速填充主应用名称（普通查询，立即显示），再异步补齐分身名称
-            val base = repo.queryApps(includeClones = false).associate { it.entry to it.displayName }
-            appNames.value = base
-            val full = repo.queryApps().associate { it.entry to it.displayName }
-            appNames.value = full
-            AppRepository.updateAppNameCache(full)
+            // 直接查询全量（含分身）一次到位；不再用不含分身的中间结果覆盖缓存，
+            // 否则查询期间分身会闪现裸包名（pkg@999）
+            val full = runCatching { repo.queryApps().associate { it.entry to it.displayName } }
+                .getOrDefault(emptyMap())
+            if (full.isNotEmpty()) {
+                appNames.value = full
+                AppRepository.updateAppNameCache(full)
+            }
         }
     }
 
@@ -257,6 +264,12 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                             contentDescription = stringResource(R.string.focus_action_select),
                         )
                     }
+                    IconButton(onClick = onOpenGroups) {
+                        Icon(
+                            Icons.Filled.Groups,
+                            contentDescription = stringResource(R.string.group_title),
+                        )
+                    }
                     IconButton(onClick = onImport) {
                         Icon(
                             Icons.Filled.Add,
@@ -302,6 +315,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit) {
                 )
             } else {
                 // ---------- 空闲 ----------
+                AppGroupChips(version)
+                Spacer(Modifier.height(12.dp))
                 if (!shizukuReady) {
                     ShizukuBanner(
                         text = stringResource(R.string.focus_shizuku_unavailable),
@@ -417,6 +432,56 @@ private fun TotalDurationBar(totalMinutes: Int, onClick: () -> Unit) {
             )
         }
     }
+}
+
+/** 应用集切换 chips：第一个固定「默认」，其余为各应用集名；当前选中集高亮。切换后生效集合变化，version 自增驱动下方列表刷新 */
+@Composable
+private fun AppGroupChips(version: Int) {
+    // 显式以 version 为 key 重算，保证切换集合后选中态立即刷新
+    val groups = remember(version) { FocusStore.appGroups() }
+    val selectedId = remember(version) { FocusStore.selectedGroup()?.id }
+    val default = remember(version) { FocusStore.defaultGroup() }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (default != null) {
+            GroupChip(
+                label = default.name.ifBlank { stringResource(R.string.group_default) },
+                selected = selectedId == default.id,
+                onClick = {
+                    FocusStore.setSelectedGroupId(default.id)
+                    FocusManager.bumpVersion()
+                },
+            )
+        }
+        groups.filter { it.id != default?.id }.forEach { group ->
+            GroupChip(
+                label = group.name,
+                selected = selectedId == group.id,
+                onClick = {
+                    FocusStore.setSelectedGroupId(group.id)
+                    FocusManager.bumpVersion()
+                },
+            )
+        }
+    }
+}
+
+/** 应用集 chip：选中时明显变暗（primaryContainer 填充 + 勾选图标），未选中为浅色容器 */
+@Composable
+private fun GroupChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    )
 }
 
 /** 专注进行中：剩余时间 + 已暂停应用数（不可打断，无退出入口） */
@@ -761,12 +826,14 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
                 when {
                     minutes !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES ->
                         Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
-                    name.isBlank() ->
-                        Toast.makeText(context, context.getString(R.string.focus_preset_name_required), Toast.LENGTH_SHORT).show()
                     FocusStore.presets.size >= FocusStore.MAX_PRESETS ->
                         Toast.makeText(context, context.getString(R.string.focus_preset_limit), Toast.LENGTH_SHORT).show()
                     else -> {
-                        FocusStore.presets.add(FocusStore.FocusPreset(FocusStore.nextPresetId(), name.trim(), minutes))
+                        // 允许不命名：留空时自动用「N 分钟」作为名称
+                        val presetName = if (name.isBlank()) {
+                            context.resources.getQuantityString(R.plurals.focus_duration_minutes, minutes, minutes)
+                        } else name.trim()
+                        FocusStore.presets.add(FocusStore.FocusPreset(FocusStore.nextPresetId(), presetName, minutes))
                         FocusStore.savePresets()
                         Toast.makeText(context, context.getString(R.string.focus_preset_saved), Toast.LENGTH_SHORT).show()
                         onDismiss()

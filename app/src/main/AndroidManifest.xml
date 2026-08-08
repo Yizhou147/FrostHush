@@ -13,6 +13,8 @@
         tools:ignore="QueryAllPackagesPermission"/>
     <!-- 设备重启后自动恢复专注会话 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- 专注计划精确闹钟（Android 12+ 自动授予，无需用户额外开关） -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <!-- 专注倒计时前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
@@ -51,7 +53,7 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"/>
 
-        <!-- 开机 / 应用升级后恢复专注会话 -->
+        <!-- 开机 / 应用升级后恢复专注会话 + 重建计划闹钟 -->
         <receiver
             android:name=".focus.FocusBootReceiver"
             android:exported="false">
@@ -60,6 +62,16 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
+
+        <!-- 专注计划闹钟（提醒/开始/结束/决策窗口超时） -->
+        <receiver
+            android:name=".focus.PlanAlarmReceiver"
+            android:exported="false"/>
+
+        <!-- 待启动计划决策（继续/停止） -->
+        <receiver
+            android:name=".focus.PlanDecisionReceiver"
+            android:exported="false"/>
 
         <!-- 专注倒计时前台服务 -->
         <service

@@ -23,6 +23,7 @@
 
     <!-- 底栏 -->
     <string name="tab_focus">专注</string>
+    <string name="tab_plan">计划</string>
     <string name="tab_stats">统计</string>
     <string name="tab_settings">设置</string>
     <string name="tab_about">关于</string>
@@ -128,4 +129,79 @@
     <string name="about_opensource_text">雹（Hail，https://github.com/aistra0528/Hail）本体不含专注模式；专注模式是在雹基础上额外添加的功能。本项目将其独立为完整的专注应用，不含雹的冻结/停止等其他功能。</string>
     <string name="about_privacy">隐私说明</string>
     <string name="about_privacy_text">所有数据均保存在本机，不会联网上传。</string>
+
+    <!-- 应用集 -->
+    <string name="group_title">应用集</string>
+    <string name="group_action_new">新建应用集</string>
+    <string name="group_action_edit">编辑应用集</string>
+    <string name="group_name">应用集名称</string>
+    <string name="group_name_hint">如：工作、娱乐</string>
+    <string name="group_name_required">请输入应用集名称</string>
+    <string name="group_select_apps_count">选择应用（%1$d）</string>
+    <string name="group_no_apps">尚未选择应用，可在专注页导入后回到此处管理</string>
+    <string name="group_items_count">%1$d 个应用</string>
+    <string name="group_default">默认</string>
+    <string name="group_default_badge">默认</string>
+    <string name="group_set_default">设为默认</string>
+    <string name="group_empty">暂无应用集，点击右上角 + 新建</string>
+    <string name="group_selected">已选 %1$d 项</string>
+    <string name="group_delete_default_fallback">默认应用集已删除，已选应用列表将为空</string>
+    <string name="group_delete_confirm_title">删除应用集</string>
+    <string name="group_delete_confirm_general">确定删除所选应用集吗？</string>
+    <string name="group_delete_confirm_text">所选应用集正被专注计划使用，删除后相关计划将回退为默认集，确定删除？</string>
+
+    <!-- 通用应用选择 -->
+    <string name="app_select_title">选择应用</string>
+    <string name="app_select_confirm">确定（%1$d）</string>
+
+    <!-- 专注计划 -->
+    <string name="plan_title">专注计划</string>
+    <string name="plan_new">新建计划</string>
+    <string name="plan_edit_title">编辑计划</string>
+    <string name="plan_name">计划名称</string>
+    <string name="plan_name_hint">如：工作专注、睡前放松</string>
+    <string name="plan_name_required">请输入计划名称</string>
+    <string name="plan_start_time">开始</string>
+    <string name="plan_end_time">结束</string>
+    <string name="plan_weekdays">重复</string>
+    <string name="plan_weekdays_required">请至少选择一天</string>
+    <string name="plan_weekday_mon">一</string>
+    <string name="plan_weekday_tue">二</string>
+    <string name="plan_weekday_wed">三</string>
+    <string name="plan_weekday_thu">四</string>
+    <string name="plan_weekday_fri">五</string>
+    <string name="plan_weekday_sat">六</string>
+    <string name="plan_weekday_sun">日</string>
+    <string name="plan_workdays">工作日</string>
+    <string name="plan_weekend">周末</string>
+    <string name="plan_bind_title">专注对象</string>
+    <string name="plan_bind_group">从应用集选择</string>
+    <string name="plan_bind_direct">直接选择应用</string>
+    <string name="plan_direct_count">选择应用（%1$d）</string>
+    <string name="plan_binding_direct_count">直选 %1$d 个应用</string>
+    <string name="plan_default_group">默认集</string>
+    <string name="plan_group_deleted">应用集已删除（回退默认集）</string>
+    <string name="plan_time_range">%1$s - %2$s</string>
+    <string name="plan_time_range_cross">%1$s - 次日%2$s</string>
+    <string name="plan_full_day">全天</string>
+    <string name="plan_full_day_confirm">开始与结束时间相同，将视为全天（24 小时）专注，是否继续？</string>
+    <string name="plan_time_title">选择时间</string>
+    <string name="plan_cross_midnight_hint">结束时间早于开始时间，将在次日结束</string>
+    <string name="plan_once_only">不重复</string>
+    <string name="plan_once_only_hint">该计划只执行一次，执行后自动停用</string>
+    <string name="plan_empty">暂无专注计划，点击右上角 + 新建</string>
+    <string name="plan_notification_channel">计划</string>
+    <string name="plan_reminder_title">专注提醒</string>
+    <string name="plan_reminder_text">计划「%1$s」将在 15 秒后开始专注</string>
+    <string name="plan_start_failed_title">计划启动失败</string>
+    <string name="plan_start_failed_shizuku">计划启动失败，请授权 Shizuku</string>
+    <string name="plan_start_failed_empty">计划启动失败，应用集为空或应用已卸载</string>
+    <string name="plan_pending_title">有专注计划等待启动</string>
+    <string name="plan_pending_text">计划「%1$s」已到时间，是否现在开始？</string>
+    <string name="plan_pending_continue">继续</string>
+    <string name="plan_pending_stop">停止</string>
+    <string name="plan_pending_stopped">已停止</string>
+    <string name="plan_pending_stopped_text">计划「%1$s」已取消启动</string>
+    <string name="plan_once_done_title">计划已完成</string>
+    <string name="plan_once_done_text">计划「%1$s」已执行完成并停用</string>
 </resources>

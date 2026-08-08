@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
@@ -52,12 +53,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
+import com.frosthush.app.data.FocusStore.FocusPlan
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.ui.about.AboutScreen
 import com.frosthush.app.ui.focus.FocusLockScreen
 import com.frosthush.app.ui.focus.FocusScreen
 import com.frosthush.app.ui.focus.ImportScreen
+import com.frosthush.app.ui.group.AppGroupScreen
+import com.frosthush.app.ui.plan.PlanEditScreen
+import com.frosthush.app.ui.plan.PlanScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
 
@@ -108,10 +113,19 @@ private val NavContainer = Color(0xFFECEEF4)
 private fun MainScaffold() {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var importing by rememberSaveable { mutableStateOf(false) }
+    // 应用集管理页覆盖层
+    var showGroups by rememberSaveable { mutableStateOf(false) }
+    // 计划编辑页覆盖层：target 为 null 表示新建
+    var planEditOpened by remember { mutableStateOf(false) }
+    var planEditTarget by remember { mutableStateOf<FocusPlan?>(null) }
 
-    // 导入页时拦截系统返回键：退回主界面而非直接退出应用
-    BackHandler(enabled = importing) {
-        importing = false
+    // 覆盖层时拦截系统返回键：逐层退回主界面而非直接退出应用
+    BackHandler(enabled = importing || showGroups || planEditOpened) {
+        when {
+            planEditOpened -> planEditOpened = false
+            showGroups -> showGroups = false
+            importing -> importing = false
+        }
     }
 
     // 导入页与主界面之间平滑过渡（对齐雹 Fragment 切换动画）
@@ -129,8 +143,48 @@ private fun MainScaffold() {
         if (isImporting) {
             ImportScreen(onBack = { importing = false })
         } else {
-            val tabs = listOf(
+            // 应用集 / 计划编辑覆盖层与主界面之间淡入淡出过渡
+            AnimatedContent(
+                targetState = when {
+                    planEditOpened -> 2
+                    showGroups -> 1
+                    else -> 0
+                },
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                label = "overlayTransition",
+            ) { key ->
+                when (key) {
+                    1 -> AppGroupScreen(onBack = { showGroups = false })
+                    2 -> PlanEditScreen(plan = planEditTarget, onBack = { planEditOpened = false })
+                    else -> MainTabs(
+                        tab = tab,
+                        onTabChange = { tab = it },
+                        onOpenStats = { tab = 2 },
+                        onImport = { importing = true },
+                        onOpenGroups = { showGroups = true },
+                        onNewPlan = { planEditTarget = null; planEditOpened = true },
+                        onEditPlan = { planEditTarget = it; planEditOpened = true },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 底栏 / 侧边栏主界面（5 个 tab：专注 / 计划 / 统计 / 设置 / 关于） */
+@Composable
+private fun MainTabs(
+    tab: Int,
+    onTabChange: (Int) -> Unit,
+    onOpenStats: () -> Unit,
+    onImport: () -> Unit,
+    onOpenGroups: () -> Unit,
+    onNewPlan: () -> Unit,
+    onEditPlan: (FocusPlan) -> Unit,
+) {
+    val tabs = listOf(
         TabSpec(R.string.tab_focus, Icons.Filled.Timer),
+        TabSpec(R.string.tab_plan, Icons.Filled.CalendarMonth),
         TabSpec(R.string.tab_stats, Icons.Filled.BarChart),
         TabSpec(R.string.tab_settings, Icons.Filled.Settings),
         TabSpec(R.string.tab_about, Icons.Filled.Info),
@@ -148,7 +202,7 @@ private fun MainScaffold() {
                 tabs.forEachIndexed { index, spec ->
                     NavigationRailItem(
                         selected = tab == index,
-                        onClick = { tab = index },
+                        onClick = { onTabChange(index) },
                         icon = { Icon(spec.icon, contentDescription = null) },
                         label = { Text(stringResource(spec.label)) },
                         modifier = Modifier.padding(vertical = 6.dp),
@@ -158,8 +212,11 @@ private fun MainScaffold() {
             }
             TabContent(
                 tab = tab,
-                onOpenStats = { tab = 1 },
-                onImport = { importing = true },
+                onOpenStats = onOpenStats,
+                onImport = onImport,
+                onOpenGroups = onOpenGroups,
+                onNewPlan = onNewPlan,
+                onEditPlan = onEditPlan,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -180,7 +237,7 @@ private fun MainScaffold() {
                         tabs.forEachIndexed { index, spec ->
                             NavigationBarItem(
                                 selected = tab == index,
-                                onClick = { tab = index },
+                                onClick = { onTabChange(index) },
                                 icon = { Icon(spec.icon, contentDescription = null) },
                                 label = { Text(stringResource(spec.label)) },
                             )
@@ -191,14 +248,15 @@ private fun MainScaffold() {
         ) { padding ->
             TabContent(
                 tab = tab,
-                onOpenStats = { tab = 1 },
-                onImport = { importing = true },
+                onOpenStats = onOpenStats,
+                onImport = onImport,
+                onOpenGroups = onOpenGroups,
+                onNewPlan = onNewPlan,
+                onEditPlan = onEditPlan,
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
     }
-    }
-}
 }
 
 @Composable
@@ -206,6 +264,9 @@ private fun TabContent(
     tab: Int,
     onOpenStats: () -> Unit,
     onImport: () -> Unit,
+    onOpenGroups: () -> Unit,
+    onNewPlan: () -> Unit,
+    onEditPlan: (FocusPlan) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 切换底栏页面时淡入淡出过渡
@@ -216,10 +277,11 @@ private fun TabContent(
         modifier = modifier,
     ) { current ->
         when (current) {
-            0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport)
-            1 -> StatsScreen()
-            2 -> SettingsScreen()
-            3 -> AboutScreen()
+            0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport, onOpenGroups = onOpenGroups)
+            1 -> PlanScreen(onNewPlan = onNewPlan, onEditPlan = onEditPlan)
+            2 -> StatsScreen()
+            3 -> SettingsScreen()
+            4 -> AboutScreen()
         }
     }
 }

@@ -84,33 +84,69 @@ object FocusManager {
     }
 
     /**
+     * 启动计划专注（由 PlanScheduler 的后台线程调用，非挂起函数）：
+     * 数据源为计划绑定的应用集/直选/默认集，时长不受 240 分钟限制（可跨天）。
+     * 返回 null 表示成功，否则返回错误提示文案。
+     */
+    fun startPlanFocus(plan: FocusStore.FocusPlan): String? {
+        if (!shizukuReady()) return app.getString(R.string.plan_start_failed_shizuku)
+        // 防御：排除自身，避免误暂停本应用
+        val packages = FocusStore.planEntries(plan).filter { it != BuildConfig.APPLICATION_ID }
+        if (packages.isEmpty()) return app.getString(R.string.plan_start_failed_empty)
+        val duration = plan.durationMinutes
+        if (duration < FocusStore.MIN_MINUTES) return app.getString(R.string.focus_duration_invalid)
+        val start = System.currentTimeMillis()
+        FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, duration, planId = plan.id))
+        startFocusService()
+        bumpVersion()
+        var suspended = 0
+        packages.forEach { entry ->
+            val (pkg, userId) = FocusStore.parseEntry(entry)
+            if (HShizuku.setAppSuspendedForFocus(pkg, true, userId)) suspended++
+        }
+        if (suspended == 0) {
+            // 全部失败：回滚会话、停止服务，并再次刷新 UI 退出全屏专注
+            FocusStore.clearActiveSession()
+            app.stopService(Intent(app, FocusService::class.java))
+            bumpVersion()
+            return app.getString(R.string.operation_failed)
+        }
+        return null
+    }
+
+    /**
      * 结束专注：解除暂停全部应用 → 清理会话 → 记录历史 → 停止服务 → 结束通知。
      * 应在后台线程调用（暂停解除可能较慢）。
      * 加锁串行化：FocusService / FocusLockScreen / FocusScreen 兜底可能并发触发，
      * 若不加锁会同时读到同一会话并重复写入相同 start 的历史记录，
      * 导致统计页 LazyColumn key 冲突闪退。
      */
-    fun restoreAndEnd(): Boolean = synchronized(restoreLock) {
-        val session = FocusStore.activeSession()
-        if (session == null) {
-            false
-        } else {
-            FocusStore.clearActiveSession()
-            session.packages.forEach { entry ->
-                val (pkg, userId) = FocusStore.parseEntry(entry)
-                runCatching { HShizuku.setAppSuspendedForFocus(pkg, false, userId) }
-            }
-            FocusStore.addHistory(
-                FocusStore.HistoryRecord(
-                    session.startMillis,
-                    minOf(session.endMillis, System.currentTimeMillis())
+    fun restoreAndEnd(): Boolean {
+        val done = synchronized(restoreLock) {
+            val session = FocusStore.activeSession()
+            if (session == null) {
+                false
+            } else {
+                FocusStore.clearActiveSession()
+                session.packages.forEach { entry ->
+                    val (pkg, userId) = FocusStore.parseEntry(entry)
+                    runCatching { HShizuku.setAppSuspendedForFocus(pkg, false, userId) }
+                }
+                FocusStore.addHistory(
+                    FocusStore.HistoryRecord(
+                        session.startMillis,
+                        minOf(session.endMillis, System.currentTimeMillis())
+                    )
                 )
-            )
-            app.stopService(Intent(app, FocusService::class.java))
-            if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
-            bumpVersion()
-            true
+                app.stopService(Intent(app, FocusService::class.java))
+                if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
+                bumpVersion()
+                true
+            }
         }
+        // 专注结束后：若有待启动计划则进入 5 分钟决策窗口
+        if (done) PlanScheduler.checkPendingAfterFocusEnd()
+        return done
     }
 
     /**
