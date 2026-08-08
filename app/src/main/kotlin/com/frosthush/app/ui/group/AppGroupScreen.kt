@@ -337,57 +337,59 @@ private fun GroupListContent(
                             animationSpec = spring(stiffness = Spring.StiffnessLow),
                             label = "groupDragScale",
                         )
-                        Column {
+                        Column(
+                            modifier = (if (isDragging) Modifier else Modifier.animateItem())
+                                // 被拖项禁用让位动画（仅跟手），避免 placement 动画与跟手位移叠加导致跳动；
+                                // 其余项保留 animateItem 平滑让位
+                                .graphicsLayer {
+                                    // 被拖项跟随手指；其余项保持原位由 animateItem 平滑让位
+                                    translationY = if (isDragging) dragOffsetY else 0f
+                                }
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .scale(scale)
+                                .onGloballyPositioned {
+                                    if (isDragging) draggedHeightPx = it.size.height.toFloat()
+                                }
+                                .pointerInput(group.id, selectionMode) {
+                                    if (!selectionMode) return@pointerInput
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            draggingId = group.id
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggingId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            if (draggingId != group.id) return@detectDragGesturesAfterLongPress
+                                            dragOffsetY += amount.y
+                                            val list = latestGroups
+                                            val currentIndex = list.indexOfFirst { it.id == group.id }
+                                            if (currentIndex < 0) return@detectDragGesturesAfterLongPress
+                                            val h = draggedHeightPx.takeIf { it > 0f }
+                                                ?: 72.dp.toPx()
+                                            val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
+                                                .coerceIn(0, list.size - 1)
+                                            if (targetIndex != currentIndex) {
+                                                latestOnReorder(currentIndex, targetIndex)
+                                                // 交换后补偿偏移，保证手指下的行不跳变
+                                                dragOffsetY -= (targetIndex - currentIndex) * h
+                                            }
+                                        },
+                                    )
+                                },
+                        ) {
                             GroupRow(
                                 group = group,
                                 isDefault = group.id == defaultId,
                                 selectionMode = selectionMode,
                                 selected = group.id in selected,
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        // 被拖项跟随手指；其余项保持原位由 animateItem 平滑让位
-                                        translationY = if (isDragging) dragOffsetY else 0f
-                                    }
-                                    .zIndex(if (isDragging) 1f else 0f)
-                                    .scale(scale)
-                                    .animateItem()
-                                    .onGloballyPositioned {
-                                        if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                    }
-                                    .pointerInput(group.id, selectionMode) {
-                                        if (!selectionMode) return@pointerInput
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                draggingId = group.id
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragCancel = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragEnd = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                if (draggingId != group.id) return@detectDragGesturesAfterLongPress
-                                                dragOffsetY += amount.y
-                                                val list = latestGroups
-                                                val currentIndex = list.indexOfFirst { it.id == group.id }
-                                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                                val h = draggedHeightPx.takeIf { it > 0f }
-                                                    ?: 72.dp.toPx()
-                                                val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                    .coerceIn(0, list.size - 1)
-                                                if (targetIndex != currentIndex) {
-                                                    latestOnReorder(currentIndex, targetIndex)
-                                                    // 交换后补偿偏移，保证手指下的行不跳变
-                                                    dragOffsetY -= (targetIndex - currentIndex) * h
-                                                }
-                                            },
-                                        )
-                                    },
                                 onClick = {
                                     if (selectionMode) onToggleSelect(group.id)
                                     else onEdit(group)

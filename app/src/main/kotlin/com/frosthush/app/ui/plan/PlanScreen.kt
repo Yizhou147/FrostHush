@@ -190,57 +190,60 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
                             animationSpec = spring(stiffness = Spring.StiffnessLow),
                             label = "planDragScale",
                         )
-                        Column {
+                        Column(
+                            modifier = (if (isDragging) Modifier else Modifier.animateItem())
+                                // 被拖项禁用让位动画（仅跟手），避免 placement 动画与跟手位移叠加导致跳动；
+                                // 其余项保留 animateItem 平滑让位
+                                .graphicsLayer {
+                                    // 被拖项跟随手指；其余项保持原位由 animateItem 平滑让位
+                                    translationY = if (isDragging) dragOffsetY else 0f
+                                }
+                                .zIndex(if (isDragging) 1f else 0f)
+                                .scale(scale)
+                                .onGloballyPositioned {
+                                    if (isDragging) draggedHeightPx = it.size.height.toFloat()
+                                }
+                                .pointerInput(plan.id, selectionMode) {
+                                    if (!selectionMode) return@pointerInput
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            draggingId = plan.id
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggingId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDragEnd = {
+                                            draggingId = null
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            if (draggingId != plan.id) return@detectDragGesturesAfterLongPress
+                                            dragOffsetY += amount.y
+                                            val list = latestPlans
+                                            val currentIndex = list.indexOfFirst { it.id == plan.id }
+                                            if (currentIndex < 0) return@detectDragGesturesAfterLongPress
+                                            val h = draggedHeightPx.takeIf { it > 0f }
+                                                ?: 84.dp.toPx()
+                                            val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
+                                                .coerceIn(0, list.size - 1)
+                                            if (targetIndex != currentIndex) {
+                                                val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
+                                                plans = newList
+                                                FocusStore.saveFocusPlans(newList)
+                                                dragOffsetY -= (targetIndex - currentIndex) * h
+                                            }
+                                        },
+                                    )
+                                },
+                        ) {
                             PlanRow(
                                 plan = plan,
                                 bindingText = bindingText(context, plan, groupNames),
                                 selectionMode = selectionMode,
                                 selected = plan.id in selected,
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        translationY = if (isDragging) dragOffsetY else 0f
-                                    }
-                                    .zIndex(if (isDragging) 1f else 0f)
-                                    .scale(scale)
-                                    .animateItem()
-                                    .onGloballyPositioned {
-                                        if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                    }
-                                    .pointerInput(plan.id, selectionMode) {
-                                        if (!selectionMode) return@pointerInput
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                draggingId = plan.id
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragCancel = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragEnd = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                if (draggingId != plan.id) return@detectDragGesturesAfterLongPress
-                                                dragOffsetY += amount.y
-                                                val list = latestPlans
-                                                val currentIndex = list.indexOfFirst { it.id == plan.id }
-                                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                                val h = draggedHeightPx.takeIf { it > 0f }
-                                                    ?: 84.dp.toPx()
-                                                val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                    .coerceIn(0, list.size - 1)
-                                                if (targetIndex != currentIndex) {
-                                                    val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
-                                                    plans = newList
-                                                    FocusStore.saveFocusPlans(newList)
-                                                    dragOffsetY -= (targetIndex - currentIndex) * h
-                                                }
-                                            },
-                                        )
-                                    },
                                 onClick = {
                                     if (selectionMode) {
                                         selected = if (plan.id in selected) selected - plan.id else selected + plan.id
