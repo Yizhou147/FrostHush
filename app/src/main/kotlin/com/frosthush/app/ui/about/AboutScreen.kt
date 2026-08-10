@@ -70,13 +70,13 @@ fun AboutScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(24.dp))
-            // 应用图标：白色圆角卡片 + 阴影与页面背景区分（logo 为白底深色图形）
+            // 应用图标：白色圆角卡片 + 阴影与页面背景区分（卡片白与 logo 白一致，避免内外色差）
             Box(
                 modifier = Modifier
                     .size(96.dp)
                     .shadow(4.dp, RoundedCornerShape(20.dp))
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White)
+                    .background(Color(0xFFF9F9F9))
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center,
             ) {
