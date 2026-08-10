@@ -4,7 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -32,6 +35,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -65,13 +70,23 @@ fun AboutScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(24.dp))
-            // 应用图标：显示随应用分发的霜息 logo 资源
-            Image(
-                painter = painterResource(R.drawable.frosthush_logo),
-                contentDescription = null,
-                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(20.dp)),
-                contentScale = ContentScale.Crop,
-            )
+            // 应用图标：白色圆角卡片 + 阴影与页面背景区分（logo 为白底深色图形）
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .shadow(4.dp, RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.frosthush_logo),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(4.dp))
