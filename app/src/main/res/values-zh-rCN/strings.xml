@@ -85,11 +85,10 @@
     <string name="import_manual">手动导入</string>
     <string name="import_clipboard">剪贴板导入</string>
     <string name="import_search_hint">搜索名称、包名或拼音</string>
-    <string name="import_filter_all">全部</string>
     <string name="import_filter_user">用户应用</string>
     <string name="import_filter_system">系统应用</string>
     <string name="import_system_warning_title">警告</string>
-    <string name="import_system_warning_text">暂停系统应用可能导致系统功能异常，极端情况下影响设备启动。请确认您已了解操作后果，并提前备份数据；如需恢复，可通过 Shizuku 或 adb 解除暂停。</string>
+    <string name="import_system_warning_text">暂停系统应用可能导致系统功能异常，极端情况下影响设备启动。请确认您已了解操作后果，并提前备份数据。</string>
     <string name="import_filter_clone">双开应用</string>
     <string name="import_select_all">全选</string>
     <string name="import_clear">清空</string>

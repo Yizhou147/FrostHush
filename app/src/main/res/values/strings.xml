@@ -87,11 +87,10 @@
     <string name="import_manual">Manual</string>
     <string name="import_clipboard">Clipboard</string>
     <string name="import_search_hint">Search by name, package or pinyin</string>
-    <string name="import_filter_all">All</string>
     <string name="import_filter_user">User apps</string>
     <string name="import_filter_system">System apps</string>
     <string name="import_system_warning_title">Warning</string>
-    <string name="import_system_warning_text">Suspending system apps may cause system functions to break and, in extreme cases, affect device boot. Make sure you understand the consequences and back up your data beforehand. You can undo the suspension via Shizuku or adb.</string>
+    <string name="import_system_warning_text">Suspending system apps may cause system functions to break and, in extreme cases, affect device boot. Make sure you understand the consequences and back up your data beforehand.</string>
     <string name="import_filter_clone">Cloned apps</string>
     <string name="import_select_all">Select all</string>
     <string name="import_clear">Clear</string>

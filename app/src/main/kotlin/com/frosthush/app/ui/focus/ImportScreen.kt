@@ -127,7 +127,7 @@ private fun ManualImportTab(
     onAdd: (Set<String>) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableIntStateOf(1) } // 0 全部 1 用户应用（默认） 2 系统应用
+    var filter by rememberSaveable { mutableIntStateOf(1) } // 1 用户应用（默认） 2 系统应用 3 双开应用
     var selected by remember { mutableStateOf(setOf<String>()) }
     var filtered by remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
     // 系统应用筛选需先确认风险（会话内确认一次，取消则停留在当前筛选）
@@ -140,7 +140,6 @@ private fun ManualImportTab(
     LaunchedEffect(allApps, query, filter) {
         filtered = withContext(Dispatchers.Default) {
             val base = when (filter) {
-                0 -> allApps
                 1 -> allApps.filter { !it.isSystem }
                 2 -> allApps.filter { it.isSystem }
                 else -> allApps.filter { it.isClone } // 3 用户双开应用
@@ -160,7 +159,6 @@ private fun ManualImportTab(
         )
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = filter == 0, onClick = { filter = 0 }, label = { Text(stringResource(R.string.import_filter_all)) })
             FilterChip(selected = filter == 1, onClick = { filter = 1 }, label = { Text(stringResource(R.string.import_filter_user)) })
             FilterChip(selected = filter == 3, onClick = { filter = 3 }, label = { Text(stringResource(R.string.import_filter_clone)) })
             FilterChip(

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,7 +51,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 通用应用选择页（应用集编辑 / 计划直选复用，逻辑与导入页一致）：
- * 搜索（名称/包名/拼音）+ 分类筛选（全部/用户/系统/双开应用）+ 勾选多应用，
+ * 搜索（名称/包名/拼音）+ 分类筛选（用户/系统/双开应用）+ 勾选多应用，
  * 条目为 包名 或 包名@userId（分身）。确认时通过 onDone 回调返回选中条目。
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,15 +71,17 @@ fun AppSelectScreen(
         allApps = withContext(Dispatchers.Default) { repo.queryApps() }
     }
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableIntStateOf(1) } // 0 全部 1 用户应用（默认） 2 系统应用 3 双开应用
+    var filter by rememberSaveable { mutableIntStateOf(1) } // 1 用户应用（默认） 2 系统应用 3 双开应用
     var selected by remember { mutableStateOf(initial) }
     var filtered by remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
+    // 系统应用筛选需先确认风险（会话内确认一次，取消则停留在当前筛选）
+    var showSystemWarning by remember { mutableStateOf(false) }
+    var systemConfirmed by remember { mutableStateOf(false) }
 
     // 后台线程过滤（FuzzySearch + 拼音搜索）
     LaunchedEffect(allApps, query, filter) {
         filtered = withContext(Dispatchers.Default) {
             val base = when (filter) {
-                0 -> allApps
                 1 -> allApps.filter { !it.isSystem }
                 2 -> allApps.filter { it.isSystem }
                 else -> allApps.filter { it.isClone }
@@ -117,10 +120,35 @@ fun AppSelectScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = filter == 0, onClick = { filter = 0 }, label = { Text(stringResource(R.string.import_filter_all)) })
                     FilterChip(selected = filter == 1, onClick = { filter = 1 }, label = { Text(stringResource(R.string.import_filter_user)) })
                     FilterChip(selected = filter == 3, onClick = { filter = 3 }, label = { Text(stringResource(R.string.import_filter_clone)) })
-                    FilterChip(selected = filter == 2, onClick = { filter = 2 }, label = { Text(stringResource(R.string.import_filter_system)) })
+                    FilterChip(
+                        selected = filter == 2,
+                        onClick = {
+                            // 首次切换到系统应用需先确认风险，确定后才进入
+                            if (systemConfirmed) filter = 2 else showSystemWarning = true
+                        },
+                        label = { Text(stringResource(R.string.import_filter_system)) },
+                    )
+                }
+                if (showSystemWarning) {
+                    AlertDialog(
+                        onDismissRequest = { showSystemWarning = false },
+                        title = { Text(stringResource(R.string.import_system_warning_title)) },
+                        text = { Text(stringResource(R.string.import_system_warning_text)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showSystemWarning = false
+                                systemConfirmed = true
+                                filter = 2
+                            }) { Text(stringResource(R.string.action_confirm)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showSystemWarning = false }) {
+                                Text(stringResource(R.string.action_cancel))
+                            }
+                        },
+                    )
                 }
                 Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
