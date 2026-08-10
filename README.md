@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="docs/FrostHash-card.png" width="160" alt="FrostHush">
+    <img src="docs/FrostHash.png" width="160" alt="FrostHush">
 </p>
 
 <h1 align="center">霜息 FrostHush</h1>
