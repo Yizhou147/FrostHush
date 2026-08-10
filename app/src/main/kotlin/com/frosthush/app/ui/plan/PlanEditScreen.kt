@@ -94,6 +94,7 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
     var showFullDayConfirm by remember { mutableStateOf(false) }
+    var showLongDurationConfirm by remember { mutableStateOf(false) }
     val groups = remember { FocusStore.appGroups() }
 
     // 编辑页内系统返回键：退回计划列表（应用选择页内的返回由 AppSelectScreen 自身拦截）
@@ -120,10 +121,30 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
         onBack()
     }
 
+    /** 当前表单的单次专注时长（分钟），不受 240 分钟限制 */
+    fun durationMinutes(): Int = when {
+        endMinute > startMinute -> endMinute - startMinute
+        endMinute < startMinute -> (1440 - startMinute) + endMinute
+        else -> 1440
+    }
+
+    /** 长时长确认文案：整小时省略分钟 */
+    fun longDurationText(): String {
+        val minutes = durationMinutes()
+        val h = minutes / 60
+        val m = minutes % 60
+        return if (m == 0) {
+            context.getString(R.string.plan_long_duration_confirm_hours, h)
+        } else {
+            context.getString(R.string.plan_long_duration_confirm, h, m)
+        }
+    }
+
     fun onSaveClick() {
         when {
             name.isBlank() -> Toast.makeText(context, context.getString(R.string.plan_name_required), Toast.LENGTH_SHORT).show()
             startMinute == endMinute -> showFullDayConfirm = true // 开始==结束：视为跨全天，需确认
+            durationMinutes() > 240 -> showLongDurationConfirm = true // 单次专注超过 4 小时：需确认
             else -> doSave()
         }
     }
@@ -383,6 +404,24 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { showFullDayConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+    if (showLongDurationConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLongDurationConfirm = false },
+            title = { Text(stringResource(R.string.plan_long_duration_title)) },
+            text = { Text(longDurationText()) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLongDurationConfirm = false
+                    doSave()
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLongDurationConfirm = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

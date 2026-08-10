@@ -90,6 +90,8 @@
     <string name="import_filter_all">All</string>
     <string name="import_filter_user">User apps</string>
     <string name="import_filter_system">System apps</string>
+    <string name="import_system_warning_title">Warning</string>
+    <string name="import_system_warning_text">Suspending system apps may cause system functions to break and, in extreme cases, affect device boot. Make sure you understand the consequences and back up your data beforehand. You can undo the suspension via Shizuku or adb.</string>
     <string name="import_filter_clone">Cloned apps</string>
     <string name="import_select_all">Select all</string>
     <string name="import_clear">Clear</string>
@@ -215,6 +217,9 @@
     <string name="plan_time_range_cross">%1$s - next day %2$s</string>
     <string name="plan_full_day">All day</string>
     <string name="plan_full_day_confirm">Start equals end, which means an all-day (24-hour) focus session. Continue?</string>
+    <string name="plan_long_duration_title">Long focus session</string>
+    <string name="plan_long_duration_confirm">This plan runs for %1$d hours %2$d minutes in a single session, over 4 hours. Focus cannot be paused during the session. Save anyway?</string>
+    <string name="plan_long_duration_confirm_hours">This plan runs for %1$d hours in a single session, over 4 hours. Focus cannot be paused during the session. Save anyway?</string>
     <string name="plan_time_title">Select time</string>
     <string name="plan_cross_midnight_hint">End time is before start time; focus ends the next day</string>
     <string name="plan_once_only">Once</string>

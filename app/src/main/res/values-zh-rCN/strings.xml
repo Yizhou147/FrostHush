@@ -88,6 +88,8 @@
     <string name="import_filter_all">全部</string>
     <string name="import_filter_user">用户应用</string>
     <string name="import_filter_system">系统应用</string>
+    <string name="import_system_warning_title">警告</string>
+    <string name="import_system_warning_text">暂停系统应用可能导致系统功能异常，极端情况下影响设备启动。请确认您已了解操作后果，并提前备份数据；如需恢复，可通过 Shizuku 或 adb 解除暂停。</string>
     <string name="import_filter_clone">双开应用</string>
     <string name="import_select_all">全选</string>
     <string name="import_clear">清空</string>
@@ -213,6 +215,9 @@
     <string name="plan_time_range_cross">%1$s - 次日%2$s</string>
     <string name="plan_full_day">全天</string>
     <string name="plan_full_day_confirm">开始与结束时间相同，将视为全天（24 小时）专注，是否继续？</string>
+    <string name="plan_long_duration_title">长时间专注提示</string>
+    <string name="plan_long_duration_confirm">该计划单次专注时长为 %1$d 小时 %2$d 分钟，超过 4 小时。专注期间不可暂停，是否仍要保存该计划？</string>
+    <string name="plan_long_duration_confirm_hours">该计划单次专注时长为 %1$d 小时，超过 4 小时。专注期间不可暂停，是否仍要保存该计划？</string>
     <string name="plan_time_title">选择时间</string>
     <string name="plan_cross_midnight_hint">结束时间早于开始时间，将在次日结束</string>
     <string name="plan_once_only">不重复</string>

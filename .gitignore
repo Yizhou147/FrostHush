@@ -1,6 +1,7 @@
 *.iml
 .gradle/
 build/
+.kotlin/
 local.properties
 .idea/
 .DS_Store
@@ -10,3 +11,6 @@ captures/
 *.jks
 *.keystore
 signing.properties
+*.apk
+*.aab
+*.zip

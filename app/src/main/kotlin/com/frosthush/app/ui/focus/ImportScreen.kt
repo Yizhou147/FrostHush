@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -129,6 +130,9 @@ private fun ManualImportTab(
     var filter by rememberSaveable { mutableIntStateOf(1) } // 0 全部 1 用户应用（默认） 2 系统应用
     var selected by remember { mutableStateOf(setOf<String>()) }
     var filtered by remember { mutableStateOf<List<AppRepository.AppInfo>>(emptyList()) }
+    // 系统应用筛选需先确认风险（会话内确认一次，取消则停留在当前筛选）
+    var showSystemWarning by remember { mutableStateOf(false) }
+    var systemConfirmed by remember { mutableStateOf(false) }
     // 已导入黑名单：这些应用已勾选且禁用，不可重复导入
     val blacklist = remember { FocusStore.blacklist().toSet() }
 
@@ -159,7 +163,33 @@ private fun ManualImportTab(
             FilterChip(selected = filter == 0, onClick = { filter = 0 }, label = { Text(stringResource(R.string.import_filter_all)) })
             FilterChip(selected = filter == 1, onClick = { filter = 1 }, label = { Text(stringResource(R.string.import_filter_user)) })
             FilterChip(selected = filter == 3, onClick = { filter = 3 }, label = { Text(stringResource(R.string.import_filter_clone)) })
-            FilterChip(selected = filter == 2, onClick = { filter = 2 }, label = { Text(stringResource(R.string.import_filter_system)) })
+            FilterChip(
+                selected = filter == 2,
+                onClick = {
+                    // 首次切换到系统应用需先确认风险，确定后才进入
+                    if (systemConfirmed) filter = 2 else showSystemWarning = true
+                },
+                label = { Text(stringResource(R.string.import_filter_system)) },
+            )
+        }
+        if (showSystemWarning) {
+            AlertDialog(
+                onDismissRequest = { showSystemWarning = false },
+                title = { Text(stringResource(R.string.import_system_warning_title)) },
+                text = { Text(stringResource(R.string.import_system_warning_text)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showSystemWarning = false
+                        systemConfirmed = true
+                        filter = 2
+                    }) { Text(stringResource(R.string.action_confirm)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSystemWarning = false }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                },
+            )
         }
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
