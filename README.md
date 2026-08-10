@@ -1,4 +1,8 @@
-# 霜息 FrostHush
+<p align="center">
+    <img src="docs/FrostHash.png" width="160" alt="FrostHush">
+</p>
+
+<h1 align="center">霜息 FrostHush</h1>
 
 > 一款专注模式安卓应用：通过 Shizuku 暂停你选定的应用，让你保持专注。
 >

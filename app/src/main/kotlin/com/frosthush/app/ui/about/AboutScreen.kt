@@ -3,6 +3,7 @@ package com.frosthush.app.ui.about
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
@@ -28,13 +31,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
-import com.frosthush.app.ui.AppIcon
 import com.frosthush.app.ui.settings.SettingCard
 
 /**
@@ -60,8 +65,13 @@ fun AboutScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(24.dp))
-            // 应用图标：直接取已安装应用图标（系统解码，规避 adaptive icon 资源加载崩溃）
-            AppIcon(packageName = context.packageName, size = 96.dp, corner = 20.dp)
+            // 应用图标：显示随应用分发的霜息 logo 资源
+            Image(
+                painter = painterResource(R.drawable.frosthush_logo),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp).clip(RoundedCornerShape(20.dp)),
+                contentScale = ContentScale.Crop,
+            )
             Spacer(Modifier.height(16.dp))
             Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(4.dp))
