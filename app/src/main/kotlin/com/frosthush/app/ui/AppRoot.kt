@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -36,6 +37,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,13 +51,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.frosthush.app.FrostHushApp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
+import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.about.AboutScreen
 import com.frosthush.app.ui.focus.FocusLockScreen
 import com.frosthush.app.ui.focus.FocusScreen
@@ -65,6 +71,8 @@ import com.frosthush.app.ui.plan.PlanEditScreen
 import com.frosthush.app.ui.plan.PlanScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
+import java.util.Calendar
+import kotlinx.coroutines.delay
 
 /**
  * 应用根组件：
@@ -77,10 +85,31 @@ fun AppRoot() {
     LaunchedEffect(Unit) {
         SettingsStore.welcomeDone.collect { welcomeDone = it }
     }
+    // 进入主界面（前台）后再预加载应用名称缓存：
+    // 包列表查询必须发生在应用前台，MIUI 才会弹「允许获取应用列表」确认框
+    // （若在 Application.onCreate 后台预加载，会抢先触发查询并被静默拒绝）。
+    LaunchedEffect(welcomeDone) {
+        if (welcomeDone) FrostHushApp.app.preloadAppNames()
+    }
     val version by FocusManager.version.collectAsState()
     var focusLocked by remember { mutableStateOf(FocusStore.activeSession() != null) }
     LaunchedEffect(version) {
         focusLocked = FocusStore.activeSession() != null
+    }
+    // 计划提醒通知点击 → 弹「距开始倒计时」对话框（立刻开始 / 终止）
+    val reminderClick by PlanScheduler.reminderClick.collectAsState()
+    var showPlanReminder by remember { mutableStateOf(false) }
+    var reminderPlanId by remember { mutableStateOf(-1L) }
+    LaunchedEffect(reminderClick) {
+        reminderClick?.let { click ->
+            PlanScheduler.reminderClick.value = null // 消费一次，避免重复弹
+            reminderPlanId = click.planId
+            showPlanReminder = true
+        }
+    }
+    // 专注已开始（全屏锁屏覆盖）时关闭提醒对话框，避免被遮挡
+    LaunchedEffect(focusLocked) {
+        if (focusLocked) showPlanReminder = false
     }
     // 统一根背景 = 主题背景色（雹色板 F7F9FF），否则透明页面会透出窗口背景（纯白）
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -103,7 +132,69 @@ fun AppRoot() {
         ) {
             FocusLockScreen(onFinished = { focusLocked = false })
         }
+        if (showPlanReminder && reminderPlanId > 0) {
+            PlanReminderDialog(planId = reminderPlanId, onDismiss = { showPlanReminder = false })
+        }
     }
+}
+
+/**
+ * 计划提醒对话框：显示距计划开始剩余秒数（每秒倒计时），可选「立刻开始 / 终止」。
+ * 到点后专注由闹钟自动开始（锁屏覆盖），对话框自动关闭。
+ */
+@Composable
+private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val plan = FocusStore.focusPlans().firstOrNull { it.id == planId }
+    // 计划已被删除 / 专注已由该计划开始 → 无需弹
+    if (plan == null || FocusStore.activeSession()?.planId == planId) {
+        LaunchedEffect(Unit) { onDismiss() }
+        return
+    }
+    // 本计划今日开始时刻
+    val startMillis = remember(plan) {
+        Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+            set(Calendar.MINUTE, plan.startMinute % 60)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
+    var remaining by remember {
+        mutableStateOf(((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt())
+    }
+    LaunchedEffect(Unit) {
+        while (remaining > 0) {
+            delay(1000)
+            remaining = ((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt()
+        }
+        onDismiss() // 到点：专注由闹钟自动开始，关闭对话框
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.plan_remind_dialog_title, plan.name)) },
+        text = {
+            Text(
+                if (remaining > 0) {
+                    pluralStringResource(R.plurals.plan_remind_dialog_text_seconds, remaining, remaining)
+                } else {
+                    stringResource(R.string.plan_remind_dialog_starting)
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                Thread { PlanScheduler.onStartNow(context, planId) }.start()
+            }) { Text(stringResource(R.string.plan_remind_dialog_start_now)) }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                onDismiss()
+                PlanScheduler.onCancelToday(planId)
+            }) { Text(stringResource(R.string.plan_remind_dialog_cancel)) }
+        },
+    )
 }
 
 @Composable

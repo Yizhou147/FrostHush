@@ -1,5 +1,6 @@
 package com.frosthush.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -13,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.AppRoot
 import com.frosthush.app.ui.theme.FrostHushTheme
 
@@ -35,6 +37,8 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
         }
+        // 计划提醒通知点击：冷启动场景（单 Activity 已存在时走 onNewIntent）
+        handlePlanReminderIntent(intent)
         setContent {
             // 系统栏图标深浅随主题模式：强制浅色→深色图标，强制深色→浅色图标
             val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
@@ -51,6 +55,21 @@ class MainActivity : ComponentActivity() {
             FrostHushTheme {
                 AppRoot()
             }
+        }
+    }
+
+    /** 单 Activity（launchMode=singleTask）已存在时，通知点击的 Intent 走这里 */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePlanReminderIntent(intent)
+    }
+
+    /** 计划提醒通知点击：转发给 PlanScheduler，AppRoot 收集后弹「距开始倒计时」对话框 */
+    private fun handlePlanReminderIntent(intent: Intent?) {
+        if (intent?.action == PlanScheduler.ACTION_REMIND_CLICK) {
+            val planId = intent.getLongExtra(PlanScheduler.EXTRA_PLAN_ID, -1L)
+            if (planId > 0) PlanScheduler.onReminderClicked(planId)
         }
     }
 }

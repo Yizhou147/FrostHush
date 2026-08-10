@@ -9,10 +9,12 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.frosthush.app.FrostHushApp.Companion.app
+import com.frosthush.app.MainActivity
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
 import java.util.Calendar
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * 专注计划调度（AlarmManager 精确闹钟）：
@@ -28,6 +30,7 @@ object PlanScheduler {
     const val ACTION_PENDING_TIMEOUT = "com.frosthush.app.plan.PENDING_TIMEOUT"
     const val ACTION_RESUME = "com.frosthush.app.plan.RESUME"
     const val ACTION_CANCEL = "com.frosthush.app.plan.CANCEL"
+    const val ACTION_REMIND_CLICK = "com.frosthush.app.plan.REMIND_CLICK"
     const val EXTRA_PLAN_ID = "plan_id"
     // 触发发生日的 yyyyMMdd：同计划不同发生日的闹钟 PendingIntent 因 extra 不同而互相独立，
     // 保证重排下一次触发时不会覆盖当前发生日尚未触发的结束闹钟
@@ -40,6 +43,10 @@ object PlanScheduler {
     private const val NOTIFICATION_ID_REMIND = 202
     private const val NOTIFICATION_ID_PENDING = 201
     private const val NOTIFICATION_ID_RESULT = 203
+
+    /** 提醒通知被点击的事件（MainActivity 转发），AppRoot 收集后弹「距开始倒计时」对话框 */
+    data class ReminderClick(val planId: Long)
+    val reminderClick = MutableStateFlow<ReminderClick?>(null)
 
     // ---------- 注册 / 取消 ----------
 
@@ -103,7 +110,7 @@ object PlanScheduler {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) return
         if (plan.weekdays.isNotEmpty()) schedulePlan(context, plan) // 排下一次
-        // 同一天已执行过则跳过（跨天/重复触发场景）
+        // 同一天已执行过则跳过（跨天/重复触发场景；「立刻开始/终止」也会标记当日已执行）
         if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
         if (FocusStore.activeSession() != null) {
             // 已有专注进行中：延后 + 5 分钟决策窗口
@@ -113,17 +120,53 @@ object PlanScheduler {
             showPendingNotification(context, plan)
             return
         }
-        val err = FocusManager.startPlanFocus(plan)
+        val err = startPlanFocusAndMark(context, plan)
         if (err != null) {
             showStartFailedNotification(context, err)
-        } else {
-            FocusStore.markPlanExecuted(planId, FocusStore.todayCode())
-            if (plan.weekdays.isEmpty()) {
-                // 不重复计划：执行完成后自动停用，并通知用户（避免再次触发）
-                FocusStore.updateFocusPlan(plan.copy(enabled = false))
-                showOnceDoneNotification(context, plan)
-            }
         }
+    }
+
+    /** 启动计划专注并标记当日已执行；不重复计划执行后自动停用。返回错误文案或 null。 */
+    private fun startPlanFocusAndMark(context: Context, plan: FocusPlan): String? {
+        val err = FocusManager.startPlanFocus(plan)
+        if (err != null) return err
+        FocusStore.markPlanExecuted(plan.id, FocusStore.todayCode())
+        if (plan.weekdays.isEmpty()) {
+            // 不重复计划：执行完成后自动停用，并通知用户（避免再次触发）
+            FocusStore.updateFocusPlan(plan.copy(enabled = false))
+            showOnceDoneNotification(context, plan)
+        }
+        return null
+    }
+
+    /**
+     * 提醒通知被点击（MainActivity 转发）：仅当计划仍启用、当日未执行、且无该计划的活动会话时
+     * 才发布事件，AppRoot 收集后弹对话框（防止迟到点击/重复触发）。
+     */
+    fun onReminderClicked(planId: Long) {
+        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
+        if (!plan.enabled) return
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
+        if (FocusStore.activeSession()?.planId == planId) return
+        reminderClick.value = ReminderClick(planId)
+    }
+
+    /** 用户点「立刻开始」：立即启动该计划专注（后台线程调用），今日不再等闹钟 */
+    fun onStartNow(context: Context, planId: Long) {
+        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
+        if (!plan.enabled) return
+        if (FocusStore.activeSession() != null) return // 已有专注进行中，交给冲突逻辑
+        val err = startPlanFocusAndMark(context, plan)
+        if (err != null) showStartFailedNotification(context, err)
+    }
+
+    /**
+     * 用户点「终止」：标记今日已跳过本次触发。
+     * 不取消闹钟——今天 START 到点时 handleStart 会重排下次并因 executed 跳过；
+     * 取消反而会丢失明天的重排。
+     */
+    fun onCancelToday(planId: Long) {
+        FocusStore.markPlanExecuted(planId, FocusStore.todayCode())
     }
 
     /** 到点结束：仅当活动会话由该计划启动时才恢复（避免误杀手动专注） */
@@ -158,9 +201,8 @@ object PlanScheduler {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) return
         if (FocusStore.activeSession() != null) return // 已有专注进行中，直接放弃
-        val err = FocusManager.startPlanFocus(plan)
+        val err = startPlanFocusAndMark(context, plan)
         if (err != null) showStartFailedNotification(context, err)
-        else FocusStore.markPlanExecuted(planId, FocusStore.todayCode())
     }
 
     /** 用户点「停止」或决策窗口超时：放弃并清理 */
@@ -280,6 +322,15 @@ object PlanScheduler {
 
     private fun showReminderNotification(context: Context, plan: FocusPlan) {
         ensureChannel(context)
+        // 点击通知 → 打开应用，AppRoot 弹「距开始倒计时」对话框（立刻开始 / 终止）
+        val clickIntent = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_REMIND_CLICK
+            putExtra(EXTRA_PLAN_ID, plan.id)
+        }
+        val contentIntent = PendingIntent.getActivity(
+            context, requestCode(plan.id, 0), clickIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         runCatching {
             NotificationManagerCompat.from(context).notify(
                 NOTIFICATION_ID_REMIND,
@@ -287,6 +338,10 @@ object PlanScheduler {
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_reminder_title))
                     .setContentText(context.getString(R.string.plan_reminder_text, plan.name))
+                    .setContentIntent(contentIntent)
+                    // 设备在全屏应用/锁屏时 heads-up 会被系统降级为只进通知栏，
+                    // fullScreenIntent 强制全屏弹出（点击仍进「距开始倒计时」对话框）
+                    .setFullScreenIntent(contentIntent, true)
                     .setAutoCancel(true)
                     .build()
             )

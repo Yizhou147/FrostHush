@@ -4,7 +4,7 @@
 
 <h1 align="center">霜息 FrostHush</h1>
 
-> 一款专注模式安卓应用：通过 Shizuku 暂停你选定的应用，让你保持专注。
+> 一款专注安卓应用：通过 Shizuku 暂停你选定的应用，让你保持专注。
 >
 > FrostHush is a standalone focus mode Android app. It suspends the apps you select via Shizuku, so you can stay focused.
 

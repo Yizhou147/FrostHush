@@ -22,8 +22,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -53,6 +57,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.frosthush.app.R
 import com.frosthush.app.data.AppRepository
 import com.frosthush.app.focus.ShizukuManager
+import com.frosthush.app.ui.settings.checkBatteryOptimization
+import com.frosthush.app.ui.settings.openAppSettings
+import com.frosthush.app.ui.settings.openAutostartSettings
+import com.frosthush.app.ui.settings.openBatterySettings
 
 /**
  * 首次启动欢迎页：逐项列出权限（通知 / 已安装应用 / Shizuku），
@@ -65,10 +73,14 @@ fun WelcomeScreen(onFinished: () -> Unit) {
 
     var notifGranted by remember { mutableStateOf(checkNotification(context)) }
     var appsGranted by remember { mutableStateOf(checkApps(context)) }
+    var batteryExempted by remember { mutableStateOf(checkBatteryOptimization(context)) }
+    // 读取已安装应用手动授权引导（MIUI 平板等设备不弹系统授权框时）
+    var showAppsGuide by remember { mutableStateOf(false) }
 
     fun refresh() {
         notifGranted = checkNotification(context)
         appsGranted = checkApps(context)
+        batteryExempted = checkBatteryOptimization(context)
     }
 
     // onResume 重新检查权限
@@ -121,7 +133,9 @@ fun WelcomeScreen(onFinished: () -> Unit) {
                 desc = stringResource(R.string.permission_apps_desc),
                 granted = appsGranted,
                 actionText = stringResource(R.string.action_grant),
-                onAction = { refresh() },
+                // 首次包列表查询发生在欢迎页（前台）时 MIUI 手机端会弹「允许获取应用列表」，
+                // 但平板等设备不弹——此时弹出应用内引导，让用户手动到系统设置开启。
+                onAction = { showAppsGuide = true },
             )
             PermissionItem(
                 icon = Icons.Filled.Lock,
@@ -146,6 +160,26 @@ fun WelcomeScreen(onFinished: () -> Unit) {
                     }
                 },
             )
+            PermissionItem(
+                icon = Icons.Filled.Security,
+                title = stringResource(R.string.permission_battery),
+                desc = stringResource(R.string.permission_battery_desc),
+                granted = batteryExempted,
+                statusText = stringResource(
+                    if (batteryExempted) R.string.permission_battery_ok else R.string.permission_battery_fail
+                ),
+                actionText = stringResource(R.string.permission_battery_action),
+                onAction = { openBatterySettings(context) },
+            )
+            PermissionItem(
+                icon = Icons.Filled.Info,
+                title = stringResource(R.string.permission_autostart),
+                desc = stringResource(R.string.permission_autostart_desc),
+                ok = null, // 自启动开关系统无法检测，恒为中性引导
+                statusText = stringResource(R.string.permission_autostart_hint),
+                actionText = stringResource(R.string.permission_autostart_action),
+                onAction = { openAutostartSettings(context) },
+            )
 
             Spacer(Modifier.height(32.dp))
             Button(
@@ -156,18 +190,42 @@ fun WelcomeScreen(onFinished: () -> Unit) {
             }
         }
     }
+
+    // 读取已安装应用手动授权引导：MIUI 平板等设备不会弹系统授权框，
+    // 提示用户到系统设置（应用信息 → 权限管理 → 获取应用列表）手动开启
+    if (showAppsGuide) {
+        AlertDialog(
+            onDismissRequest = { showAppsGuide = false },
+            title = { Text(stringResource(R.string.permission_apps_guide_title)) },
+            text = { Text(stringResource(R.string.permission_apps_guide_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAppsGuide = false
+                    openAppSettings(context)
+                }) { Text(stringResource(R.string.permission_apps_guide_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAppsGuide = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
 }
 
+/** 权限/引导项：state=true 绿勾 / false 红叉 / null 中性（系统无法检测，如悬浮通知） */
 @Composable
 private fun PermissionItem(
     icon: ImageVector,
     title: String,
     desc: String,
-    granted: Boolean,
+    granted: Boolean? = null, // 旧调用：真实可检测状态
+    ok: Boolean? = null,      // 新调用：三态，null=中性引导
     actionText: String?,
     onAction: () -> Unit,
     statusText: String? = null,
 ) {
+    val state: Boolean? = ok ?: granted
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         colors = CardDefaults.cardColors(
@@ -194,22 +252,35 @@ private fun PermissionItem(
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val stateIcon = when (state) {
+                        true -> Icons.Filled.CheckCircle
+                        false -> Icons.Filled.Cancel
+                        null -> Icons.Filled.Info
+                    }
+                    val stateTint = when (state) {
+                        true -> Color(0xFF2E9E5B)
+                        false -> MaterialTheme.colorScheme.error
+                        null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    }
                     Icon(
-                        if (granted) Icons.Filled.CheckCircle else Icons.Filled.Cancel,
+                        stateIcon,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = if (granted) Color(0xFF2E9E5B) else MaterialTheme.colorScheme.error,
+                        tint = stateTint,
                     )
                     Spacer(Modifier.size(4.dp))
                     Text(
-                        statusText ?: if (granted) stringResource(R.string.permission_granted)
-                        else stringResource(R.string.permission_not_granted),
+                        statusText ?: when (state) {
+                            true -> stringResource(R.string.permission_granted)
+                            false -> stringResource(R.string.permission_not_granted)
+                            null -> ""
+                        },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (granted) Color(0xFF2E9E5B) else MaterialTheme.colorScheme.error,
+                        color = stateTint,
                     )
                 }
             }
-            if (!granted && actionText != null) {
+            if (state != true && actionText != null) {
                 OutlinedButton(onClick = onAction, shape = CircleShape) {
                     Text(actionText)
                 }

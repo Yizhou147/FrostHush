@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">霜息</string>
-    <string name="app_description">霜息是一款专注模式应用，通过 Shizuku 暂停你选择的应用，帮助你保持专注。</string>
+    <string name="app_description">霜息是一款专注应用，通过 Shizuku 暂停你选择的应用，帮助你保持专注。</string>
 
     <!-- 欢迎 / 权限页 -->
     <string name="welcome_title">欢迎使用霜息</string>
@@ -225,6 +225,13 @@
     <string name="plan_notification_channel">计划</string>
     <string name="plan_reminder_title">专注提醒</string>
     <string name="plan_reminder_text">计划「%1$s」将在 15 秒后开始专注</string>
+    <string name="plan_remind_dialog_title">计划「%1$s」即将开始</string>
+    <plurals name="plan_remind_dialog_text_seconds">
+        <item quantity="other">%1$d 秒后开始专注</item>
+    </plurals>
+    <string name="plan_remind_dialog_starting">专注即将开始…</string>
+    <string name="plan_remind_dialog_start_now">立刻开始</string>
+    <string name="plan_remind_dialog_cancel">终止</string>
     <string name="plan_start_failed_title">计划启动失败</string>
     <string name="plan_start_failed_shizuku">计划启动失败，请授权 Shizuku</string>
     <string name="plan_start_failed_empty">计划启动失败，应用集为空或应用已卸载</string>
@@ -236,4 +243,42 @@
     <string name="plan_pending_stopped_text">计划「%1$s」已取消启动</string>
     <string name="plan_once_done_title">计划已完成</string>
     <string name="plan_once_done_text">计划「%1$s」已执行完成并停用</string>
+
+    <!-- 计划可靠性 -->
+    <string name="settings_plan_reliability">计划可靠性</string>
+    <string name="settings_plan_reliability_summary">检查省电、自启动等设置，确保计划准点触发</string>
+    <string name="plan_rel_title">计划可靠性检查</string>
+    <string name="plan_rel_desc">计划依赖系统按时投递精确闹钟。请逐项检查以下设置，保证计划准点触发。</string>
+    <string name="plan_rel_all_ok">全部正常，计划可准点触发</string>
+    <string name="plan_rel_risk">存在风险，计划可能无法准点触发</string>
+    <string name="plan_rel_battery">省电策略</string>
+    <string name="plan_rel_battery_ok">已豁免</string>
+    <string name="plan_rel_battery_fail">未豁免，深度休眠时闹钟可能被延迟</string>
+    <string name="plan_rel_battery_action">去设置</string>
+    <string name="plan_rel_exact_alarm">精确闹钟权限</string>
+    <string name="plan_rel_exact_alarm_ok">可用</string>
+    <string name="plan_rel_exact_alarm_fail">未授予，计划可能被延迟</string>
+    <string name="plan_rel_exact_alarm_action">去授权</string>
+    <string name="plan_rel_autostart">自启动权限</string>
+    <string name="plan_rel_autostart_hint">系统未提供检测接口，请手动允许自启动，避免开机或应用被杀后计划无法触发</string>
+    <string name="plan_rel_autostart_action">前往设置</string>
+    <string name="plan_rel_shizuku">Shizuku 服务</string>
+    <string name="plan_rel_shizuku_ok">运行中且已授权</string>
+    <string name="plan_rel_shizuku_fail">未就绪，计划到时无法暂停应用</string>
+    <string name="plan_rel_shizuku_action">打开 Shizuku</string>
+    <string name="plan_rel_retry">重新检测</string>
+    <string name="permission_battery">省电策略</string>
+    <string name="permission_battery_desc">未豁免时深度休眠会延迟计划闹钟，建议设为「无限制」</string>
+    <string name="permission_battery_ok">已豁免</string>
+    <string name="permission_battery_fail">未豁免</string>
+    <string name="permission_battery_action">去设置</string>
+    <string name="permission_autostart">自启动权限</string>
+    <string name="permission_autostart_desc">允许自启动可避免开机或应用被杀后计划无法触发</string>
+    <string name="permission_autostart_hint">请前往设置确认已允许</string>
+    <string name="permission_autostart_action">前往设置</string>
+    <string name="plan_banner_battery_title">省电策略未豁免，计划可能无法准点触发</string>
+    <string name="plan_banner_battery_action">检查</string>
+    <string name="permission_apps_guide_title">需要手动开启</string>
+    <string name="permission_apps_guide_text">系统未弹出授权窗口，请前往系统设置 → 应用信息 → 权限管理，手动开启「获取应用列表」。</string>
+    <string name="permission_apps_guide_action">前往设置</string>
 </resources>

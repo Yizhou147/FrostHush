@@ -1,3 +1,4 @@
+import java.io.File
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -89,8 +90,16 @@ fun syncApkToDownload(variant: String) {
         if (!destDir.isDirectory) return
         val apk = layout.buildDirectory.file("outputs/apk/$variant/app-$variant.apk").get().asFile
         if (!apk.exists()) return
-        val destName = "FrostHush-${android.defaultConfig.versionName}.apk"
-        copy { from(apk); into(destDir); rename { destName } }
-        println("APK 已复制到 $destDir/$destName")
-    }.onFailure { println("WARN: 复制 APK 到下载目录失败: $it") }
+        val destFile = File(destDir, "FrostHush-${android.defaultConfig.versionName}.apk")
+        // 流式截断写入（等价 shell cp，不删除目标）：
+        // REPLACE_EXISTING 的 Files.copy 会先 unlink 目标，FUSE 层拒绝删除属主为其他 app
+        // 的已存在文件（AccessDenied），而直接 O_TRUNC 写入可成功。
+        apk.inputStream().use { input ->
+            destFile.outputStream().use { output -> input.copyTo(output) }
+        }
+        println("APK 已复制到 $destFile")
+    }.onFailure { e ->
+        println("WARN: 复制 APK 到下载目录失败: ${e::class.java.name}: ${e.message}")
+        e.stackTrace.take(6).forEach { println("    at $it") }
+    }
 }

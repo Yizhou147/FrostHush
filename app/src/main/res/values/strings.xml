@@ -227,6 +227,14 @@
     <string name="plan_notification_channel">Plans</string>
     <string name="plan_reminder_title">Focus reminder</string>
     <string name="plan_reminder_text">Plan "%1$s" will start focus in 15 seconds</string>
+    <string name="plan_remind_dialog_title">Plan "%1$s" starts soon</string>
+    <plurals name="plan_remind_dialog_text_seconds">
+        <item quantity="one">Focus starts in %1$d second</item>
+        <item quantity="other">Focus starts in %1$d seconds</item>
+    </plurals>
+    <string name="plan_remind_dialog_starting">Focus is starting…</string>
+    <string name="plan_remind_dialog_start_now">Start now</string>
+    <string name="plan_remind_dialog_cancel">Skip</string>
     <string name="plan_start_failed_title">Plan failed to start</string>
     <string name="plan_start_failed_shizuku">Plan failed to start. Please grant Shizuku permission.</string>
     <string name="plan_start_failed_empty">Plan failed to start. The app group is empty or the apps were uninstalled.</string>
@@ -238,4 +246,42 @@
     <string name="plan_pending_stopped_text">Plan "%1$s" was not started</string>
     <string name="plan_once_done_title">Plan finished</string>
     <string name="plan_once_done_text">Plan "%1$s" finished and was disabled</string>
+
+    <!-- 计划可靠性 -->
+    <string name="settings_plan_reliability">Plan reliability</string>
+    <string name="settings_plan_reliability_summary">Check battery &amp; autostart whitelist so plans trigger on time</string>
+    <string name="plan_rel_title">Plan reliability check</string>
+    <string name="plan_rel_desc">Plans rely on exact alarms being delivered on time by the system. Go through the checks below to keep plans reliable.</string>
+    <string name="plan_rel_all_ok">All good, plans will trigger on time</string>
+    <string name="plan_rel_risk">Risks found — plans may not trigger on time</string>
+    <string name="plan_rel_battery">Battery optimization</string>
+    <string name="plan_rel_battery_ok">Exempted</string>
+    <string name="plan_rel_battery_fail">Not exempted — alarms may be delayed in deep sleep</string>
+    <string name="plan_rel_battery_action">Settings</string>
+    <string name="plan_rel_exact_alarm">Exact alarm permission</string>
+    <string name="plan_rel_exact_alarm_ok">Available</string>
+    <string name="plan_rel_exact_alarm_fail">Not granted — plans may be delayed</string>
+    <string name="plan_rel_exact_alarm_action">Grant</string>
+    <string name="plan_rel_autostart">Autostart permission</string>
+    <string name="plan_rel_autostart_hint">Cannot be detected by apps. Allow autostart manually so plans still trigger after reboot or when the app is killed.</string>
+    <string name="plan_rel_autostart_action">Open settings</string>
+    <string name="plan_rel_shizuku">Shizuku service</string>
+    <string name="plan_rel_shizuku_ok">Running and authorized</string>
+    <string name="plan_rel_shizuku_fail">Not ready — plans cannot suspend apps when due</string>
+    <string name="plan_rel_shizuku_action">Open Shizuku</string>
+    <string name="plan_rel_retry">Re-check</string>
+    <string name="permission_battery">Battery optimization</string>
+    <string name="permission_battery_desc">Without exemption, deep sleep may delay plan alarms. Set it to "Unrestricted" for reliability.</string>
+    <string name="permission_battery_ok">Exempted</string>
+    <string name="permission_battery_fail">Not exempted</string>
+    <string name="permission_battery_action">Settings</string>
+    <string name="permission_autostart">Autostart permission</string>
+    <string name="permission_autostart_desc">Allow autostart so plans still trigger after reboot or when the app is killed</string>
+    <string name="permission_autostart_hint">Open settings to confirm it is allowed</string>
+    <string name="permission_autostart_action">Open settings</string>
+    <string name="plan_banner_battery_title">Battery optimization is not exempted; plans may not trigger on time</string>
+    <string name="plan_banner_battery_action">Check</string>
+    <string name="permission_apps_guide_title">Manual setup required</string>
+    <string name="permission_apps_guide_text">This device did not show the permission dialog. Please open system settings → App info → Manage permissions, and allow "App list access".</string>
+    <string name="permission_apps_guide_action">Open settings</string>
 </resources>

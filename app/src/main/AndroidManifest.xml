@@ -18,6 +18,10 @@
     <!-- 专注倒计时前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <!-- 计划可靠性检查：跳转系统页申请关闭电池优化豁免 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- 计划提醒全屏弹出：设备全屏应用/锁屏时也能看到「即将开始」提醒 -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
     <application
         android:name=".FrostHushApp"
