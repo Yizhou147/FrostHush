@@ -92,7 +92,7 @@ import rikka.shizuku.Shizuku
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
     val context = LocalContext.current
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
@@ -107,7 +107,6 @@ fun SettingsScreen() {
     var showDurationDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
-    var confirmImport by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
 
     val themeLabel = when (themeMode) {
@@ -115,7 +114,8 @@ fun SettingsScreen() {
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
     }
-    val dateTag = remember { SimpleDateFormat("yyyyMMdd", Locale.US).format(Date()) }
+    // 导出文件名时间戳：到秒，同一天多次导出也能区分
+    val dateTag = remember { SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) }
 
     // 导出专注统计 → 系统文件选择器保存
     val statsExportLauncher = rememberLauncherForActivityResult(
@@ -153,22 +153,21 @@ fun SettingsScreen() {
         }
     }
 
-    // 导入应用配置 → 系统文件选择器打开
+    // 导入应用配置 → 系统文件选择器打开 → 解析校验后进入导入预览页
     val configImportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val ok = runCatching {
-                val text = context.contentResolver.openInputStream(uri)
+            val text = runCatching {
+                context.contentResolver.openInputStream(uri)
                     ?.bufferedReader()?.use { it.readText() } ?: ""
-                FocusStore.importConfigJson(text)
-            }.getOrDefault(false)
-            if (ok) FocusManager.bumpVersion() // 刷新应用集 / 计划页
-            Toast.makeText(
-                context,
-                context.getString(if (ok) R.string.settings_import_success else R.string.settings_import_failed),
-                Toast.LENGTH_SHORT,
-            ).show()
+            }.getOrDefault("")
+            val data = FocusStore.parseConfigJson(text)
+            if (data == null) {
+                Toast.makeText(context, context.getString(R.string.settings_import_failed), Toast.LENGTH_SHORT).show()
+            } else {
+                onOpenConfigImport(data)
+            }
         }
     }
 
@@ -281,7 +280,7 @@ fun SettingsScreen() {
                 icon = Icons.Filled.FileOpen,
                 title = stringResource(R.string.settings_import_config),
                 summary = stringResource(R.string.settings_import_config_summary),
-                onClick = { confirmImport = true },
+                onClick = { configImportLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -335,24 +334,6 @@ fun SettingsScreen() {
             },
             dismissButton = {
                 TextButton(onClick = { showClearStatsDialog = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-        )
-    }
-    if (confirmImport) {
-        AlertDialog(
-            onDismissRequest = { confirmImport = false },
-            title = { Text(stringResource(R.string.settings_import_config)) },
-            text = { Text(stringResource(R.string.settings_import_config_confirm)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmImport = false
-                    configImportLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
-                }) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmImport = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

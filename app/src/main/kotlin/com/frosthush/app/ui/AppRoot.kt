@@ -69,6 +69,7 @@ import com.frosthush.app.ui.focus.ImportScreen
 import com.frosthush.app.ui.group.AppGroupScreen
 import com.frosthush.app.ui.plan.PlanEditScreen
 import com.frosthush.app.ui.plan.PlanScreen
+import com.frosthush.app.ui.settings.ConfigImportScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
 import java.util.Calendar
@@ -206,10 +207,14 @@ private fun MainScaffold() {
     // 计划编辑页覆盖层：target 为 null 表示新建
     var planEditOpened by remember { mutableStateOf(false) }
     var planEditTarget by remember { mutableStateOf<FocusPlan?>(null) }
+    // 配置导入预览页覆盖层：data 为解析后的导入配置
+    var configImportOpened by remember { mutableStateOf(false) }
+    var configImportData by remember { mutableStateOf<FocusStore.ConfigData?>(null) }
 
     // 覆盖层时拦截系统返回键：逐层退回主界面而非直接退出应用
-    BackHandler(enabled = importing || showGroups || planEditOpened) {
+    BackHandler(enabled = importing || showGroups || planEditOpened || configImportOpened) {
         when {
+            configImportOpened -> configImportOpened = false
             planEditOpened -> planEditOpened = false
             showGroups -> showGroups = false
             importing -> importing = false
@@ -231,9 +236,10 @@ private fun MainScaffold() {
         if (isImporting) {
             ImportScreen(onBack = { importing = false })
         } else {
-            // 应用集 / 计划编辑覆盖层与主界面之间淡入淡出过渡
+            // 应用集 / 计划编辑 / 配置导入覆盖层与主界面之间淡入淡出过渡
             AnimatedContent(
                 targetState = when {
+                    configImportOpened -> 3
                     planEditOpened -> 2
                     showGroups -> 1
                     else -> 0
@@ -244,6 +250,9 @@ private fun MainScaffold() {
                 when (key) {
                     1 -> AppGroupScreen(onBack = { showGroups = false })
                     2 -> PlanEditScreen(plan = planEditTarget, onBack = { planEditOpened = false })
+                    3 -> configImportData?.let {
+                        ConfigImportScreen(data = it, onBack = { configImportOpened = false })
+                    }
                     else -> MainTabs(
                         tab = tab,
                         onTabChange = { tab = it },
@@ -252,6 +261,10 @@ private fun MainScaffold() {
                         onOpenGroups = { showGroups = true },
                         onNewPlan = { planEditTarget = null; planEditOpened = true },
                         onEditPlan = { planEditTarget = it; planEditOpened = true },
+                        onOpenConfigImport = { data ->
+                            configImportData = data
+                            configImportOpened = true
+                        },
                     )
                 }
             }
@@ -269,6 +282,7 @@ private fun MainTabs(
     onOpenGroups: () -> Unit,
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
+    onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
 ) {
     val tabs = listOf(
         TabSpec(R.string.tab_focus, Icons.Filled.Timer),
@@ -305,6 +319,7 @@ private fun MainTabs(
                 onOpenGroups = onOpenGroups,
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
+                onOpenConfigImport = onOpenConfigImport,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -341,6 +356,7 @@ private fun MainTabs(
                 onOpenGroups = onOpenGroups,
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
+                onOpenConfigImport = onOpenConfigImport,
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
@@ -355,6 +371,7 @@ private fun TabContent(
     onOpenGroups: () -> Unit,
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
+    onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 切换底栏页面时淡入淡出过渡
@@ -368,7 +385,7 @@ private fun TabContent(
             0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport, onOpenGroups = onOpenGroups)
             1 -> PlanScreen(onNewPlan = onNewPlan, onEditPlan = onEditPlan)
             2 -> StatsScreen()
-            3 -> SettingsScreen()
+            3 -> SettingsScreen(onOpenConfigImport = onOpenConfigImport)
             4 -> AboutScreen()
         }
     }

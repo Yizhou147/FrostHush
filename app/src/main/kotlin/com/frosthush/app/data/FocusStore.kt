@@ -492,6 +492,14 @@ object FocusStore {
 
     private const val CONFIG_VERSION = 1
 
+    /** 导入配置文件的解析结果（应用集 + 选中集 + 计划 + 预设，不落盘） */
+    data class ConfigData(
+        val groups: List<AppGroup>,
+        val selectedGroupId: Long?,
+        val plans: List<FocusPlan>,
+        val presets: List<FocusPreset>,
+    )
+
     /** 导出应用配置：应用集 + 专注计划 + 预设 + 选中集，JSON 对象字符串 */
     fun exportConfigJson(): String = JSONObject().apply {
         put("version", CONFIG_VERSION)
@@ -525,10 +533,10 @@ object FocusStore {
         })
     }.toString()
 
-    /** 导入应用配置：解析校验后写回（应用集先写、计划后写保持引用），成功返回 true */
-    fun importConfigJson(text: String): Boolean = runCatching {
+    /** 解析导入配置 JSON（仅解析校验，不落盘）；版本/格式不合法返回 null */
+    fun parseConfigJson(text: String): ConfigData? = runCatching {
         val root = JSONObject(text)
-        if (root.optInt("version", 0) != CONFIG_VERSION) return false
+        if (root.optInt("version", 0) != CONFIG_VERSION) return null
         val groups = root.getJSONArray("appGroups").let { arr ->
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
@@ -573,12 +581,207 @@ object FocusStore {
                 )
             }
         }
-        saveAppGroups(groups)
-        saveFocusPlans(plans)
+        ConfigData(groups, selected, plans, presetList)
+    }.getOrNull()
+
+    /** 覆盖模式：整体替换应用集/计划/预设/选中集（原导入行为） */
+    fun applyConfigOverwrite(data: ConfigData) {
+        saveAppGroups(data.groups)
+        saveFocusPlans(data.plans)
         presets.clear()
-        presets.addAll(presetList)
+        presets.addAll(data.presets)
         savePresets()
-        setSelectedGroupId(selected)
-        true
-    }.getOrDefault(false)
+        setSelectedGroupId(data.selectedGroupId)
+    }
+
+    // ---------- 新增模式（合并导入） ----------
+
+    /** 新增模式：单条导入计划的处理动作 */
+    enum class PlanImportAction { ADD, SKIP, CONFLICT, RENAME }
+
+    /** 新增模式：单条导入计划的预览结果 */
+    data class PlanImportItem(
+        val plan: FocusPlan,
+        val action: PlanImportAction,
+        /** 展示用名字：RENAME 时为重命名后的新名字，其余为原名 */
+        val displayName: String,
+        /** CONFLICT：与本机冲突（时段+星期+名字均不同名）的本地计划 id */
+        val conflictLocalId: Long? = null,
+    )
+
+    /** 新增模式：整个导入的预览结果（不落盘，供预览页初始化逐项编辑状态） */
+    data class ConfigMergePreview(
+        /** 将导入的应用集：名字已去重、isDefault 保留原标记（导入时强制取消） */
+        val groups: List<AppGroup>,
+        val planItems: List<PlanImportItem>,
+    )
+
+    /** 新增模式导入结果统计 */
+    data class MergeResult(
+        val groupsAdded: Int,
+        val plansAdded: Int,
+        val plansSkipped: Int,
+        val plansRenamed: Int,
+        val plansKeepLocal: Int,
+        val plansReplaced: Int,
+        val presetsAdded: Int,
+        val presetsSkipped: Int,
+    )
+
+    /**
+     * 计算新增模式的导入预览：
+     * - 应用集：全部作为新集导入，名字与本地（及本次已用名）冲突时加「 (2)」后缀；默认集标记保留展示、导入时取消
+     * - 计划：时段+星期+名字 全同 → 跳过；时段+星期同、名字不同 → 冲突待用户决策；
+     *   名字同、时段不同 → 重命名「原名 (2)」后新增；其余直接新增
+     * - 预设：同名同分钟跳过（预览只统计，去重与上限在导入时执行）
+     */
+    fun previewConfigMerge(data: ConfigData): ConfigMergePreview {
+        val localGroups = appGroups()
+        val localPlans = focusPlans()
+
+        val usedGroupNames = localGroups.map { it.name }.toMutableSet()
+        val importedGroups = data.groups.map { g ->
+            var name = g.name
+            var n = 2
+            while (name in usedGroupNames) {
+                name = "${g.name} ($n)"
+                n++
+            }
+            usedGroupNames.add(name)
+            g.copy(name = name)
+        }
+
+        val usedPlanNames = localPlans.map { it.name }.toMutableSet()
+        val planItems = data.plans.map { p ->
+            val slotMatch = localPlans.firstOrNull {
+                it.startMinute == p.startMinute && it.endMinute == p.endMinute && it.weekdays == p.weekdays
+            }
+            when {
+                slotMatch != null && slotMatch.name == p.name ->
+                    PlanImportItem(p, PlanImportAction.SKIP, p.name)
+                slotMatch != null ->
+                    PlanImportItem(p, PlanImportAction.CONFLICT, p.name, conflictLocalId = slotMatch.id)
+                else -> {
+                    val nameInUse = p.name in usedPlanNames
+                    val uniqueName = if (nameInUse) {
+                        var name = p.name
+                        var n = 2
+                        while (name in usedPlanNames) {
+                            name = "${p.name} ($n)"
+                            n++
+                        }
+                        name
+                    } else p.name
+                    usedPlanNames.add(uniqueName)
+                    PlanImportItem(
+                        p,
+                        if (nameInUse) PlanImportAction.RENAME else PlanImportAction.ADD,
+                        uniqueName,
+                    )
+                }
+            }
+        }
+
+        return ConfigMergePreview(importedGroups, planItems)
+    }
+
+    /** 合并导入的单条计划请求（UI 按最终编辑状态生成） */
+    data class PlanMergeRequest(
+        val plan: FocusPlan,
+        val action: PlanImportAction,
+        val finalName: String,
+        val conflictLocalId: Long? = null,
+        val replaceLocal: Boolean = false,
+    )
+
+    /**
+     * 合并导入（新增语义）：
+     * - groups：全部作为新集导入（id 为文件 id 用于计划映射，名字为最终名，强制非默认）
+     * - planRequests：SKIP 跳过；CONFLICT 按 replaceLocal 替换本地或保留本地；ADD/RENAME 新增（finalName）
+     * - incomingPresets：全部导入（与本地及本次已导入的「名称+分钟」去重，超出 MAX_PRESETS 跳过）
+     */
+    fun applyConfigMerge(
+        groups: List<AppGroup>,
+        planRequests: List<PlanMergeRequest>,
+        incomingPresets: List<FocusPreset>,
+    ): MergeResult {
+        val mergedGroups = appGroups().toMutableList()
+        val mergedPlans = focusPlans().toMutableList()
+        val mergedPresets = presets.toMutableList()
+        val idMap = HashMap<Long, Long>()
+
+        // 应用集：追加导入集（强制取消默认标记），建立 文件 id → 新 id 映射供计划引用
+        groups.forEach { g ->
+            val newId = (mergedGroups.maxOfOrNull { it.id } ?: 0L) + 1
+            idMap[g.id] = newId
+            mergedGroups.add(g.copy(id = newId, isDefault = false))
+        }
+        saveAppGroups(mergedGroups)
+
+        var added = 0
+        var skipped = 0
+        var renamed = 0
+        var keepLocal = 0
+        var replaced = 0
+        planRequests.forEach { req ->
+            val p = req.plan
+            when (req.action) {
+                PlanImportAction.SKIP -> skipped++
+                PlanImportAction.CONFLICT -> {
+                    if (req.replaceLocal) {
+                        val idx = mergedPlans.indexOfFirst { it.id == req.conflictLocalId }
+                        if (idx >= 0) {
+                            mergedPlans[idx] = remapGroupRef(p.copy(id = req.conflictLocalId!!, name = req.finalName), idMap)
+                            replaced++
+                        } else skipped++
+                    } else keepLocal++
+                }
+                PlanImportAction.ADD -> {
+                    mergedPlans.add(remapGroupRef(p.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
+                    added++
+                }
+                PlanImportAction.RENAME -> {
+                    mergedPlans.add(remapGroupRef(p.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
+                    renamed++
+                }
+            }
+        }
+        saveFocusPlans(mergedPlans)
+
+        // 预设：与本地及本次已导入的「名称+分钟」去重；超出上限跳过
+        var presetsAdded = 0
+        var presetsSkipped = 0
+        val presetSet = mergedPresets.map { it.name to it.minutes }.toMutableSet()
+        incomingPresets.forEach { pr ->
+            if (pr.name to pr.minutes in presetSet || mergedPresets.size >= MAX_PRESETS) {
+                presetsSkipped++
+            } else {
+                mergedPresets.add(FocusPreset((mergedPresets.maxOfOrNull { it.id } ?: 0L) + 1, pr.name, pr.minutes))
+                presetSet.add(pr.name to pr.minutes)
+                presetsAdded++
+            }
+        }
+        if (mergedPresets != presets) {
+            presets.clear()
+            presets.addAll(mergedPresets)
+            savePresets()
+        }
+
+        return MergeResult(
+            groupsAdded = groups.size,
+            plansAdded = added,
+            plansSkipped = skipped,
+            plansRenamed = renamed,
+            plansKeepLocal = keepLocal,
+            plansReplaced = replaced,
+            presetsAdded = presetsAdded,
+            presetsSkipped = presetsSkipped,
+        )
+    }
+
+    /** 计划绑定的应用集引用随新增导入重映射；引用文件里不存在的应用集时回退默认集 */
+    private fun remapGroupRef(plan: FocusPlan, idMap: Map<Long, Long>): FocusPlan {
+        val gid = plan.appGroupId ?: return plan
+        return if (gid in idMap) plan.copy(appGroupId = idMap[gid]) else plan.copy(appGroupId = null)
+    }
 }

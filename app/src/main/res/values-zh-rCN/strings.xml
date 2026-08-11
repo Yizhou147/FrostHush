@@ -119,7 +119,7 @@
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
-    <string name="settings_focus_island_summary">专注时通过小米超级岛展示倒计时；需先用 HyperCeiler 解锁焦点通知白名单</string>
+    <string name="settings_focus_island_summary">上岛需HyperCeiler移除焦点通知白名单</string>
     <string name="settings_theme">主题模式</string>
     <string name="settings_theme_summary">当前：%1$s</string>
     <string name="settings_theme_system">跟随系统</string>
@@ -132,8 +132,7 @@
     <string name="settings_export_config">导出应用配置</string>
     <string name="settings_export_config_summary">导出应用集、专注计划与时长预设</string>
     <string name="settings_import_config">导入应用配置</string>
-    <string name="settings_import_config_summary">从 JSON 文件恢复配置（覆盖当前）</string>
-    <string name="settings_import_config_confirm">导入将覆盖当前的应用集、专注计划与时长预设，是否继续？</string>
+    <string name="settings_import_config_summary">从 JSON 文件导入应用集、专注计划与时长预设</string>
     <string name="settings_clear_stats">清空专注统计</string>
     <string name="settings_clear_stats_summary">删除全部会话记录</string>
     <string name="settings_clear_stats_confirm">确定要清空全部专注统计吗？此操作不可撤销。</string>
@@ -142,6 +141,23 @@
     <string name="settings_import_success">配置已导入</string>
     <string name="settings_import_failed">导入失败：文件格式无效</string>
     <string name="settings_cleared">统计已清空</string>
+
+    <!-- 配置导入 -->
+    <string name="config_import_title">导入应用配置</string>
+    <string name="config_import_summary">文件包含 %1$d 个应用集、%2$d 个计划、%3$d 个预设</string>
+    <string name="config_import_presets">预设</string>
+    <string name="config_import_module_summary">共 %1$d 个 · 将导入 %2$d 个</string>
+    <string name="config_import_overwrite_title">整体覆盖导入</string>
+    <string name="config_import_overwrite_action">整体覆盖导入</string>
+    <string name="config_import_overwrite_warning">本地应用集、计划与预设将被整体替换，此操作无法撤销。</string>
+    <string name="config_import_group_default_hint">导入为普通应用集（原为默认集）</string>
+    <string name="config_import_plan_skip">跳过（与现有重复）</string>
+    <string name="config_import_plan_rename">重命名后新增</string>
+    <string name="config_import_plan_conflict">与本地计划时段重复，保留哪个？</string>
+    <string name="config_import_keep_local">保留本地「%1$s」</string>
+    <string name="config_import_use_imported">采用导入「%1$s」</string>
+    <string name="config_import_action">开始导入</string>
+    <string name="config_import_result_merge">导入完成：新增 %1$d 个应用集、%2$d 个计划，跳过 %3$d 个，预设新增 %4$d 个</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">专注模式进行中</string>
