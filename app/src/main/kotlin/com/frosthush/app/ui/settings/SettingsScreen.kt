@@ -83,6 +83,12 @@ import java.util.Locale
 import rikka.shizuku.Shizuku
 
 /**
+ * 导出文件名时间戳：到秒。每次导出时实时生成——不能缓存（remember），
+ * 否则设置页停留期间多次导出会得到同名文件。
+ */
+private fun exportTimeTag(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+
+/**
  * 设置页：
  * - 默认专注时长（选择列表）
  * - 专注结束通知 / 小米超级岛开关
@@ -114,8 +120,6 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
     }
-    // 导出文件名时间戳：到秒，同一天多次导出也能区分
-    val dateTag = remember { SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date()) }
 
     // 导出专注统计 → 系统文件选择器保存
     val statsExportLauncher = rememberLauncherForActivityResult(
@@ -254,7 +258,7 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 icon = Icons.Filled.BarChart,
                 title = stringResource(R.string.settings_export_stats),
                 summary = stringResource(R.string.settings_export_stats_summary),
-                onClick = { statsExportLauncher.launch("frosthush-stats-$dateTag.json") },
+                onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTag()}.json") },
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -267,7 +271,7 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 icon = Icons.Filled.FileDownload,
                 title = stringResource(R.string.settings_export_config),
                 summary = stringResource(R.string.settings_export_config_summary),
-                onClick = { configExportLauncher.launch("frosthush-config-$dateTag.json") },
+                onClick = { configExportLauncher.launch("frosthush-config-${exportTimeTag()}.json") },
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
