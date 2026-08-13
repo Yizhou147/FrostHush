@@ -11,6 +11,7 @@ pinyin4j = "2.5.1"
 hiddenapibypass = "6.1"
 kotlinxCoroutinesAndroid = "1.10.2"
 lifecycleRuntimeCompose = "2.10.0"
+libxposed = "102.0.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -28,6 +29,7 @@ pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }
 hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
+libxposed = { module = "io.github.libxposed:api", version.ref = "libxposed" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

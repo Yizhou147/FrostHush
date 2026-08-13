@@ -119,7 +119,8 @@
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
-    <string name="settings_focus_island_summary">上岛需HyperCeiler移除焦点通知白名单</string>
+    <string name="settings_focus_island_summary">已内置白名单解锁模块，需在 LSPosed 启用并勾选系统界面</string>
+    <string name="module_description">内置焦点通知白名单解锁模块，需在 LSPosed 启用霜息并勾选系统界面作用域（libxposed API 101）</string>
     <string name="settings_theme">主题模式</string>
     <string name="settings_theme_summary">当前：%1$s</string>
     <string name="settings_theme_system">跟随系统</string>
@@ -127,6 +128,12 @@
     <string name="settings_theme_dark">深色</string>
     <string name="settings_confirm_before_start">开始前二次确认</string>
     <string name="settings_confirm_before_start_summary">开始专注前弹出「不可中途退出」确认</string>
+    <string name="settings_plan_remind">计划开始前提醒</string>
+    <string name="settings_plan_remind_summary_seconds">开始前 %1$d 秒提醒</string>
+    <string name="settings_plan_remind_summary_none">不提醒，到点直接开始专注</string>
+    <string name="settings_plan_remind_dialog_hint">0 表示不提醒，到点直接开始专注</string>
+    <string name="settings_plan_remind_unit">秒</string>
+    <string name="settings_plan_remind_invalid">请输入 0-3600 的秒数</string>
     <string name="settings_export_stats">导出专注统计</string>
     <string name="settings_export_stats_summary">保存会话记录为 JSON 文件</string>
     <string name="settings_export_config">导出应用配置</string>
@@ -240,7 +247,7 @@
     <string name="plan_empty">暂无专注计划，点击右上角 + 新建</string>
     <string name="plan_notification_channel">计划</string>
     <string name="plan_reminder_title">专注提醒</string>
-    <string name="plan_reminder_text">计划「%1$s」将在 15 秒后开始专注</string>
+    <string name="plan_reminder_text">计划「%1$s」将在 %2$d 秒后开始专注</string>
     <string name="plan_remind_dialog_title">计划「%1$s」即将开始</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="other">%1$d 秒后开始专注</item>

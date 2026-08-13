@@ -21,6 +21,8 @@ dependencyResolutionManagement {
         }
         google()
         mavenCentral()
+        // libxposed 现代 Xposed API（内置超级岛解锁模块编译期依赖）
+        maven("https://jitpack.io")
     }
 }
 rootProject.name = "FrostHush"

@@ -121,7 +121,8 @@
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
-    <string name="settings_focus_island_summary">Requires HyperCeiler to remove the focus notification whitelist for the island</string>
+    <string name="settings_focus_island_summary">Built-in whitelist unlock module; enable FrostHush in LSPosed and check System UI scope</string>
+    <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI scope (libxposed API 101)</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_summary">Current: %1$s</string>
     <string name="settings_theme_system">Follow system</string>
@@ -129,6 +130,12 @@
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_confirm_before_start">Confirm before starting</string>
     <string name="settings_confirm_before_start_summary">Show the "cannot exit midway" warning before starting focus</string>
+    <string name="settings_plan_remind">Remind before plans start</string>
+    <string name="settings_plan_remind_summary_seconds">Remind %1$d seconds before start</string>
+    <string name="settings_plan_remind_summary_none">No reminder; focus starts directly</string>
+    <string name="settings_plan_remind_dialog_hint">0 means no reminder; focus starts when due</string>
+    <string name="settings_plan_remind_unit">s</string>
+    <string name="settings_plan_remind_invalid">Enter a number from 0 to 3600</string>
     <string name="settings_export_stats">Export focus stats</string>
     <string name="settings_export_stats_summary">Save session history as a JSON file</string>
     <string name="settings_export_config">Export app config</string>
@@ -242,7 +249,7 @@
     <string name="plan_empty">No focus plans yet. Tap + to create one.</string>
     <string name="plan_notification_channel">Plans</string>
     <string name="plan_reminder_title">Focus reminder</string>
-    <string name="plan_reminder_text">Plan "%1$s" will start focus in 15 seconds</string>
+    <string name="plan_reminder_text">Plan "%1$s" will start focus in %2$d seconds</string>
     <string name="plan_remind_dialog_title">Plan "%1$s" starts soon</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="one">Focus starts in %1$d second</item>

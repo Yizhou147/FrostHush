@@ -49,6 +49,16 @@ android {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
+    androidResources {
+        // Do not compress the dex files, so the apk can be imported as a privileged app
+        noCompress += "dex"
+    }
+    packaging {
+        // LSPosed 现代 API：入口/作用域/属性文件在 META-INF/xposed 下，需合并进 APK
+        resources {
+            merges += "META-INF/xposed/*"
+        }
+    }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -75,6 +85,8 @@ dependencies {
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
+    // 内置 Xposed 模块（焦点通知白名单解锁）：compileOnly，不打包进 APK，仅编译期引用
+    compileOnly(libs.libxposed)
 }
 
 // 本地构建产物自动同步到安卓宿主机下载目录（容器内该路径为宿主挂载点）。
