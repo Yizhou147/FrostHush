@@ -8,7 +8,7 @@
 >
 > FrostHush is a standalone focus mode Android app. It suspends the apps you select via Shizuku, so you can stay focused.
 
-[![Android CI](https://github.com/Yizhou147/FrostHush/actions/workflows/android.yml/badge.svg)](https://github.com/Yizhou147/FrostHush/releases)
+[![Release](https://img.shields.io/github/v/release/Yizhou147/FrostHush?display_name=tag&style=flat)](https://github.com/Yizhou147/FrostHush/releases)
 
 ## 简介
 
