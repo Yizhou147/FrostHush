@@ -396,8 +396,28 @@ object FocusStore {
 
     // ---------- 专注时长预设 ----------
 
-    /** 预设：id 用于列表稳定 key */
-    data class FocusPreset(val id: Long, val name: String, val minutes: Int)
+    /**
+     * 预设：id 用于列表稳定 key；name 必填（保存时强制）。
+     * segments 为分段列表（专注→休息→…，从专注开始、以专注结束），
+     * 为 null 表示单段连续专注（旧数据兼容，minutes 即时长）。
+     */
+    data class FocusPreset(
+        val id: Long,
+        val name: String,
+        val minutes: Int,
+        val segments: List<Segment>? = null,
+    ) {
+        /** 各段列表：无分段（旧数据）时回退单段专注（minutes） */
+        val segmentList: List<Segment>
+            get() = segments ?: listOf(Segment(SEGMENT_FOCUS, minutes))
+
+        /** 各段分钟序列文案：30 / 25+5+25（类型固定从专注开始交替，无需标注类型） */
+        val sequenceText: String get() = segmentList.joinToString("+") { it.minutes.toString() }
+
+        /** 导入合并去重键：名称 + 分段结构（type:minutes;…，旧单段用 single:minutes） */
+        val dedupeKey: String
+            get() = segments?.joinToString(";") { "${it.type}:${it.minutes}" } ?: "single:$minutes"
+    }
 
     /** 预设列表 */
     val presets: MutableList<FocusPreset> by lazy {
@@ -408,7 +428,19 @@ object FocusStore {
                     val obj = json.getJSONObject(i)
                     // 兼容旧数据：无 id 字段时按索引生成唯一 id
                     val id = if (obj.has("id")) obj.getLong("id") else System.currentTimeMillis() + i
-                    add(FocusPreset(id, obj.getString("name"), obj.getInt("minutes")))
+                    add(
+                        FocusPreset(
+                            id = id,
+                            name = obj.getString("name"),
+                            minutes = obj.getInt("minutes"),
+                            segments = obj.optJSONArray("segments")?.let { segArr ->
+                                (0 until segArr.length()).map { j ->
+                                    val so = segArr.getJSONObject(j)
+                                    Segment(so.getInt("type"), so.getInt("minutes"))
+                                }
+                            },
+                        )
+                    )
                 }
             }
         }
@@ -420,7 +452,15 @@ object FocusStore {
     fun savePresets() {
         dir.mkdirs()
         presetsFile.writeText(JSONArray().apply {
-            presets.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)) }
+            presets.forEach {
+                val obj = JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)
+                it.segments?.let { segs ->
+                    obj.put("segments", JSONArray().apply {
+                        segs.forEach { s -> put(JSONObject().put("type", s.type).put("minutes", s.minutes)) }
+                    })
+                }
+                put(obj)
+            }
         }.toString())
     }
 
@@ -672,7 +712,15 @@ object FocusStore {
             }
         })
         put("presets", JSONArray().apply {
-            presets.forEach { put(JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)) }
+            presets.forEach {
+                val obj = JSONObject().put("id", it.id).put("name", it.name).put("minutes", it.minutes)
+                it.segments?.let { segs ->
+                    obj.put("segments", JSONArray().apply {
+                        segs.forEach { s -> put(JSONObject().put("type", s.type).put("minutes", s.minutes)) }
+                    })
+                }
+                put(obj)
+            }
         })
     }.toString()
 
@@ -727,6 +775,12 @@ object FocusStore {
                     id = if (o.has("id")) o.getLong("id") else System.currentTimeMillis() + i,
                     name = o.getString("name"),
                     minutes = o.getInt("minutes"),
+                    segments = o.optJSONArray("segments")?.let { segArr ->
+                        (0 until segArr.length()).map { j ->
+                            val so = segArr.getJSONObject(j)
+                            Segment(so.getInt("type"), so.getInt("minutes"))
+                        }
+                    },
                 )
             }
         }
@@ -897,16 +951,16 @@ object FocusStore {
         }
         saveFocusPlans(mergedPlans)
 
-        // 预设：与本地及本次已导入的「名称+分钟」去重；超出上限跳过
+        // 预设：与本地及本次已导入的「名称+分段结构」去重；超出上限跳过
         var presetsAdded = 0
         var presetsSkipped = 0
-        val presetSet = mergedPresets.map { it.name to it.minutes }.toMutableSet()
+        val presetSet = mergedPresets.map { it.name to it.dedupeKey }.toMutableSet()
         incomingPresets.forEach { pr ->
-            if (pr.name to pr.minutes in presetSet || mergedPresets.size >= MAX_PRESETS) {
+            if (pr.name to pr.dedupeKey in presetSet || mergedPresets.size >= MAX_PRESETS) {
                 presetsSkipped++
             } else {
-                mergedPresets.add(FocusPreset((mergedPresets.maxOfOrNull { it.id } ?: 0L) + 1, pr.name, pr.minutes))
-                presetSet.add(pr.name to pr.minutes)
+                mergedPresets.add(FocusPreset((mergedPresets.maxOfOrNull { it.id } ?: 0L) + 1, pr.name, pr.minutes, pr.segments))
+                presetSet.add(pr.name to pr.dedupeKey)
                 presetsAdded++
             }
         }

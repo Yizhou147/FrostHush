@@ -773,8 +773,6 @@ private fun FocusTimeDialog(
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     var showSavePreset by remember { mutableStateOf(false) }
     var showManagePresets by remember { mutableStateOf(false) }
-    // 当前时长输入框获得焦点的段（点时长胶囊即设置预设目标段），默认第一段
-    var selectedIndex by remember { mutableIntStateOf(0) }
     // 正在弹时长输入对话框的段索引；-1 = 无
     var durationDialogIndex by remember { mutableIntStateOf(-1) }
 
@@ -784,8 +782,9 @@ private fun FocusTimeDialog(
     }
 
     if (showSavePreset) {
+        // 保存整个分段列表（含休息）；名称必填
         PresetSaveDialog(
-            minutes = segments.getOrNull(selectedIndex)?.minutes ?: segments.first().minutes,
+            segments = segments,
             onDismiss = { showSavePreset = false },
         )
     }
@@ -819,7 +818,6 @@ private fun FocusTimeDialog(
             }
         }
         segments = merged
-        selectedIndex = selectedIndex.coerceIn(0, merged.size - 1)
     }
 
     AlertDialog(
@@ -831,13 +829,12 @@ private fun FocusTimeDialog(
         text = {
             Column {
                 // 段列表：第一段为专注（主输入），其后交替休息/专注；
-                // 点某段时长胶囊弹输入对话框，同时该段成为预设填充目标
+                // 点某段时长胶囊弹输入对话框
                 segments.forEachIndexed { index, seg ->
                     SegmentRow(
                         segment = seg,
                         deletable = index > 0,
                         onClickDuration = {
-                            selectedIndex = index
                             durationDialogIndex = index
                         },
                         onDelete = { deleteSegment(index) },
@@ -873,15 +870,12 @@ private fun FocusTimeDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    // 预设快捷填充作用于当前选中段（点选高亮；默认第一段）
-                    val target = segments.getOrNull(selectedIndex) ?: segments.first()
+                    // 预设为完整分段列表：点击即替换整个时间安排（旧单段预设回退单段专注）
                     FocusPresetChips(
-                        input = target.minutes.toString(),
+                        segments = segments,
                         presets = presets,
-                        onSelect = { minutes ->
-                            segments = segments.toMutableList().apply {
-                                set(selectedIndex.coerceAtMost(size - 1), FocusStore.Segment(this[selectedIndex.coerceAtMost(size - 1)].type, minutes))
-                            }
+                        onSelect = { preset ->
+                            segments = preset.segmentList.toMutableList()
                         },
                     )
                 }
@@ -929,10 +923,15 @@ private fun FocusTimeDialog(
     }
 }
 
-/** 预设快捷选择 chips */
+/** 预设快捷选择 chips：显示「名称 段序列」（如「午休 30」「番茄 25+5+25」）；
+ *  点击应用整个分段列表；与当前分段完全一致时高亮 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FocusPresetChips(input: String, presets: List<FocusStore.FocusPreset>, onSelect: (Int) -> Unit) {
+private fun FocusPresetChips(
+    segments: List<FocusStore.Segment>,
+    presets: List<FocusStore.FocusPreset>,
+    onSelect: (FocusStore.FocusPreset) -> Unit,
+) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -940,12 +939,12 @@ private fun FocusPresetChips(input: String, presets: List<FocusStore.FocusPreset
     ) {
         presets.forEach { preset ->
             FilterChip(
-                selected = preset.minutes.toString() == input,
-                onClick = { onSelect(preset.minutes) },
+                selected = preset.segmentList == segments,
+                onClick = { onSelect(preset) },
                 label = {
                     Text(
-                        // 名称为空时只显示时长数字（不带单位），避免「30 分钟」与时长重复
-                        text = if (preset.name.isBlank()) "${preset.minutes}" else "${preset.name} ${preset.minutes}",
+                        // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                        text = preset.name.ifBlank { preset.sequenceText },
                     )
                 },
             )
@@ -953,11 +952,12 @@ private fun FocusPresetChips(input: String, presets: List<FocusStore.FocusPreset
     }
 }
 
-/** 保存为预设 */
+/** 保存为预设：保存当前完整分段列表（含休息），名称必填（不支持自动命名） */
 @Composable
-private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
+private fun PresetSaveDialog(segments: List<FocusStore.Segment>, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
+    val total = segments.sumOf { it.minutes }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.action_save_preset)) },
@@ -972,8 +972,18 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
+                // 分段预览：逐段展示（专注 30 · 休息 10 · 专注 30）+ 汇总
                 Text(
-                    text = context.getString(R.string.focus_time_label) + " " + minutes,
+                    text = segments.joinToString(" · ") { seg ->
+                        context.getString(
+                            if (seg.isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest
+                        ) + " " + seg.minutes
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = segmentsSummaryText(segments),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -982,14 +992,16 @@ private fun PresetSaveDialog(minutes: Int, onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = {
                 when {
-                    minutes !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES ->
+                    name.trim().isBlank() ->
+                        Toast.makeText(context, context.getString(R.string.focus_preset_name_required), Toast.LENGTH_SHORT).show()
+                    segments.any { it.minutes < FocusStore.MIN_MINUTES } || total !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES ->
                         Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
                     FocusStore.presets.size >= FocusStore.MAX_PRESETS ->
                         Toast.makeText(context, context.getString(R.string.focus_preset_limit), Toast.LENGTH_SHORT).show()
                     else -> {
-                        // 名称可留空：不自动命名（预设本身会显示时长），留空则保存空名称
-                        val presetName = name.trim()
-                        FocusStore.presets.add(FocusStore.FocusPreset(FocusStore.nextPresetId(), presetName, minutes))
+                        FocusStore.presets.add(
+                            FocusStore.FocusPreset(FocusStore.nextPresetId(), name.trim(), total, segments)
+                        )
                         FocusStore.savePresets()
                         Toast.makeText(context, context.getString(R.string.focus_preset_saved), Toast.LENGTH_SHORT).show()
                         onDismiss()
@@ -1092,8 +1104,8 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        // 名称为空时只显示时长数字（不带单位），避免「30 分钟」与时长重复
-                                        text = if (preset.name.isBlank()) "${preset.minutes}" else "${preset.name} ${preset.minutes}",
+                                        // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                                        text = preset.name.ifBlank { preset.sequenceText },
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyLarge,
                                     )

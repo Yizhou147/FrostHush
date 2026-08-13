@@ -48,7 +48,7 @@
     <string name="focus_time_unit">min</string>
     <string name="focus_time_invalid">Enter a duration between 1 and 240 minutes</string>
     <string name="focus_empty_presets">No presets yet; save your common durations</string>
-    <string name="focus_preset_name">Preset name (optional)</string>
+    <string name="focus_preset_name">Preset name</string>
     <string name="focus_preset_name_hint">e.g. nap, reading</string>
     <string name="focus_preset_name_required">Please enter a preset name</string>
     <string name="focus_preset_limit">Preset limit reached</string>

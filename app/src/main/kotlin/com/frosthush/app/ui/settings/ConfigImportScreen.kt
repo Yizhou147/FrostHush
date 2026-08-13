@@ -159,7 +159,7 @@ fun ConfigImportScreen(data: ConfigData, onBack: () -> Unit) {
             }
         }
         val presetReqs = presets.filter { it.importEnabled }.map {
-            FocusStore.FocusPreset(it.source.id, it.name.trim().ifEmpty { it.source.name }, it.source.minutes)
+            FocusStore.FocusPreset(it.source.id, it.name.trim().ifEmpty { it.source.name }, it.source.minutes, it.source.segments)
         }
         val r = FocusStore.applyConfigMerge(groupReqs, planReqs, presetReqs)
         Toast.makeText(
@@ -465,7 +465,8 @@ private fun PresetsImportPage(presets: List<PresetImportState>, onBack: () -> Un
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        stringResource(R.string.stats_duration_minutes_only, pr.source.minutes),
+                        // 分段预设显示段序列（如 25+5+25）；旧单段预设显示分钟数（兼容）
+                        pr.source.sequenceText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

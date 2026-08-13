@@ -48,7 +48,7 @@
     <string name="focus_time_unit">min</string>
     <string name="focus_time_invalid">请输入 1-240 之间的时长</string>
     <string name="focus_empty_presets">暂无预设，可保存常用时长</string>
-    <string name="focus_preset_name">预设名称（可留空）</string>
+    <string name="focus_preset_name">预设名称</string>
     <string name="focus_preset_name_hint">如：午休、阅读</string>
     <string name="focus_preset_name_required">请输入预设名称</string>
     <string name="focus_preset_limit">预设数量已达上限</string>
