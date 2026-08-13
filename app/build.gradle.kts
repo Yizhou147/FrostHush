@@ -49,10 +49,6 @@ android {
             jvmTarget.set(JvmTarget.JVM_17)
         }
     }
-    androidResources {
-        // Do not compress the dex files, so the apk can be imported as a privileged app
-        noCompress += "dex"
-    }
     packaging {
         // LSPosed 现代 API：入口/作用域/属性文件在 META-INF/xposed 下，需合并进 APK
         resources {
