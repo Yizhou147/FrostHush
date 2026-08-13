@@ -78,7 +78,7 @@
 
 雹（[Hail](https://github.com/aistra0528/Hail)，GPL-3.0）本体不含专注模式；专注模式最初是在雹的基础上额外添加的功能（见 [Yizhou147/Hail](https://github.com/Yizhou147/Hail)）。本项目将该功能独立为完整的专注应用，不含冻结 / 停止等雹的本体功能，专注相关逻辑参考雹的自写实现。
 
-小米超级岛（焦点通知）的参数结构、白名单解锁与 xms 授权绕过机制参考 [HyperIsland](https://github.com/1812z/HyperIsland)（MIT）的源码实现；通知展开形态与原生倒计时结构参考番茄 Todo（`com.plan.kot32.tomatotime`）的通知参数逆向分析（未复用其代码）。
+小米超级岛（焦点通知）的参数结构、白名单解锁与 xms 授权绕过机制参考 [HyperIsland](https://github.com/1812z/HyperIsland)（MIT）的源码实现。
 
 ## 隐私说明
 
