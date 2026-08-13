@@ -121,8 +121,8 @@
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
-    <string name="settings_focus_island_summary">Built-in whitelist unlock module; enable FrostHush in LSPosed and check System UI scope</string>
-    <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI scope (libxposed API 101)</string>
+    <string name="settings_focus_island_summary">Built-in whitelist unlock module; enable FrostHush in LSPosed and check System UI and XMSF scopes</string>
+    <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI and XMSF scopes (libxposed API 101)</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_summary">Current: %1$s</string>
     <string name="settings_theme_system">Follow system</string>
