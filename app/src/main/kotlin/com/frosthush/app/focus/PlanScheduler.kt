@@ -13,6 +13,7 @@ import com.frosthush.app.MainActivity
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
+import com.frosthush.app.data.SettingsStore
 import java.util.Calendar
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -37,7 +38,6 @@ object PlanScheduler {
     private const val EXTRA_DAY = "plan_day"
 
     private const val CHANNEL_ID = "focus_plan"
-    private const val REMINDER_OFFSET_MS = 15_000L
     const val PENDING_WINDOW_MS = 5 * 60_000L
 
     private const val NOTIFICATION_ID_REMIND = 202
@@ -67,9 +67,10 @@ object PlanScheduler {
         val now = System.currentTimeMillis()
         val start = nextStartMillis(plan, now)
         val day = dayCodeOf(start)
-        // 开始前 15 秒提醒
-        val remindAt = start - REMINDER_OFFSET_MS
-        if (remindAt > now) {
+        // 开始前提醒（提前秒数由设置 planRemindSeconds 控制；0 = 不提醒，到点直接开始）
+        val remindSeconds = SettingsStore.cache.planRemindSeconds
+        val remindAt = start - remindSeconds * 1000L
+        if (remindSeconds > 0 && remindAt > now) {
             setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day))
         }
         // 开始
@@ -337,7 +338,13 @@ object PlanScheduler {
                 NotificationCompat.Builder(context, CHANNEL_ID)
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_reminder_title))
-                    .setContentText(context.getString(R.string.plan_reminder_text, plan.name))
+                    .setContentText(
+                        context.getString(
+                            R.string.plan_reminder_text,
+                            plan.name,
+                            SettingsStore.cache.planRemindSeconds,
+                        )
+                    )
                     .setContentIntent(contentIntent)
                     // 设备在全屏应用/锁屏时 heads-up 会被系统降级为只进通知栏，
                     // fullScreenIntent 强制全屏弹出（点击仍进「距开始倒计时」对话框）

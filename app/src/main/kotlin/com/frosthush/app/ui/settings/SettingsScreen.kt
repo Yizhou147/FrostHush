@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Cancel
@@ -110,10 +111,13 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         .collectAsState(initial = SettingsStore.cache.themeMode)
     val confirmBeforeStart by SettingsStore.confirmBeforeStart
         .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
+    val planRemindSeconds by SettingsStore.planRemindSeconds
+        .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
     var showDurationDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
+    var showRemindDialog by remember { mutableStateOf(false) }
 
     val themeLabel = when (themeMode) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
@@ -255,6 +259,23 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 },
             )
             SettingCard(
+                icon = Icons.Filled.Alarm,
+                title = stringResource(R.string.settings_plan_remind),
+                summary = if (planRemindSeconds > 0) {
+                    stringResource(R.string.settings_plan_remind_summary_seconds, planRemindSeconds)
+                } else {
+                    stringResource(R.string.settings_plan_remind_summary_none)
+                },
+                onClick = { showRemindDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
                 icon = Icons.Filled.BarChart,
                 title = stringResource(R.string.settings_export_stats),
                 summary = stringResource(R.string.settings_export_stats_summary),
@@ -345,6 +366,13 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
     }
     if (showReliabilityDialog) {
         PlanReliabilityDialog(onDismiss = { showReliabilityDialog = false })
+    }
+    if (showRemindDialog) {
+        RemindSecondsDialog(
+            selected = planRemindSeconds,
+            onSelect = { SettingsStore.setPlanRemindSeconds(it); showRemindDialog = false },
+            onCancel = { showRemindDialog = false },
+        )
     }
 }
 
@@ -457,8 +485,58 @@ private fun DurationDialog(
     )
 }
 
-/**
- * 计划可靠性检查对话框：逐项检查省电豁免 / 精确闹钟 / 自启动 / Shizuku，
+/** 计划开始前提醒秒数设置对话框：数字输入（0-3600，0 = 不提醒到点直接开始） */
+@Composable
+private fun RemindSecondsDialog(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val context = LocalContext.current
+    var input by remember { mutableStateOf(selected.toString()) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.settings_plan_remind)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it.filter(Char::isDigit).take(4) },
+                    label = { Text(stringResource(R.string.settings_plan_remind)) },
+                    suffix = { Text(stringResource(R.string.settings_plan_remind_unit)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.settings_plan_remind_dialog_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val seconds = input.toIntOrNull()
+                if (seconds != null && seconds in SettingsStore.PLAN_REMIND_RANGE) {
+                    onSelect(seconds)
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_plan_remind_invalid),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }) { Text(stringResource(R.string.action_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
+/** 计划可靠性检查对话框：逐项检查省电豁免 / 精确闹钟 / 自启动 / Shizuku，
  * 未通过项提供跳转系统设置的入口；「重新检测」自增 key 触发重算。
  * internal：设置页与计划页（省电提醒横幅）复用。
  */

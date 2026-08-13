@@ -27,12 +27,17 @@ object SettingsStore {
         val themeMode: Int = THEME_SYSTEM, // 0 跟随系统 / 1 浅色 / 2 深色
         val confirmBeforeStart: Boolean = true,
         val welcomeDone: Boolean = false,
+        // 计划开始前提醒秒数（0 = 不提醒，到点直接开始专注）
+        val planRemindSeconds: Int = DEFAULT_PLAN_REMIND_SECONDS,
     )
 
     const val DEFAULT_FOCUS_MINUTES = 30
     const val THEME_SYSTEM = 0
     const val THEME_LIGHT = 1
     const val THEME_DARK = 2
+    const val DEFAULT_PLAN_REMIND_SECONDS = 15
+    /** 计划提醒秒数合法范围：0（不提醒）~ 3600 */
+    val PLAN_REMIND_RANGE = 0..3600
 
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
@@ -40,6 +45,7 @@ object SettingsStore {
     private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
     private val KEY_CONFIRM_BEFORE_START = booleanPreferencesKey("confirm_before_start")
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
+    private val KEY_PLAN_REMIND_SECONDS = intPreferencesKey("plan_remind_seconds")
 
     /** 内存缓存：供不便于挂起的后台代码同步读取 */
     var cache: Settings = Settings()
@@ -58,6 +64,7 @@ object SettingsStore {
                     themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
                     confirmBeforeStart = prefs[KEY_CONFIRM_BEFORE_START] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
+                    planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
                 )
             }
         }
@@ -69,6 +76,7 @@ object SettingsStore {
     val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
     val confirmBeforeStart: Flow<Boolean> = app.dataStore.data.map { it[KEY_CONFIRM_BEFORE_START] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
+    val planRemindSeconds: Flow<Int> = app.dataStore.data.map { it[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS }
 
     fun setDefaultFocusMinutes(minutes: Int) {
         scope.launch {
@@ -109,6 +117,13 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_WELCOME_DONE] = done }
             cache = cache.copy(welcomeDone = done)
+        }
+    }
+
+    fun setPlanRemindSeconds(seconds: Int) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_PLAN_REMIND_SECONDS] = seconds }
+            cache = cache.copy(planRemindSeconds = seconds)
         }
     }
 }
