@@ -73,6 +73,11 @@
             android:name=".focus.PlanAlarmReceiver"
             android:exported="false"/>
 
+        <!-- 专注阶段操作（跳过休息） -->
+        <receiver
+            android:name=".focus.FocusActionReceiver"
+            android:exported="false"/>
+
         <!-- 待启动计划决策（继续/停止） -->
         <receiver
             android:name=".focus.PlanDecisionReceiver"

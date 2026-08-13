@@ -378,6 +378,15 @@ private fun PlanRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 WeekdayBadges(plan.weekdays)
                 Spacer(Modifier.width(12.dp))
+                if (plan.segments != null) {
+                    Text(
+                        stringResource(R.string.plan_segments_badge),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 Text(
                     bindingText,
                     style = MaterialTheme.typography.bodySmall,

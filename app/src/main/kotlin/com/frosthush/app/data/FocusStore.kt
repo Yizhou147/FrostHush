@@ -33,21 +33,102 @@ object FocusStore {
     const val MAX_MINUTES = 240
     const val MAX_PRESETS = 20
 
+    /** 分段阶段类型：专注 / 休息 */
+    const val SEGMENT_FOCUS = 0
+    const val SEGMENT_REST = 1
+
+    /** 分段中的一段：专注或休息（时长分钟）。列表始终从专注开始、以专注结束、类型交替。 */
+    data class Segment(val type: Int, val minutes: Int) {
+        val isFocus: Boolean get() = type == SEGMENT_FOCUS
+    }
+
+    /** 历史记录中的一段（起止时间按实际发生计算） */
+    data class HistorySegment(val type: Int, val start: Long, val end: Long) {
+        val minutes: Long get() = (end - start) / 60_000L
+    }
+
+    /** 会话中某个时刻所处的阶段信息 */
+    data class PhaseInfo(
+        val index: Int,
+        val type: Int,
+        val segmentStart: Long,
+        val segmentEnd: Long,
+    ) {
+        val isFocus: Boolean get() = type == SEGMENT_FOCUS
+
+        fun remainingAt(now: Long): Long = (segmentEnd - now).coerceAtLeast(0L)
+    }
+
     /**
      * 活动会话：{应用包名列表, 开始时间, 时长}。
      * planId 非空表示该会话由专注计划启动（不受 240 分钟限制，可跨天）。
+     * segments 非空表示分段专注（专注→休息→专注…，从专注开始以专注结束）；
+     * segments 为空表示单段连续专注（旧数据兼容，durationMinutes 即总时长）。
      */
     data class ActiveSession(
         val packages: List<String>,
         val startMillis: Long,
         val durationMinutes: Int,
         val planId: Long? = null,
+        val segments: List<Segment>? = null,
     ) {
-        val endMillis: Long get() = startMillis + durationMinutes * 60_000L
+        /** 各段计划时长（分钟）；无分段时回退单段专注 */
+        val segmentMinutes: List<Int>
+            get() = segments?.map { it.minutes } ?: listOf(durationMinutes)
+
+        /** 总时长（分钟）：各段之和；无分段时回退 durationMinutes */
+        val totalMinutes: Int get() = segmentMinutes.sum()
+
+        val endMillis: Long get() = startMillis + totalMinutes * 60_000L
+
+        /** 是否分段（含休息段） */
+        val isSegmented: Boolean get() = segments != null && segments.size > 1
+
+        /** 某时刻所处的阶段（分段边界按计划时长推算） */
+        fun phaseAt(millis: Long): PhaseInfo {
+            val minutes = segmentMinutes
+            var last = startMillis
+            for (i in minutes.indices) {
+                val end = last + minutes[i] * 60_000L
+                if (millis < end || i == minutes.size - 1) {
+                    return PhaseInfo(
+                        index = i,
+                        type = segments?.getOrNull(i)?.type ?: SEGMENT_FOCUS,
+                        segmentStart = last,
+                        segmentEnd = end,
+                    )
+                }
+                last = end
+            }
+            // 不可达：segmentMinutes 恒非空
+            return PhaseInfo(0, SEGMENT_FOCUS, startMillis, startMillis + durationMinutes * 60_000L)
+        }
+
+        /**
+         * 生成历史明细：各段实际起止时间。
+         * 各段边界按计划时长推算（跳过休息会重写对应休息段为实际耗时，故边界即实际）。
+         * 最后一段结束时间用传入的 end（含提前结束）。
+         */
+        fun toHistorySegments(end: Long): List<HistorySegment>? {
+            if (segments == null) return null
+            val minutes = segmentMinutes
+            val result = ArrayList<HistorySegment>(minutes.size)
+            var last = startMillis
+            for (i in minutes.indices) {
+                val segEnd = if (i == minutes.size - 1) end else last + minutes[i] * 60_000L
+                result.add(HistorySegment(segments[i].type, last, segEnd))
+                last = segEnd
+            }
+            return result
+        }
     }
 
-    /** 一次已完成的专注会话 */
-    data class HistoryRecord(val start: Long, val end: Long) {
+    /** 一次已完成的专注会话（整段一条；分段会话含 segments 明细） */
+    data class HistoryRecord(
+        val start: Long,
+        val end: Long,
+        val segments: List<HistorySegment>? = null,
+    ) {
         /** 时长（分钟），向下取整 */
         val minutes: Int get() = ((end - start) / 60_000L).toInt()
     }
@@ -63,6 +144,12 @@ object FocusStore {
             startMillis = json.getLong("start"),
             durationMinutes = json.getInt("duration"),
             planId = if (json.has("planId")) json.getLong("planId") else null,
+            segments = json.optJSONArray("segments")?.let { segArr ->
+                (0 until segArr.length()).map { i ->
+                    val o = segArr.getJSONObject(i)
+                    Segment(o.getInt("type"), o.getInt("minutes"))
+                }
+            },
         )
     }.getOrNull()
 
@@ -73,6 +160,11 @@ object FocusStore {
             put("start", session.startMillis)
             put("duration", session.durationMinutes)
             session.planId?.let { put("planId", it) }
+            session.segments?.let { segs ->
+                put("segments", JSONArray().apply {
+                    segs.forEach { s -> put(JSONObject().put("type", s.type).put("minutes", s.minutes)) }
+                })
+            }
         }.toString())
     }
 
@@ -93,7 +185,18 @@ object FocusStore {
             val obj = json.getJSONObject(i)
             val start = obj.getLong("start")
             if (!seen.add(start)) continue
-            result.add(HistoryRecord(start, obj.getLong("end")))
+            val end = obj.getLong("end")
+            result.add(
+                HistoryRecord(
+                    start, end,
+                    segments = obj.optJSONArray("segments")?.let { segArr ->
+                        (0 until segArr.length()).map { j ->
+                            val o = segArr.getJSONObject(j)
+                            HistorySegment(o.getInt("type"), o.getLong("start"), o.getLong("end"))
+                        }
+                    },
+                )
+            )
         }
         result
     }.getOrDefault(emptyList())
@@ -104,7 +207,17 @@ object FocusStore {
         while (list.size > MAX_HISTORY) list.removeAt(0)
         dir.mkdirs()
         historyFile.writeText(JSONArray().apply {
-            list.forEach { put(JSONObject().put("start", it.start).put("end", it.end)) }
+            list.forEach {
+                val obj = JSONObject().put("start", it.start).put("end", it.end)
+                it.segments?.let { segs ->
+                    obj.put("segments", JSONArray().apply {
+                        segs.forEach { s ->
+                            put(JSONObject().put("type", s.type).put("start", s.start).put("end", s.end))
+                        }
+                    })
+                }
+                put(obj)
+            }
         }.toString())
     }
 
@@ -329,17 +442,21 @@ object FocusStore {
         val appGroupId: Long? = null,
         val directEntries: List<String>? = null,
         val enabled: Boolean = true,
+        // 分段专注（专注→休息→专注…）；为空表示单段连续专注。
+        // 分段计划保存时 endMinute 由「开始 + 各段总和」推导，两处保持一致
+        val segments: List<Segment>? = null,
     ) {
         /** 是否跨天（结束时间在次日） */
         val crossesMidnight: Boolean get() = endMinute <= startMinute
 
         /** 计划专注时长（分钟），不受 240 分钟限制 */
         val durationMinutes: Int
-            get() = when {
-                endMinute > startMinute -> endMinute - startMinute
-                endMinute < startMinute -> (1440 - startMinute) + endMinute
-                else -> 1440 // 开始 == 结束：跨全天
-            }
+            get() = segments?.sumOf { it.minutes }
+                ?: when {
+                    endMinute > startMinute -> endMinute - startMinute
+                    endMinute < startMinute -> (1440 - startMinute) + endMinute
+                    else -> 1440 // 开始 == 结束：跨全天
+                }
     }
 
     /** 计划绑定的应用条目：应用集 → 直选 → 默认集 */
@@ -371,6 +488,12 @@ object FocusStore {
                     }.getOrDefault(emptyList())
                 } else null,
                 enabled = obj.optBoolean("enabled", true),
+                segments = obj.optJSONArray("segments")?.let { segArr ->
+                    (0 until segArr.length()).map { j ->
+                        val o = segArr.getJSONObject(j)
+                        Segment(o.getInt("type"), o.getInt("minutes"))
+                    }
+                },
             )
         }
     }.getOrDefault(emptyList())
@@ -388,6 +511,11 @@ object FocusStore {
                     p.appGroupId?.let { put("appGroupId", it) }
                     p.directEntries?.let { put("directEntries", JSONArray(it)) }
                     put("enabled", p.enabled)
+                    p.segments?.let { segs ->
+                        put("segments", JSONArray().apply {
+                            segs.forEach { s -> put(JSONObject().put("type", s.type).put("minutes", s.minutes)) }
+                        })
+                    }
                 })
             }
         }.toString())
@@ -485,9 +613,19 @@ object FocusStore {
         runCatching { historyFile.delete() }
     }
 
-    /** 导出专注统计：JSON [{start,end},...] 字符串 */
+    /** 导出专注统计：JSON [{start,end,segments?},...] 字符串 */
     fun exportStatsJson(): String = JSONArray().apply {
-        history().forEach { put(JSONObject().put("start", it.start).put("end", it.end)) }
+        history().forEach {
+            val obj = JSONObject().put("start", it.start).put("end", it.end)
+            it.segments?.let { segs ->
+                obj.put("segments", JSONArray().apply {
+                    segs.forEach { s ->
+                        put(JSONObject().put("type", s.type).put("start", s.start).put("end", s.end))
+                    }
+                })
+            }
+            put(obj)
+        }
     }.toString()
 
     private const val CONFIG_VERSION = 1
@@ -525,6 +663,11 @@ object FocusStore {
                     p.appGroupId?.let { put("appGroupId", it) }
                     p.directEntries?.let { put("directEntries", JSONArray(it)) }
                     put("enabled", p.enabled)
+                    p.segments?.let { segs ->
+                        put("segments", JSONArray().apply {
+                            segs.forEach { s -> put(JSONObject().put("type", s.type).put("minutes", s.minutes)) }
+                        })
+                    }
                 })
             }
         })
@@ -568,6 +711,12 @@ object FocusStore {
                         o.getJSONArray("directEntries").let { e -> (0 until e.length()).map { e.getString(it) } }
                     } else null,
                     enabled = o.optBoolean("enabled", true),
+                    segments = o.optJSONArray("segments")?.let { segArr ->
+                        (0 until segArr.length()).map { j ->
+                            val so = segArr.getJSONObject(j)
+                            Segment(so.getInt("type"), so.getInt("minutes"))
+                        }
+                    },
                 )
             }
         }

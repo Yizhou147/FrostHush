@@ -22,6 +22,8 @@ object SettingsStore {
 
     data class Settings(
         val defaultFocusMinutes: Int = DEFAULT_FOCUS_MINUTES,
+        // 新增休息段默认时长（手动专注/计划分段添加休息时使用）
+        val defaultRestMinutes: Int = DEFAULT_REST_MINUTES,
         val notifyFinishEnabled: Boolean = true,
         val focusIslandEnabled: Boolean = true,
         val themeMode: Int = THEME_SYSTEM, // 0 跟随系统 / 1 浅色 / 2 深色
@@ -32,6 +34,7 @@ object SettingsStore {
     )
 
     const val DEFAULT_FOCUS_MINUTES = 30
+    const val DEFAULT_REST_MINUTES = 10
     const val THEME_SYSTEM = 0
     const val THEME_LIGHT = 1
     const val THEME_DARK = 2
@@ -40,6 +43,7 @@ object SettingsStore {
     val PLAN_REMIND_RANGE = 0..3600
 
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
+    private val KEY_DEFAULT_REST_MINUTES = intPreferencesKey("default_rest_minutes")
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
     private val KEY_FOCUS_ISLAND = booleanPreferencesKey("focus_island_enabled")
     private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
@@ -59,6 +63,7 @@ object SettingsStore {
             app.dataStore.data.collect { prefs ->
                 cache = Settings(
                     defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
+                    defaultRestMinutes = prefs[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES,
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
                     focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: true,
                     themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
@@ -71,6 +76,7 @@ object SettingsStore {
     }
 
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
+    val defaultRestMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES }
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
     val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: true }
     val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
@@ -82,6 +88,13 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_DEFAULT_MINUTES] = minutes }
             cache = cache.copy(defaultFocusMinutes = minutes)
+        }
+    }
+
+    fun setDefaultRestMinutes(minutes: Int) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_DEFAULT_REST_MINUTES] = minutes }
+            cache = cache.copy(defaultRestMinutes = minutes)
         }
     }
 

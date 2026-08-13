@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Security
@@ -103,6 +104,8 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
     val context = LocalContext.current
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
+    val defaultRestMinutes by SettingsStore.defaultRestMinutes
+        .collectAsState(initial = SettingsStore.cache.defaultRestMinutes)
     val notifyFinish by SettingsStore.notifyFinishEnabled
         .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
     val focusIsland by SettingsStore.focusIslandEnabled
@@ -114,6 +117,7 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
     val planRemindSeconds by SettingsStore.planRemindSeconds
         .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
     var showDurationDialog by remember { mutableStateOf(false) }
+    var showRestDurationDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
@@ -206,6 +210,36 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 },
             )
             SettingCard(
+                icon = Icons.Filled.FreeBreakfast,
+                title = stringResource(R.string.settings_default_rest_duration),
+                summary = stringResource(R.string.settings_default_rest_duration_summary, defaultRestMinutes),
+                onClick = { showRestDurationDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.Alarm,
+                title = stringResource(R.string.settings_plan_remind),
+                summary = if (planRemindSeconds > 0) {
+                    stringResource(R.string.settings_plan_remind_summary_seconds, planRemindSeconds)
+                } else {
+                    stringResource(R.string.settings_plan_remind_summary_none)
+                },
+                onClick = { showRemindDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
                 icon = Icons.Filled.Notifications,
                 title = stringResource(R.string.settings_notify_finish),
                 summary = stringResource(R.string.settings_notify_finish_summary),
@@ -250,23 +284,6 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 title = stringResource(R.string.settings_plan_reliability),
                 summary = stringResource(R.string.settings_plan_reliability_summary),
                 onClick = { showReliabilityDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Alarm,
-                title = stringResource(R.string.settings_plan_remind),
-                summary = if (planRemindSeconds > 0) {
-                    stringResource(R.string.settings_plan_remind_summary_seconds, planRemindSeconds)
-                } else {
-                    stringResource(R.string.settings_plan_remind_summary_none)
-                },
-                onClick = { showRemindDialog = true },
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -332,9 +349,18 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
 
     if (showDurationDialog) {
         DurationDialog(
+            title = stringResource(R.string.settings_default_duration),
             selected = defaultMinutes,
             onSelect = { SettingsStore.setDefaultFocusMinutes(it); showDurationDialog = false },
             onCancel = { showDurationDialog = false },
+        )
+    }
+    if (showRestDurationDialog) {
+        DurationDialog(
+            title = stringResource(R.string.settings_default_rest_duration),
+            selected = defaultRestMinutes,
+            onSelect = { SettingsStore.setDefaultRestMinutes(it); showRestDurationDialog = false },
+            onCancel = { showRestDurationDialog = false },
         )
     }
     if (showThemeDialog) {
@@ -446,9 +472,10 @@ internal fun SettingCard(
     }
 }
 
-/** 默认专注时长设置对话框：数字输入（1-240 分钟） */
+/** 默认时长设置对话框（默认专注/休息时长共用）：数字输入（1-240 分钟） */
 @Composable
 private fun DurationDialog(
+    title: String,
     selected: Int,
     onSelect: (Int) -> Unit,
     onCancel: () -> Unit,
@@ -457,12 +484,12 @@ private fun DurationDialog(
     var input by remember { mutableStateOf(selected.toString()) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.settings_default_duration)) },
+        title = { Text(title) },
         text = {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it.filter(Char::isDigit).take(3) },
-                label = { Text(stringResource(R.string.focus_time_label)) },
+                label = { Text(title) },
                 suffix = { Text(stringResource(R.string.focus_time_unit)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,

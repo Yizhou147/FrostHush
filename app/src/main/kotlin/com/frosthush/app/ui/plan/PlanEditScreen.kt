@@ -59,8 +59,19 @@ import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
+import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
+import com.frosthush.app.ui.MAX_SEGMENTS
+import com.frosthush.app.ui.SegmentMinutesDialog
+import com.frosthush.app.ui.SegmentRatioBar
+import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.appendSegment
+import com.frosthush.app.ui.removeSegment
+import com.frosthush.app.ui.segmentEndTimeText
+import com.frosthush.app.ui.minuteOfDayText
+import com.frosthush.app.ui.segmentsSummaryText
 import com.frosthush.app.ui.AppSelectScreen
 
 /**
@@ -90,26 +101,52 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
     var selectedGroupId by remember { mutableStateOf(plan?.appGroupId ?: FocusStore.defaultGroup()?.id) }
     var directEntries by remember { mutableStateOf(plan?.directEntries ?: emptyList()) }
     var enabled by remember { mutableStateOf(plan?.enabled ?: true) }
+    // 分段专注：空列表 = 连续专注（结束时间手动选择）；非空 = 分段（结束时间自动 = 开始 + 各段总和）
+    var segments by remember {
+        mutableStateOf<MutableList<FocusStore.Segment>>(plan?.segments?.toMutableList() ?: mutableListOf())
+    }
     var selectingDirect by remember { mutableStateOf(false) }
     var showStartPicker by remember { mutableStateOf(false) }
     var showEndPicker by remember { mutableStateOf(false) }
+    // 正在按时间段调整的段索引（点该段结束时间打开选择器，时长自动反算）；-1 = 无
+    var editingEndIndex by remember { mutableStateOf(-1) }
+    // 正在弹时长输入对话框的段索引；-1 = 无
+    var durationDialogIndex by remember { mutableStateOf(-1) }
     var showFullDayConfirm by remember { mutableStateOf(false) }
     var showLongDurationConfirm by remember { mutableStateOf(false) }
     val groups = remember { FocusStore.appGroups() }
+
+    // 分段模式：结束时间只读推导值；显示用
+    val segTotal = segments.sumOf { it.minutes }
+    val displayEnd = if (segments.isNotEmpty()) (startMinute + segTotal) % 1440 else endMinute
+    // 各段起止分钟数（基于计划开始时间累加，未取模便于跨天显示判断）
+    val segmentBounds: List<Pair<Int, Int>> = remember(segments, startMinute) {
+        val list = mutableListOf<Pair<Int, Int>>()
+        var acc = startMinute
+        segments.forEach { s ->
+            list.add(acc to acc + s.minutes)
+            acc += s.minutes
+        }
+        list
+    }
 
     // 编辑页内系统返回键：退回计划列表（应用选择页内的返回由 AppSelectScreen 自身拦截）
     BackHandler { onBack() }
 
     fun doSave() {
+        val segs = segments.takeIf { it.isNotEmpty() }?.toList()
+        // 分段计划：结束时间自动 = 开始 + 各段总和（跨天自然环绕）
+        val finalEnd = segs?.let { (startMinute + it.sumOf { s -> s.minutes }) % 1440 } ?: endMinute
         val updated = FocusPlan(
             id = plan?.id ?: FocusStore.nextPlanId(),
             name = name.trim(),
             startMinute = startMinute,
-            endMinute = endMinute,
+            endMinute = finalEnd,
             weekdays = weekdays,
             appGroupId = if (bindMode == 0) selectedGroupId else null,
             directEntries = if (bindMode == 1) directEntries else null,
             enabled = enabled,
+            segments = segs,
         )
         if (plan == null) FocusStore.addFocusPlan(updated)
         else FocusStore.updateFocusPlan(updated)
@@ -128,9 +165,12 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
         else -> 1440
     }
 
+    /** 表单当前总时长：分段模式取各段之和，连续模式取起止时间差 */
+    fun currentTotal(): Int = if (segments.isNotEmpty()) segTotal else durationMinutes()
+
     /** 长时长确认文案：整小时省略分钟 */
     fun longDurationText(): String {
-        val minutes = durationMinutes()
+        val minutes = currentTotal()
         val h = minutes / 60
         val m = minutes % 60
         return if (m == 0) {
@@ -143,9 +183,32 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
     fun onSaveClick() {
         when {
             name.isBlank() -> Toast.makeText(context, context.getString(R.string.plan_name_required), Toast.LENGTH_SHORT).show()
-            startMinute == endMinute -> showFullDayConfirm = true // 开始==结束：视为跨全天，需确认
-            durationMinutes() > 240 -> showLongDurationConfirm = true // 单次专注超过 4 小时：需确认
+            // 分段模式：每段 ≥1 分钟，总时长不能达到/超过 24 小时（与「全天」语义冲突）
+            segments.isNotEmpty() && (segments.any { it.minutes < FocusStore.MIN_MINUTES } || segTotal >= 1440) ->
+                Toast.makeText(context, context.getString(R.string.plan_segments_invalid), Toast.LENGTH_SHORT).show()
+            startMinute == endMinute && segments.isEmpty() -> showFullDayConfirm = true // 开始==结束：视为跨全天，需确认
+            currentTotal() > 240 -> showLongDurationConfirm = true // 单次专注超过 4 小时：需确认
             else -> doSave()
+        }
+    }
+
+    /** 添加休息/专注段：连续计划首次添加时把原时长对半拆成两段专注 + 默认休息时长；最多 7 段 */
+    fun addSegment() {
+        if (segments.size >= MAX_SEGMENTS) return
+        if (segments.isEmpty()) {
+            val d = durationMinutes()
+            val first = (d / 2).takeIf { it >= FocusStore.MIN_MINUTES } ?: d
+            val second = d - first
+            segments = mutableListOf(
+                FocusStore.Segment(FocusStore.SEGMENT_FOCUS, first),
+                FocusStore.Segment(FocusStore.SEGMENT_REST, SettingsStore.cache.defaultRestMinutes),
+                FocusStore.Segment(
+                    FocusStore.SEGMENT_FOCUS,
+                    if (second >= FocusStore.MIN_MINUTES) second else DEFAULT_FOCUS_MINUTES,
+                ),
+            )
+        } else {
+            segments = appendSegment(segments).toMutableList()
         }
     }
 
@@ -207,7 +270,8 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(16.dp))
-                    // 开始 / 结束时间：均分宽度，两行内容（标签 + 时间）避免换行
+                    // 开始 / 结束时间：均分宽度，两行内容（标签 + 时间）避免换行。
+                    // 分段模式结束时自动 = 开始 + 各段总和，按钮只读显示推导值
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = { showStartPicker = true },
@@ -224,6 +288,7 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
                         }
                         OutlinedButton(
                             onClick = { showEndPicker = true },
+                            enabled = segments.isEmpty(),
                             modifier = Modifier.weight(1f),
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -232,14 +297,63 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Text(timeText(endMinute), style = MaterialTheme.typography.titleMedium)
+                                Text(timeText(displayEnd), style = MaterialTheme.typography.titleMedium)
                             }
                         }
                     }
-                    if (endMinute < startMinute) {
+                    if (displayEnd < startMinute) {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             stringResource(R.string.plan_cross_midnight_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    // ---------- 分段专注（中途休息） ----------
+                    Text(
+                        stringResource(R.string.plan_segments_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    segments.forEachIndexed { index, seg ->
+                        val (s, e) = segmentBounds.getOrElse(index) { 0 to 0 }
+                        SegmentRow(
+                            segment = seg,
+                            deletable = index > 0,
+                            // 按具体时间分段：每行显示该段起止时间（跨天显示「次日」）；
+                            // 结束时间可点 → 时间选择器按时间段调整，该段时长自动反算
+                            onClickDuration = { durationDialogIndex = index },
+                            startTimeText = minuteOfDayText(s % 1440),
+                            endTimeText = segmentEndTimeText(e),
+                            endTimeEditable = true,
+                            onEditEndTime = { editingEndIndex = index },
+                            onDelete = { segments = removeSegment(segments, index).toMutableList() },
+                        )
+                    }
+                    TextButton(
+                        onClick = { addSegment() },
+                        enabled = segments.size < MAX_SEGMENTS,
+                    ) {
+                        Text(
+                            stringResource(
+                                if (segments.size >= MAX_SEGMENTS) R.string.focus_segments_limit
+                                else if (segments.isEmpty() || segments.last().isFocus) R.string.focus_add_rest
+                                else R.string.focus_add_focus
+                            )
+                        )
+                    }
+                    if (segments.isNotEmpty()) {
+                        SegmentRatioBar(segments)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = segmentsSummaryText(segments),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.plan_segments_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -389,6 +503,48 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
                 endMinute = h * 60 + m
                 showEndPicker = false
             },
+        )
+    }
+    // 按时间段调整分段：选择该段新的结束时间 → 时长自动反算，后续段顺延
+    if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
+        MaterialTimePickerDialog(
+            initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
+            initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
+            onDismiss = { editingEndIndex = -1 },
+            onConfirm = { h, m ->
+                val chosen = h * 60 + m // 当天时刻 0..1439
+                val segStart = segmentBounds[editingEndIndex].first
+                var segEnd = chosen
+                // 结束不晚于开始 → 视为次日结束
+                if (segEnd <= segStart % 1440) segEnd += 1440
+                val duration = segEnd - segStart
+                if (duration < FocusStore.MIN_MINUTES || duration >= 1440) {
+                    Toast.makeText(context, context.getString(R.string.plan_segments_invalid), Toast.LENGTH_SHORT).show()
+                } else {
+                    segments = segments.toMutableList().apply {
+                        set(editingEndIndex, FocusStore.Segment(this[editingEndIndex].type, duration))
+                    }
+                }
+                editingEndIndex = -1
+            },
+        )
+    }
+    // 段时长输入对话框（点时长胶囊触发；计划分段单段可超 240 分钟，但总时长 < 24 小时在保存时校验）
+    if (durationDialogIndex in segments.indices) {
+        val index = durationDialogIndex
+        val seg = segments[index]
+        SegmentMinutesDialog(
+            title = stringResource(
+                if (seg.isFocus) R.string.focus_segment_focus_duration_title
+                else R.string.focus_segment_rest_duration_title
+            ),
+            selected = seg.minutes,
+            range = FocusStore.MIN_MINUTES..1439,
+            onConfirm = { minutes ->
+                segments = segments.toMutableList().apply { set(index, FocusStore.Segment(this[index].type, minutes)) }
+                durationDialogIndex = -1
+            },
+            onCancel = { durationDialogIndex = -1 },
         )
     }
     if (showFullDayConfirm) {

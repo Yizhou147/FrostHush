@@ -19,65 +19,82 @@ import org.json.JSONObject
 object MiuiIsland {
     private const val KEY_PARAM = "miui.focus.param"
     private const val KEY_PICS = "miui.focus.pics"
+    /** 小岛/状态栏小图标引用：秒表图标（ic_stat_focus） */
     private const val PIC_SECOND = "miui.focus.pic_second"
 
     /**
-     * 构建岛通知扩展参数（对齐官方 HyperOS 3 param_v2 结构）。
+     * 构建岛通知扩展参数（完整对齐番茄Todo 的 HyperOS 3 param_v2 结构，adb 逆向所得）。
      *
-     * @param frontTitle 前置文案（如"专注模式中"）
-     * @param endMillis 专注结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染
-     * @param timerSystemCurrent 计时锚点：会话内固定不变，保证每秒 notify 时
-     *   岛参数逐字节一致（只更新通知卡片，岛不重渲染、不抖动/闪烁）
-     * @param contentText 通知卡片文案（如"剩余 25:00"，每秒刷新），
-     *   用于 ticker/aodTitle/hintInfo 让通知卡片走秒
+     * 关键点：
+     * - enableFloat 恒 true：通知每次更新（阶段切换）时岛自动展开弹出（像普通通知一样滑入动画），
+     *   番茄Todo 即此行为；配合"仅阶段切换时 notify"（不走秒），不会每秒弹出
+     * - 卡片文案静态（ticker/aodTitle/chatInfo.title），倒计时由系统 timerInfo 原生渲染
+     *   + 通知 chronometer 倒计时走秒，无需每秒 notify
+     * - islandTimeout=3600：岛展开态超时（秒）
+     * - turnAnim 省略（番茄Todo 无此字段，用系统默认翻页动画）
+     *
+     * @param title 状态标题（如"专注中"/"休息中"）
+     * @param contentText 卡片文案（同样静态，与 title 一致即可）
+     * @param endMillis 本阶段结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染
+     * @param timerSystemCurrent 计时锚点：阶段内固定不变
      */
     fun buildIslandExtras(
-        context: Context, frontTitle: String, endMillis: Long, timerSystemCurrent: Long, contentText: String
+        context: Context, title: String, contentText: String,
+        endMillis: Long?, timerSystemCurrent: Long?,
     ): Bundle {
+        // 番茄结构（大岛倒计时正常）+ 图标槽位统一为秒表：
+        // - 小岛图标跟随 imageTextInfoLeft（此前设 logo → 小岛变 logo；设秒表 → 小岛秒表）
+        // - 大岛 = 秒表小图标 + sameWidthDigitInfo 原生倒计时 + chatInfo 标题（无 baseInfo/hintInfo，
+        //   否则会渲染两行重复标题并挤掉倒计时区）
+        // - endMillis/timerSystemCurrent 为 null → 无倒计时（适合结束/结果类一次性通知）
+        // - 滑入：enableFloat=true + FocusService 阶段切换换新 ID 重新发布
+        val bigIslandArea = JSONObject()
+            .put(
+                "imageTextInfoLeft", JSONObject()
+                    .put("type", 1)
+                    .put(
+                        "picInfo", JSONObject()
+                            .put("type", 1)
+                            .put("pic", PIC_SECOND)
+                    )
+            )
+        val chatInfo = JSONObject().put("title", title)
+        if (endMillis != null && timerSystemCurrent != null) {
+            // 大岛右侧：等宽数字倒计时（系统原生渲染）
+            bigIslandArea.put(
+                "sameWidthDigitInfo", JSONObject()
+                    .put(
+                        "timerInfo", JSONObject()
+                            .put("timerType", -1)
+                            .put("timerWhen", endMillis)
+                            .put("timerSystemCurrent", timerSystemCurrent)
+                    )
+                    .put("showHighlightColor", false)
+            )
+            chatInfo.put(
+                "timerInfo", JSONObject()
+                    .put("timerType", -1)
+                    .put("timerWhen", endMillis)
+                    .put("timerSystemCurrent", timerSystemCurrent)
+            )
+        }
         val param = JSONObject().put(
             "param_v2", JSONObject()
                 .put("protocol", 1)
                 .put("business", "frosthush_focus")
-                // 通知更新时是否自动展开为展开态（默认 false，不打扰）
-                .put("enableFloat", false)
-                // 允许后续更新同一条岛通知
+                // 通知更新时自动展开（像普通通知一样滑入弹出）
+                .put("enableFloat", true)
                 .put("updatable", true)
-                // 首次出现即展示展开态
                 .put("islandFirstFloat", true)
-                // 状态栏 / 息屏展示文案
                 .put("ticker", contentText)
+                .put("tickerPic", PIC_SECOND)
                 .put("aodTitle", contentText)
+                .put("aodPic", PIC_SECOND)
                 .put(
                     "param_island", JSONObject()
                         .put("islandProperty", 1)
-                        .put(
-                            "bigIslandArea", JSONObject()
-                                // 大岛 A 区（左侧）：仅秒表图标
-                                .put(
-                                    "imageTextInfoLeft", JSONObject()
-                                        .put("type", 1)
-                                        .put(
-                                            "picInfo", JSONObject()
-                                                .put("type", 1)
-                                                .put("pic", PIC_SECOND)
-                                        )
-                                )
-                                // 大岛 B 区（右侧）：等宽数字倒计时。
-                                // 用官方等宽数字组件 sameWidthDigitInfo + timerInfo：
-                                // 系统根据 timerWhen 原生渲染秒级倒计时（等宽字形 + 无抖动）；
-                                // turnAnim=false 关闭翻页动画。参数会话内固定，每秒 notify 不触发重渲染
-                                .put(
-                                    "sameWidthDigitInfo", JSONObject()
-                                        .put(
-                                            "timerInfo", JSONObject()
-                                                .put("timerType", -1)
-                                                .put("timerWhen", endMillis)
-                                                .put("timerSystemCurrent", timerSystemCurrent)
-                                        )
-                                        .put("turnAnim", false)
-                                        .put("showHighlightColor", false)
-                                )
-                        )
+                        .put("islandTimeout", 3600)
+                        .put("bigIslandArea", bigIslandArea)
                         // 小岛：秒表图标
                         .put(
                             "smallIslandArea", JSONObject()
@@ -88,20 +105,8 @@ object MiuiIsland {
                                 )
                         )
                 )
-                .put(
-                    "baseInfo", JSONObject()
-                        .put("type", 2)
-                        .put("title", frontTitle)
-                        // content 置空：避免与 hintInfo.title 的倒计时在通知卡片上重复显示两行
-                        .put("content", "")
-                        .put("colorTitle", "#FF000000")
-                        .put("colorTitleDark", "#FFFFFFFF")
-                )
-                .put(
-                    "hintInfo", JSONObject()
-                        .put("type", 1)
-                        .put("title", contentText)
-                )
+                // 不设 picProfile：大岛标题纯文字，无右下角小图标
+                .put("chatInfo", chatInfo)
         )
         val bundle = Bundle()
         bundle.putString(KEY_PARAM, param.toString())

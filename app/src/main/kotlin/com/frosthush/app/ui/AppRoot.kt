@@ -93,9 +93,13 @@ fun AppRoot() {
         if (welcomeDone) FrostHushApp.app.preloadAppNames()
     }
     val version by FocusManager.version.collectAsState()
+    // 当前阶段（FocusService 每秒更新）：休息段时锁屏隐藏，专注段重新覆盖
+    val phase by FocusManager.phase.collectAsState()
     var focusLocked by remember { mutableStateOf(FocusStore.activeSession() != null) }
-    LaunchedEffect(version) {
-        focusLocked = FocusStore.activeSession() != null
+    LaunchedEffect(version, phase) {
+        val session = FocusStore.activeSession()
+        // 会话存在且当前非休息段（phase 为 null 时视为专注，避免服务未启动瞬间闪解锁）
+        focusLocked = session != null && (phase?.isFocus ?: true)
     }
     // 计划提醒通知点击 → 弹「距开始倒计时」对话框（立刻开始 / 终止）
     val reminderClick by PlanScheduler.reminderClick.collectAsState()

@@ -55,6 +55,19 @@
     <string name="focus_preset_saved">Preset saved</string>
     <string name="focus_active_title">Focus in progress</string>
     <string name="focus_remaining">%s remaining</string>
+    <string name="focus_rest_title">Resting</string>
+    <string name="focus_rest_remaining">%s rest remaining</string>
+    <string name="focus_rest_apps_restored">Apps are no longer suspended</string>
+    <string name="focus_segment_focus">Focus</string>
+    <string name="focus_segment_rest">Rest</string>
+    <string name="focus_segment_focus_duration_title">Focus duration</string>
+    <string name="focus_segment_rest_duration_title">Rest duration</string>
+    <string name="focus_add_rest">+ Add rest</string>
+    <string name="focus_add_focus">+ Add focus</string>
+    <string name="focus_segments_limit">Cannot add more segments</string>
+    <string name="focus_segments_summary">Focus %1$s · Rest %2$s · Total %3$s</string>
+    <string name="focus_segments_summary_no_rest">Total %1$s</string>
+    <string name="focus_skip_rest">Skip break</string>
     <string name="focus_started">Focus mode started</string>
     <string name="focus_shizuku_unavailable">Shizuku is unavailable, please grant permission first</string>
     <string name="focus_no_apps">Please select apps to suspend first</string>
@@ -118,6 +131,8 @@
     <!-- 设置 -->
     <string name="settings_default_duration">Default focus duration</string>
     <string name="settings_default_duration_summary">%1$d minutes selected by default when starting focus</string>
+    <string name="settings_default_rest_duration">Default rest duration</string>
+    <string name="settings_default_rest_duration_summary">%1$d minutes used for new breaks</string>
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
@@ -214,6 +229,11 @@
     <string name="plan_name">Plan name</string>
     <string name="plan_name_hint">e.g. work focus, wind down</string>
     <string name="plan_name_required">Please enter a plan name</string>
+    <string name="plan_segments_title">Breaks</string>
+    <string name="plan_segments_hint">After adding breaks, the end time is auto-calculated as start + total segments</string>
+    <string name="plan_segments_invalid">Each segment must be at least 1 minute, and the total cannot reach 24 hours</string>
+    <string name="plan_segments_badge">Segmented</string>
+    <string name="plan_segments_next_day">next day %s</string>
     <string name="plan_start_time">Start</string>
     <string name="plan_end_time">End</string>
     <string name="plan_weekdays">Repeat</string>

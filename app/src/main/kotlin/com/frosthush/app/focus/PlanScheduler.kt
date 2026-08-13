@@ -14,6 +14,7 @@ import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.util.MiuiIsland
 import java.util.Calendar
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -332,26 +333,38 @@ object PlanScheduler {
             context, requestCode(plan.id, 0), clickIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val title = context.getString(R.string.plan_reminder_title)
+        val text = context.getString(
+            R.string.plan_reminder_text,
+            plan.name,
+            SettingsStore.cache.planRemindSeconds,
+        )
         runCatching {
-            NotificationManagerCompat.from(context).notify(
-                NOTIFICATION_ID_REMIND,
-                NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_stat_focus)
-                    .setContentTitle(context.getString(R.string.plan_reminder_title))
-                    .setContentText(
-                        context.getString(
-                            R.string.plan_reminder_text,
-                            plan.name,
-                            SettingsStore.cache.planRemindSeconds,
-                        )
+            val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_focus)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(contentIntent)
+                // 设备在全屏应用/锁屏时 heads-up 会被系统降级为只进通知栏，
+                // fullScreenIntent 强制全屏弹出（点击仍进「距开始倒计时」对话框）
+                .setFullScreenIntent(contentIntent, true)
+                .setAutoCancel(true)
+            // 计划前提醒以焦点通知（超级岛）形式弹出：岛倒计时到计划开始时刻
+            // （仅在设置开启超级岛时；关闭后此通知走普通通知，全屏弹出与点击行为不变）
+            if (SettingsStore.cache.focusIslandEnabled) {
+                runCatching {
+                    val start = Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+                        set(Calendar.MINUTE, plan.startMinute % 60)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    builder.addExtras(
+                        MiuiIsland.buildIslandExtras(context, title, text, start, System.currentTimeMillis())
                     )
-                    .setContentIntent(contentIntent)
-                    // 设备在全屏应用/锁屏时 heads-up 会被系统降级为只进通知栏，
-                    // fullScreenIntent 强制全屏弹出（点击仍进「距开始倒计时」对话框）
-                    .setFullScreenIntent(contentIntent, true)
-                    .setAutoCancel(true)
-                    .build()
-            )
+                }
+            }
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_REMIND, builder.build())
         }
     }
 

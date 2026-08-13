@@ -55,6 +55,19 @@
     <string name="focus_preset_saved">已保存预设</string>
     <string name="focus_active_title">专注进行中</string>
     <string name="focus_remaining">剩余 %s</string>
+    <string name="focus_rest_title">休息中</string>
+    <string name="focus_rest_remaining">休息剩余 %s</string>
+    <string name="focus_rest_apps_restored">应用已解除暂停</string>
+    <string name="focus_segment_focus">专注</string>
+    <string name="focus_segment_rest">休息</string>
+    <string name="focus_segment_focus_duration_title">专注时长</string>
+    <string name="focus_segment_rest_duration_title">休息时长</string>
+    <string name="focus_add_rest">＋ 添加休息</string>
+    <string name="focus_add_focus">＋ 添加专注</string>
+    <string name="focus_segments_limit">不能再添加更多时间段</string>
+    <string name="focus_segments_summary">专注共 %1$s · 休息 %2$s · 总计 %3$s</string>
+    <string name="focus_segments_summary_no_rest">总计 %1$s</string>
+    <string name="focus_skip_rest">跳过休息</string>
     <string name="focus_started">专注模式已开始</string>
     <string name="focus_shizuku_unavailable">Shizuku 不可用，请先完成授权</string>
     <string name="focus_no_apps">请先选择要暂停的应用</string>
@@ -116,6 +129,8 @@
     <!-- 设置 -->
     <string name="settings_default_duration">默认专注时长</string>
     <string name="settings_default_duration_summary">开始专注时默认选中 %1$d 分钟</string>
+    <string name="settings_default_rest_duration">默认休息时长</string>
+    <string name="settings_default_rest_duration_summary">新增休息段默认 %1$d 分钟</string>
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
@@ -212,6 +227,11 @@
     <string name="plan_name">计划名称</string>
     <string name="plan_name_hint">如：工作专注、睡前放松</string>
     <string name="plan_name_required">请输入计划名称</string>
+    <string name="plan_segments_title">中途休息</string>
+    <string name="plan_segments_hint">添加休息段后，结束时间将自动按「开始 + 各段总和」计算</string>
+    <string name="plan_segments_invalid">各段时长需 ≥1 分钟，总时长不能达到 24 小时</string>
+    <string name="plan_segments_badge">分段</string>
+    <string name="plan_segments_next_day">次日 %s</string>
     <string name="plan_start_time">开始</string>
     <string name="plan_end_time">结束</string>
     <string name="plan_weekdays">重复</string>

@@ -14,6 +14,7 @@ import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.util.Format
+import com.frosthush.app.util.MiuiIsland
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
@@ -34,6 +35,12 @@ object FocusManager {
     /** 数据版本号：导入/移除/开始/结束时自增，驱动界面刷新 */
     val version = MutableStateFlow(0)
 
+    /**
+     * 当前活动会话所处阶段（由 FocusService 每秒 tick 更新）：
+     * 休息段为 null 之外的 REST 阶段时 UI 隐藏全屏锁屏；无会话为 null。
+     */
+    val phase = MutableStateFlow<FocusStore.PhaseInfo?>(null)
+
     /** 结束专注的互斥锁：恢复/记历史/停服务可能被多线程并发触发，需串行化避免重复写历史 */
     private val restoreLock = Any()
 
@@ -46,11 +53,24 @@ object FocusManager {
     }
 
     /**
-     * 开始专注。
+     * 开始专注（单段连续，兼容旧入口）。
      * 返回 null 表示成功，否则返回错误提示文案。
      */
-    suspend fun startFocus(minutes: Int): String? = withContext(Dispatchers.IO) {
-        if (minutes !in durationRange) return@withContext app.getString(R.string.focus_duration_invalid)
+    suspend fun startFocus(minutes: Int): String? = startFocus(listOf(FocusStore.Segment(FocusStore.SEGMENT_FOCUS, minutes)))
+
+    /**
+     * 开始专注（可分段）。segments 从专注开始、以专注结束、类型交替，每段 ≥1 分钟，总时长在范围内。
+     * 返回 null 表示成功，否则返回错误提示文案。
+     */
+    suspend fun startFocus(segments: List<FocusStore.Segment>): String? = withContext(Dispatchers.IO) {
+        if (segments.isEmpty() || segments.first().type != FocusStore.SEGMENT_FOCUS || segments.last().type != FocusStore.SEGMENT_FOCUS) {
+            return@withContext app.getString(R.string.focus_duration_invalid)
+        }
+        if (segments.any { it.minutes < FocusStore.MIN_MINUTES }) {
+            return@withContext app.getString(R.string.focus_duration_invalid)
+        }
+        val total = segments.sumOf { it.minutes }
+        if (total !in durationRange) return@withContext app.getString(R.string.focus_duration_invalid)
         // 防御：排除自身，避免误暂停本应用
         val packages = FocusStore.blacklist().filter { it != BuildConfig.APPLICATION_ID }
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)
@@ -58,7 +78,7 @@ object FocusManager {
         val start = System.currentTimeMillis()
         // 先持久化会话并启动服务，再立即刷新 UI 进入全屏专注：
         // 逐个暂停应用（每次一次 Shizuku IPC）耗时较长，不能等全部挂起完成才显示锁屏
-        FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, minutes))
+        FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, total, segments = segments))
         startFocusService()
         bumpVersion()
         var suspended = 0
@@ -96,7 +116,11 @@ object FocusManager {
         val duration = plan.durationMinutes
         if (duration < FocusStore.MIN_MINUTES) return app.getString(R.string.focus_duration_invalid)
         val start = System.currentTimeMillis()
-        FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, duration, planId = plan.id))
+        FocusStore.saveActiveSession(
+            FocusStore.ActiveSession(
+                packages, start, duration, planId = plan.id, segments = plan.segments
+            )
+        )
         startFocusService()
         bumpVersion()
         var suspended = 0
@@ -132,14 +156,17 @@ object FocusManager {
                     val (pkg, userId) = FocusStore.parseEntry(entry)
                     runCatching { HShizuku.setAppSuspendedForFocus(pkg, false, userId) }
                 }
+                val end = minOf(session.endMillis, System.currentTimeMillis())
                 FocusStore.addHistory(
                     FocusStore.HistoryRecord(
                         session.startMillis,
-                        minOf(session.endMillis, System.currentTimeMillis())
+                        end,
+                        session.toHistorySegments(end),
                     )
                 )
                 app.stopService(Intent(app, FocusService::class.java))
                 if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
+                phase.value = null
                 bumpVersion()
                 true
             }
@@ -150,8 +177,34 @@ object FocusManager {
     }
 
     /**
+     * 跳过当前休息段（通知操作触发）：把当前休息段截短为实际已休息时长（0 分钟即塌缩跳过），
+     * 会话总时长相应提前，FocusService 下一 tick 观察到阶段推进后恢复暂停并继续下一段专注。
+     */
+    fun skipRest() {
+        val session = FocusStore.activeSession() ?: return
+        val phase = session.phaseAt(System.currentTimeMillis())
+        if (phase.type != FocusStore.SEGMENT_REST) return
+        val segments = session.segments ?: return
+        if (phase.index >= segments.size) return
+        val elapsed = ((System.currentTimeMillis() - phase.segmentStart) / 60_000L).toInt().coerceAtLeast(0)
+        val updated = segments.toMutableList().apply {
+            set(phase.index, FocusStore.Segment(FocusStore.SEGMENT_REST, elapsed))
+        }
+        FocusStore.saveActiveSession(session.copy(segments = updated))
+    }
+
+    /** 按当前阶段设置挂起状态：专注段暂停，休息段解除暂停 */
+    fun applySuspensionByPhase(session: FocusStore.ActiveSession) {
+        val focus = session.phaseAt(System.currentTimeMillis()).isFocus
+        session.packages.forEach { entry ->
+            val (pkg, userId) = FocusStore.parseEntry(entry)
+            runCatching { HShizuku.setAppSuspendedForFocus(pkg, focus, userId) }
+        }
+    }
+
+    /**
      * 设备重启 / 应用进程被杀后的会话恢复：
-     * 未到点则重新暂停应用并继续倒计时，已到点则补执行恢复。
+     * 未到点则按当前阶段恢复挂起状态（专注段重新暂停、休息段解除）并继续倒计时，已到点则补执行恢复。
      */
     fun resumeAfterRestart(context: android.content.Context) {
         val session = FocusStore.activeSession() ?: return
@@ -159,28 +212,18 @@ object FocusManager {
             // 已到点：补执行恢复（重启后系统已自动解除暂停，此过程基本为空操作）
             restoreAndEnd()
         } else {
-            // 未到点：若 Shizuku 可用则重新暂停原应用，并继续倒计时
-            if (shizukuReady()) {
-                session.packages.forEach { entry ->
-                    val (pkg, userId) = FocusStore.parseEntry(entry)
-                    runCatching { HShizuku.setAppSuspendedForFocus(pkg, true, userId) }
-                }
-            }
+            // 未到点：若 Shizuku 可用则按当前阶段纠正挂起状态，并继续倒计时
+            if (shizukuReady()) applySuspensionByPhase(session)
             startFocusService(context)
         }
     }
 
-    /** Shizuku 授权恢复后：若有活动会话且未到点则重新暂停应用 */
+    /** Shizuku 授权恢复后：若有活动会话且未到点则按当前阶段纠正挂起状态 */
     fun resumeSuspensionIfNeeded() {
         if (!shizukuReady()) return
         val session = FocusStore.activeSession() ?: return
         if (session.endMillis <= System.currentTimeMillis()) return
-        Thread {
-            session.packages.forEach { entry ->
-                val (pkg, userId) = FocusStore.parseEntry(entry)
-                runCatching { HShizuku.setAppSuspendedForFocus(pkg, true, userId) }
-            }
-        }.start()
+        Thread { applySuspensionByPhase(session) }.start()
     }
 
     private fun showFinishNotification() {
@@ -189,21 +232,26 @@ object FocusManager {
             NotificationChannelCompat.Builder(FINISH_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(app.getString(R.string.focus_notification_channel)).build()
         )
+        val title = app.getString(R.string.focus_finished_title)
+        val text = app.getString(R.string.focus_finished_text)
         runCatching {
-            manager.notify(
-                FINISH_NOTIFICATION_ID,
-                NotificationCompat.Builder(app, FINISH_CHANNEL_ID)
-                    .setSmallIcon(R.drawable.ic_stat_focus)
-                    .setContentTitle(app.getString(R.string.focus_finished_title))
-                    .setContentText(app.getString(R.string.focus_finished_text))
-                    .setContentIntent(
-                        PendingIntent.getActivity(
-                            app, 0, Intent(app, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-                        )
+            val builder = NotificationCompat.Builder(app, FINISH_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_focus)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        app, 0, Intent(app, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
                     )
-                    .setAutoCancel(true)
-                    .build()
-            )
+                )
+                .setAutoCancel(true)
+            // 专注结束以焦点通知（岛）形式弹出（无倒计时），仅在设置开启超级岛时
+            if (SettingsStore.cache.focusIslandEnabled) {
+                runCatching {
+                    builder.addExtras(MiuiIsland.buildIslandExtras(app, title, text, null, null))
+                }
+            }
+            manager.notify(FINISH_NOTIFICATION_ID, builder.build())
         }
     }
 

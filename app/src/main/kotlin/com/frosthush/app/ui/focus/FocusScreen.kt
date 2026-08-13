@@ -106,6 +106,12 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
+import com.frosthush.app.ui.MAX_SEGMENTS
+import com.frosthush.app.ui.SegmentMinutesDialog
+import com.frosthush.app.ui.SegmentRatioBar
+import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.segmentsSummaryText
 import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
 import kotlinx.coroutines.Dispatchers
@@ -138,7 +144,9 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
     var history by remember { mutableStateOf(FocusStore.history()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var pendingMinutes by remember { mutableIntStateOf(defaultMinutes) }
+    var pendingSegments by remember {
+        mutableStateOf(listOf(FocusStore.Segment(FocusStore.SEGMENT_FOCUS, defaultMinutes)))
+    }
     var showDurationDialog by remember { mutableStateOf(false) }
     var showWarningDialog by remember { mutableStateOf(false) }
     // 黑名单列表：搜索词 + 长按多选状态
@@ -217,7 +225,9 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
         }
     }
 
-    val remaining = ((session?.endMillis ?: 0L) - now).coerceAtLeast(0L)
+    val activeSession = session
+    val remaining = activeSession?.phaseAt(now)?.remainingAt(now) ?: 0L
+    val isResting = activeSession != null && activeSession.phaseAt(now).type == FocusStore.SEGMENT_REST
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     Scaffold(
@@ -305,7 +315,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
         floatingActionButton = {
             if (session == null) {
                 ExtendedFloatingActionButton(
-                    onClick = { pendingMinutes = defaultMinutes; showDurationDialog = true },
+                    onClick = { showDurationDialog = true },
                     icon = { Icon(Icons.Filled.Timer, contentDescription = null) },
                     text = { Text(stringResource(R.string.focus_start)) },
                     elevation = FloatingActionButtonDefaults.elevation(6.dp),
@@ -328,11 +338,16 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                 // ---------- 专注进行中 ----------
                 ActiveFocusContent(
                     remaining = remaining,
+                    isResting = isResting,
                     pausedCount = session!!.packages.size,
                     shizukuReady = shizukuReady,
                     onConnectShizuku = {
                         if (shizukuState == ShizukuManager.State.NOT_CONNECTED) ShizukuManager.openShizukuApp(context)
                         else ShizukuManager.requestPermission()
+                    },
+                    // 跳过休息：休息阶段应用内按钮（点击岛/通知进应用后操作；HyperOS 焦点通知不渲染通知按钮）
+                    onSkipRest = {
+                        if (isResting) Thread { FocusManager.skipRest() }.start()
                     },
                 )
             } else {
@@ -391,17 +406,17 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
 
     if (showDurationDialog) {
         FocusTimeDialog(
-            initial = pendingMinutes,
+            initial = defaultMinutes,
             onDismiss = { showDurationDialog = false },
-            onStart = { minutes ->
-                pendingMinutes = minutes
+            onStart = { segments ->
+                pendingSegments = segments
                 showDurationDialog = false
                 // 二次确认开关关闭时跳过警告直接开始
                 if (confirmBeforeStart) {
                     showWarningDialog = true
                 } else {
                     scope.launch {
-                        val err = FocusManager.startFocus(minutes)
+                        val err = FocusManager.startFocus(segments)
                         if (err != null) snackbarHostState.showSnackbar(err)
                     }
                 }
@@ -417,7 +432,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                 TextButton(onClick = {
                     showWarningDialog = false
                     scope.launch {
-                        val err = FocusManager.startFocus(pendingMinutes)
+                        val err = FocusManager.startFocus(pendingSegments)
                         if (err != null) snackbarHostState.showSnackbar(err)
                     }
                 }) { Text(stringResource(R.string.action_start)) }
@@ -514,13 +529,16 @@ private fun GroupChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** 专注进行中：剩余时间 + 已暂停应用数（不可打断，无退出入口） */
+/** 专注进行中：当前阶段（专注/休息）+ 剩余时间 + 已暂停应用数（不可打断，无退出入口）。
+ *  休息阶段提供「跳过休息」按钮（应用内入口，立即恢复下一段专注）。 */
 @Composable
 private fun ActiveFocusContent(
     remaining: Long,
+    isResting: Boolean,
     pausedCount: Int,
     shizukuReady: Boolean,
     onConnectShizuku: () -> Unit,
+    onSkipRest: () -> Unit,
 ) {
     val context = LocalContext.current
     Column(
@@ -528,7 +546,7 @@ private fun ActiveFocusContent(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            stringResource(R.string.focus_active_title),
+            stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -541,12 +559,19 @@ private fun ActiveFocusContent(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            context.resources.getQuantityString(
+            if (isResting) stringResource(R.string.focus_rest_apps_restored)
+            else context.resources.getQuantityString(
                 R.plurals.focus_apps_paused, pausedCount, pausedCount
             ),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (isResting) {
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(onClick = onSkipRest) {
+                Text(stringResource(R.string.focus_skip_rest))
+            }
+        }
         if (!shizukuReady) {
             Spacer(Modifier.height(32.dp))
             ShizukuBanner(
@@ -728,19 +753,30 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
     }
 }
 
-/** 开始专注的时间设置对话框：数字输入 + 预设快捷选择 + 保存/管理预设（与雹一致） */
+/** 开始专注的时间设置对话框：第一段专注时长输入 + 预设快捷选择 + 保存/管理预设。
+ *  点「添加休息/添加专注」可扩展为分段专注（专注→休息→专注…），不加休息即普通连续专注。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FocusTimeDialog(
     initial: Int,
     onDismiss: () -> Unit,
-    onStart: (Int) -> Unit,
+    onStart: (List<FocusStore.Segment>) -> Unit,
 ) {
     val context = LocalContext.current
-    var input by remember { mutableStateOf(if (initial in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) initial.toString() else "") }
+    var segments by remember {
+        mutableStateOf(
+            mutableListOf(
+                FocusStore.Segment(FocusStore.SEGMENT_FOCUS, initial.coerceIn(FocusStore.MIN_MINUTES, FocusStore.MAX_MINUTES))
+            )
+        )
+    }
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     var showSavePreset by remember { mutableStateOf(false) }
     var showManagePresets by remember { mutableStateOf(false) }
+    // 当前时长输入框获得焦点的段（点时长胶囊即设置预设目标段），默认第一段
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    // 正在弹时长输入对话框的段索引；-1 = 无
+    var durationDialogIndex by remember { mutableIntStateOf(-1) }
 
     // 保存/管理预设对话框关闭后刷新预设列表
     LaunchedEffect(showSavePreset, showManagePresets) {
@@ -748,26 +784,86 @@ private fun FocusTimeDialog(
     }
 
     if (showSavePreset) {
-        PresetSaveDialog(minutes = input.toIntOrNull() ?: 0, onDismiss = { showSavePreset = false })
+        PresetSaveDialog(
+            minutes = segments.getOrNull(selectedIndex)?.minutes ?: segments.first().minutes,
+            onDismiss = { showSavePreset = false },
+        )
     }
     if (showManagePresets) {
         PresetManageDialog(onDismiss = { showManagePresets = false })
     }
 
+    val total = segments.sumOf { it.minutes }
+
+    fun addSegment() {
+        if (segments.size >= MAX_SEGMENTS) return
+        val newType = if (segments.last().isFocus) FocusStore.SEGMENT_REST else FocusStore.SEGMENT_FOCUS
+        val minutes = when (newType) {
+            FocusStore.SEGMENT_REST -> SettingsStore.cache.defaultRestMinutes
+            else -> segments.first().minutes.takeIf { it >= FocusStore.MIN_MINUTES } ?: DEFAULT_FOCUS_MINUTES
+        }
+        segments = segments.toMutableList().apply { add(FocusStore.Segment(newType, minutes)) }
+    }
+
+    fun deleteSegment(index: Int) {
+        if (index <= 0 || segments.size <= 1) return
+        val list = segments.toMutableList().apply { removeAt(index) }
+        // 删除后相邻同类型段合并（专注→休息→专注 删休息 → 两段专注合并为一段）
+        val merged = mutableListOf<FocusStore.Segment>()
+        list.forEach { s ->
+            val last = merged.lastOrNull()
+            if (last != null && last.type == s.type) {
+                merged[merged.size - 1] = FocusStore.Segment(s.type, last.minutes + s.minutes)
+            } else {
+                merged.add(s)
+            }
+        }
+        segments = merged
+        selectedIndex = selectedIndex.coerceIn(0, merged.size - 1)
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.focus_select_duration)) },
+        // 弹窗背景与页面一致：分段卡片（surfaceContainerLow）在 M3 默认对话框深背景上观感发灰，
+        // 与计划编辑页（页面背景）显示效果不同；改为页面背景后两处配色完全一致
+        containerColor = MaterialTheme.colorScheme.background,
         text = {
             Column {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it.filter(Char::isDigit).take(3) },
-                    label = { Text(stringResource(R.string.focus_time_label)) },
-                    placeholder = { Text(stringResource(R.string.focus_time_hint)) },
-                    suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                // 段列表：第一段为专注（主输入），其后交替休息/专注；
+                // 点某段时长胶囊弹输入对话框，同时该段成为预设填充目标
+                segments.forEachIndexed { index, seg ->
+                    SegmentRow(
+                        segment = seg,
+                        deletable = index > 0,
+                        onClickDuration = {
+                            selectedIndex = index
+                            durationDialogIndex = index
+                        },
+                        onDelete = { deleteSegment(index) },
+                    )
+                }
+                TextButton(
+                    onClick = { addSegment() },
+                    enabled = segments.size < MAX_SEGMENTS,
+                ) {
+                    Text(
+                        stringResource(
+                            if (segments.size >= MAX_SEGMENTS) R.string.focus_segments_limit
+                            else if (segments.last().isFocus) R.string.focus_add_rest
+                            else R.string.focus_add_focus
+                        )
+                    )
+                }
+                if (segments.size > 1) {
+                    Spacer(Modifier.height(4.dp))
+                    SegmentRatioBar(segments)
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = segmentsSummaryText(segments),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
                 if (presets.isEmpty()) {
@@ -777,7 +873,17 @@ private fun FocusTimeDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    FocusPresetChips(input = input, presets = presets, onSelect = { input = it.toString() })
+                    // 预设快捷填充作用于当前选中段（点选高亮；默认第一段）
+                    val target = segments.getOrNull(selectedIndex) ?: segments.first()
+                    FocusPresetChips(
+                        input = target.minutes.toString(),
+                        presets = presets,
+                        onSelect = { minutes ->
+                            segments = segments.toMutableList().apply {
+                                set(selectedIndex.coerceAtMost(size - 1), FocusStore.Segment(this[selectedIndex.coerceAtMost(size - 1)].type, minutes))
+                            }
+                        },
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
                 Row {
@@ -792,11 +898,10 @@ private fun FocusTimeDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                val minutes = input.toIntOrNull()
-                if (minutes != null && minutes in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
-                    onStart(minutes)
-                } else {
+                if (segments.any { it.minutes < FocusStore.MIN_MINUTES } || total !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
                     Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                } else {
+                    onStart(segments.toList())
                 }
             }) { Text(stringResource(R.string.action_start)) }
         },
@@ -804,6 +909,24 @@ private fun FocusTimeDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
+    // 段时长输入对话框（嵌套在时间选择对话框之上；点时长胶囊触发）
+    if (durationDialogIndex in segments.indices) {
+        val index = durationDialogIndex
+        val seg = segments[index]
+        SegmentMinutesDialog(
+            title = stringResource(
+                if (seg.isFocus) R.string.focus_segment_focus_duration_title
+                else R.string.focus_segment_rest_duration_title
+            ),
+            selected = seg.minutes,
+            range = FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES,
+            onConfirm = { minutes ->
+                segments = segments.toMutableList().apply { set(index, FocusStore.Segment(this[index].type, minutes)) }
+                durationDialogIndex = -1
+            },
+            onCancel = { durationDialogIndex = -1 },
+        )
+    }
 }
 
 /** 预设快捷选择 chips */

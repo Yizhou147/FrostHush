@@ -1,7 +1,15 @@
 package com.frosthush.app.ui.stats
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,13 +19,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.HourglassTop
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -39,6 +50,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -48,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
+import com.frosthush.app.data.FocusStore.HistoryRecord
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.util.Format
 import kotlin.math.max
@@ -264,34 +278,98 @@ private fun FocusBarChart(history: List<FocusStore.HistoryRecord>, days: Int) {
     }
 }
 
-/** 会话明细行 */
+/** 会话明细行：分段会话可点击展开时间线（每段专注/休息的起止与时长） */
 @Composable
-private fun SessionRow(record: FocusStore.HistoryRecord) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
+private fun SessionRow(record: HistoryRecord) {
+    var expanded by remember { mutableStateOf(false) }
+    val hasDetail = record.segments != null
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .then(if (hasDetail) Modifier.clickable { expanded = !expanded } else Modifier)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(
+                        R.string.stats_session_item,
+                        Format.date(record.start),
+                        Format.time(record.start),
+                        Format.time(record.end),
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    Format.dateTime(record.start),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (hasDetail) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .rotate(if (expanded) 180f else 0f),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(4.dp))
+            }
             Text(
-                stringResource(
-                    R.string.stats_session_item,
-                    Format.date(record.start),
-                    Format.time(record.start),
-                    Format.time(record.end),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                Format.dateTime(record.start),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                FocusManager.minutesText(max(record.minutes, 1)),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
-        Text(
-            FocusManager.minutesText(max(record.minutes, 1)),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(Modifier.padding(start = 8.dp, end = 8.dp, bottom = 12.dp)) {
+                record.segments?.forEach { seg ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (seg.type == FocusStore.SEGMENT_FOCUS) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.tertiary
+                                )
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(
+                                if (seg.type == FocusStore.SEGMENT_FOCUS) R.string.focus_segment_focus
+                                else R.string.focus_segment_rest
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (seg.type == FocusStore.SEGMENT_FOCUS) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "%s - %s".format(Format.time(seg.start), Format.time(seg.end)),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            FocusManager.minutesText(seg.minutes.coerceAtLeast(1).toInt()),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
