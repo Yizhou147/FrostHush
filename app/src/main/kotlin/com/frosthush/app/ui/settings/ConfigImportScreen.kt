@@ -71,6 +71,8 @@ import com.frosthush.app.focus.PlanScheduler
 class GroupImportState(val source: FocusStore.AppGroup, val wasDefault: Boolean) {
     var importEnabled by mutableStateOf(true)
     var name by mutableStateOf(source.name)
+    /** 本机未安装、导入时将跳过的应用数（子页提示用） */
+    var notInstalledCount by mutableStateOf(0)
 }
 
 /** 预设导入项：可重命名 / 可关闭不导入 */
@@ -110,7 +112,11 @@ fun ConfigImportScreen(data: ConfigData, onBack: () -> Unit) {
 
     val groups = remember(preview) {
         mutableStateListOf<GroupImportState>().apply {
-            preview.groups.forEach { g -> add(GroupImportState(g, g.isDefault)) }
+            preview.groups.forEach { g ->
+                add(GroupImportState(g, g.isDefault).apply {
+                    notInstalledCount = g.entries.size - FocusStore.filterInstalled(g.entries).size
+                })
+            }
         }
     }
     val plans = remember(preview, localPlanNames) {
@@ -173,14 +179,29 @@ fun ConfigImportScreen(data: ConfigData, onBack: () -> Unit) {
             ),
             Toast.LENGTH_SHORT,
         ).show()
+        // 被过滤的本机未安装应用单独提示
+        if (r.appsFiltered > 0) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.config_import_apps_filtered, r.appsFiltered),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
         FocusManager.bumpVersion()
         PlanScheduler.scheduleAll(context)
         onBack()
     }
 
     fun doOverwriteImport() {
-        FocusStore.applyConfigOverwrite(data)
+        val filtered = FocusStore.applyConfigOverwrite(data)
         Toast.makeText(context, context.getString(R.string.settings_import_success), Toast.LENGTH_SHORT).show()
+        if (filtered > 0) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.config_import_apps_filtered, filtered),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
         FocusManager.bumpVersion()
         PlanScheduler.scheduleAll(context)
         onBack()
@@ -376,6 +397,14 @@ private fun GroupsImportPage(groups: List<GroupImportState>, onBack: () -> Unit)
                             stringResource(R.string.config_import_group_default_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (g.notInstalledCount > 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.config_import_group_not_installed, g.notInstalledCount),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }

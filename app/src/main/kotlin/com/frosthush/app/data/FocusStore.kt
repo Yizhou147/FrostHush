@@ -2,10 +2,12 @@ package com.frosthush.app.data
 
 import android.os.Process
 import com.frosthush.app.FrostHushApp.Companion.app
+import com.frosthush.app.focus.HShizuku
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.Calendar
+import rikka.shizuku.Shizuku
 
 /**
  * 专注数据存储（JSON 文件，纯本地）：
@@ -392,6 +394,22 @@ object FocusStore {
         val pkg = entry.substring(0, i)
         val uid = entry.substring(i + 1).toIntOrNull() ?: Process.myUserHandle().hashCode()
         return pkg to uid
+    }
+
+    /**
+     * 过滤掉本机未安装的条目（导入配置时防止应用集/计划出现不存在的应用）。
+     * 主应用用 PackageManager 检查（无需 Shizuku）；分身条目经 Shizuku 查该用户已装包列表，
+     * Shizuku 不可用或查询失败时保守保留（避免误删分身）。
+     */
+    fun filterInstalled(entries: List<String>): List<String> = entries.filter { entry ->
+        val (pkg, userId) = parseEntry(entry)
+        if (userId == Process.myUserHandle().hashCode()) {
+            runCatching { app.packageManager.getApplicationInfo(pkg, 0) }.isSuccess
+        } else {
+            val shizukuOk = runCatching { !Shizuku.isPreV11() && Shizuku.pingBinder() }.getOrDefault(false)
+            if (!shizukuOk) true
+            else runCatching { HShizuku.listPackagesForUser(userId).any { it.first == pkg } }.getOrDefault(true)
+        }
     }
 
     // ---------- 专注时长预设 ----------
@@ -787,14 +805,28 @@ object FocusStore {
         ConfigData(groups, selected, plans, presetList)
     }.getOrNull()
 
-    /** 覆盖模式：整体替换应用集/计划/预设/选中集（原导入行为） */
-    fun applyConfigOverwrite(data: ConfigData) {
-        saveAppGroups(data.groups)
-        saveFocusPlans(data.plans)
+    /** 覆盖模式：整体替换应用集/计划/预设/选中集（原导入行为）。返回被过滤的本机未安装应用数。 */
+    fun applyConfigOverwrite(data: ConfigData): Int {
+        var filtered = 0
+        saveAppGroups(data.groups.map { g ->
+            val clean = filterInstalled(g.entries)
+            filtered += g.entries.size - clean.size
+            g.copy(entries = clean)
+        })
+        saveFocusPlans(data.plans.map { p ->
+            val de = p.directEntries
+            if (de.isNullOrEmpty()) p
+            else {
+                val clean = filterInstalled(de)
+                filtered += de.size - clean.size
+                p.copy(directEntries = clean)
+            }
+        })
         presets.clear()
         presets.addAll(data.presets)
         savePresets()
         setSelectedGroupId(data.selectedGroupId)
+        return filtered
     }
 
     // ---------- 新增模式（合并导入） ----------
@@ -829,6 +861,8 @@ object FocusStore {
         val plansReplaced: Int,
         val presetsAdded: Int,
         val presetsSkipped: Int,
+        /** 本机未安装被过滤的应用数（应用集条目 + 计划直选） */
+        val appsFiltered: Int = 0,
     )
 
     /**
@@ -912,12 +946,16 @@ object FocusStore {
         val mergedPlans = focusPlans().toMutableList()
         val mergedPresets = presets.toMutableList()
         val idMap = HashMap<Long, Long>()
+        // 过滤本机未安装应用（配置文件可能来自其它设备）
+        var appsFiltered = 0
 
         // 应用集：追加导入集（强制取消默认标记），建立 文件 id → 新 id 映射供计划引用
         groups.forEach { g ->
+            val clean = filterInstalled(g.entries)
+            appsFiltered += g.entries.size - clean.size
             val newId = (mergedGroups.maxOfOrNull { it.id } ?: 0L) + 1
             idMap[g.id] = newId
-            mergedGroups.add(g.copy(id = newId, isDefault = false))
+            mergedGroups.add(g.copy(id = newId, isDefault = false, entries = clean))
         }
         saveAppGroups(mergedGroups)
 
@@ -928,23 +966,29 @@ object FocusStore {
         var replaced = 0
         planRequests.forEach { req ->
             val p = req.plan
+            // 计划直选应用同样过滤本机未安装项
+            val cleanP = p.directEntries?.let { de ->
+                val clean = filterInstalled(de)
+                appsFiltered += de.size - clean.size
+                p.copy(directEntries = clean)
+            } ?: p
             when (req.action) {
                 PlanImportAction.SKIP -> skipped++
                 PlanImportAction.CONFLICT -> {
                     if (req.replaceLocal) {
                         val idx = mergedPlans.indexOfFirst { it.id == req.conflictLocalId }
                         if (idx >= 0) {
-                            mergedPlans[idx] = remapGroupRef(p.copy(id = req.conflictLocalId!!, name = req.finalName), idMap)
+                            mergedPlans[idx] = remapGroupRef(cleanP.copy(id = req.conflictLocalId!!, name = req.finalName), idMap)
                             replaced++
                         } else skipped++
                     } else keepLocal++
                 }
                 PlanImportAction.ADD -> {
-                    mergedPlans.add(remapGroupRef(p.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
+                    mergedPlans.add(remapGroupRef(cleanP.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
                     added++
                 }
                 PlanImportAction.RENAME -> {
-                    mergedPlans.add(remapGroupRef(p.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
+                    mergedPlans.add(remapGroupRef(cleanP.copy(id = (mergedPlans.maxOfOrNull { it.id } ?: 0L) + 1, name = req.finalName), idMap))
                     renamed++
                 }
             }
@@ -979,6 +1023,7 @@ object FocusStore {
             plansReplaced = replaced,
             presetsAdded = presetsAdded,
             presetsSkipped = presetsSkipped,
+            appsFiltered = appsFiltered,
         )
     }
 

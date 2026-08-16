@@ -159,6 +159,11 @@ fun AppGroupScreen(onBack: () -> Unit) {
                 },
             )
         } else {
+            // 选择模式下系统返回键：只退出选择模式（与专注/计划页一致），不退出应用集页
+            BackHandler(enabled = selectionMode) {
+                selectionMode = false
+                selected = emptySet()
+            }
             GroupListContent(
                 groups = groups,
                 defaultId = defaultId,

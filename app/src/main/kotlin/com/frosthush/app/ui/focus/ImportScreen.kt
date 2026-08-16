@@ -43,6 +43,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -339,6 +340,8 @@ private fun AppCheckRow(
     onToggle: () -> Unit,
     enabled: Boolean = true,
 ) {
+    // 已导入（disabled）：图标与文字变灰，与勾选+禁用形成完整视觉反馈
+    val dimmed = !enabled
     Row(
         Modifier
             .fillMaxWidth()
@@ -347,13 +350,21 @@ private fun AppCheckRow(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AppIcon(packageName, 36.dp)
+        Box(Modifier.alpha(if (dimmed) 0.4f else 1f)) {
+            AppIcon(packageName, 36.dp)
+        }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                color = if (dimmed) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.onSurface,
+            )
             Text(
                 packageName,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (dimmed) 0.4f else 1f),
                 maxLines = 1,
             )
         }

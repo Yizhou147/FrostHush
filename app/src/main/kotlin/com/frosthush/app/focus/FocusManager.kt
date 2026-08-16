@@ -2,6 +2,7 @@ package com.frosthush.app.focus
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
@@ -40,6 +41,32 @@ object FocusManager {
      * 休息段为 null 之外的 REST 阶段时 UI 隐藏全屏锁屏；无会话为 null。
      */
     val phase = MutableStateFlow<FocusStore.PhaseInfo?>(null)
+
+    /**
+     * 检测当前仍处于暂停状态的应用条目（所有应用集条目取并集）。
+     * 专注过程中 Shizuku 崩溃导致结束后未能解冻时，用于手动恢复。
+     * 检测走 PackageManager（主应用无需 Shizuku 连接），可在任意时刻调用。
+     */
+    fun suspendedEntries(): List<String> {
+        val entries = FocusStore.appGroups().flatMap { it.entries }.distinct()
+        return entries.filter { entry ->
+            val (pkg, userId) = FocusStore.parseEntry(entry)
+            runCatching {
+                val info = HShizuku.getApplicationInfoOrNull(pkg, userId)
+                info != null && (info.flags and ApplicationInfo.FLAG_SUSPENDED) != 0
+            }.getOrDefault(false)
+        }
+    }
+
+    /** 解冻当前仍被暂停的应用（需 Shizuku 可用），返回成功解冻数量。应在后台线程调用。 */
+    fun restoreSuspendedApps(): Int {
+        var restored = 0
+        suspendedEntries().forEach { entry ->
+            val (pkg, userId) = FocusStore.parseEntry(entry)
+            if (HShizuku.setAppSuspendedForFocus(pkg, false, userId)) restored++
+        }
+        return restored
+    }
 
     /** 结束专注的互斥锁：恢复/记历史/停服务可能被多线程并发触发，需串行化避免重复写历史 */
     private val restoreLock = Any()

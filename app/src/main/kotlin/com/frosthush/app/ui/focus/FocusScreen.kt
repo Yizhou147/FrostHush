@@ -143,6 +143,8 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
     var session by remember { mutableStateOf(FocusStore.activeSession()) }
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
     var history by remember { mutableStateOf(FocusStore.history()) }
+    // 空闲时仍处于暂停状态的应用数（Shizuku 崩溃等导致专注结束后未能解冻，>0 时显示恢复横幅）
+    var suspendedCount by remember { mutableStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var pendingSegments by remember {
         mutableStateOf(listOf(FocusStore.Segment(FocusStore.SEGMENT_FOCUS, defaultMinutes)))
@@ -198,6 +200,15 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
         session = FocusStore.activeSession()
         blacklist = FocusStore.blacklist()
         history = FocusStore.history()
+    }
+
+    // 空闲时检测是否有应用仍被暂停（专注结束后 Shizuku 崩溃未能解冻的场景），有则显示恢复横幅
+    LaunchedEffect(version) {
+        if (FocusStore.activeSession() == null) {
+            suspendedCount = withContext(Dispatchers.Default) { FocusManager.suspendedEntries().size }
+        } else {
+            suspendedCount = 0
+        }
     }
 
     // 每秒刷新倒计时
@@ -354,6 +365,27 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                 // ---------- 空闲 ----------
                 AppGroupChips(version)
                 Spacer(Modifier.height(12.dp))
+                // 专注结束后仍有应用被暂停（Shizuku 崩溃等）：提示手动恢复
+                if (suspendedCount > 0) {
+                    SuspendedRestoreBanner(
+                        count = suspendedCount,
+                        onRestore = {
+                            scope.launch {
+                                val restored = withContext(Dispatchers.Default) { FocusManager.restoreSuspendedApps() }
+                                // 恢复后重新检测，未解冻的继续显示横幅
+                                suspendedCount = withContext(Dispatchers.Default) { FocusManager.suspendedEntries().size }
+                                snackbarHostState.showSnackbar(
+                                    if (restored > 0) {
+                                        context.getString(R.string.focus_suspended_restored, restored)
+                                    } else {
+                                        context.getString(R.string.focus_suspended_restore_failed)
+                                    }
+                                )
+                            }
+                        },
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
                 if (!shizukuReady) {
                     ShizukuBanner(
                         text = stringResource(R.string.focus_shizuku_unavailable),
@@ -748,6 +780,43 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = onAction) {
                 Text(actionText, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
+    }
+}
+
+/** 仍被暂停应用的恢复提示条：专注结束后因 Shizuku 崩溃等未能解冻时显示，点击一键恢复 */
+@Composable
+private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Filled.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.focus_suspended_restore_title, count),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = onRestore) {
+                Text(
+                    stringResource(R.string.focus_suspended_restore_action),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
             }
         }
     }

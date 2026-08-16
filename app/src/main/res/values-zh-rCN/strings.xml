@@ -74,6 +74,10 @@
     <string name="focus_duration_invalid">时长无效</string>
     <string name="focus_restore_prompt">检测到重启前未完成的专注会话，连接 Shizuku 以恢复暂停应用。</string>
     <string name="focus_connect_shizuku">连接 Shizuku</string>
+    <string name="focus_suspended_restore_title">有 %1$d 个应用仍处于暂停状态</string>
+    <string name="focus_suspended_restore_action">恢复</string>
+    <string name="focus_suspended_restored">已恢复 %1$d 个应用</string>
+    <string name="focus_suspended_restore_failed">恢复失败，请确认 Shizuku 可用</string>
     <string name="focus_notification_channel">专注</string>
     <string name="focus_finished_title">专注结束</string>
     <string name="focus_finished_text">所有应用已恢复</string>
@@ -155,6 +159,10 @@
     <string name="settings_export_config_summary">导出应用集、专注计划与时长预设</string>
     <string name="settings_import_config">导入应用配置</string>
     <string name="settings_import_config_summary">从 JSON 文件导入应用集、专注计划与时长预设</string>
+    <string name="settings_restore_suspended">恢复被暂停应用</string>
+    <string name="settings_restore_suspended_summary">专注异常结束后手动解冻仍被暂停的应用</string>
+    <string name="settings_restore_suspended_confirm">检测到 %1$d 个应用仍处于暂停状态，是否立即恢复？</string>
+    <string name="settings_restore_suspended_none">未发现被暂停的应用</string>
     <string name="settings_clear_stats">清空专注统计</string>
     <string name="settings_clear_stats_summary">删除全部会话记录</string>
     <string name="settings_clear_stats_confirm">确定要清空全部专注统计吗？此操作不可撤销。</string>
@@ -180,6 +188,8 @@
     <string name="config_import_use_imported">采用导入「%1$s」</string>
     <string name="config_import_action">开始导入</string>
     <string name="config_import_result_merge">导入完成：新增 %1$d 个应用集、%2$d 个计划，跳过 %3$d 个，预设新增 %4$d 个</string>
+    <string name="config_import_apps_filtered">已跳过 %1$d 个本机未安装的应用</string>
+    <string name="config_import_group_not_installed">其中 %1$d 个应用本机未安装</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">专注模式进行中</string>

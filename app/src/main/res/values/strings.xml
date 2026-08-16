@@ -74,6 +74,10 @@
     <string name="focus_duration_invalid">Invalid duration</string>
     <string name="focus_restore_prompt">An unfinished focus session was detected. Connect Shizuku to resume suspending apps.</string>
     <string name="focus_connect_shizuku">Connect Shizuku</string>
+    <string name="focus_suspended_restore_title">%1$d app(s) are still suspended</string>
+    <string name="focus_suspended_restore_action">Restore</string>
+    <string name="focus_suspended_restored">%1$d app(s) restored</string>
+    <string name="focus_suspended_restore_failed">Restore failed. Make sure Shizuku is running.</string>
     <string name="focus_notification_channel">Focus</string>
     <string name="focus_finished_title">Focus ended</string>
     <string name="focus_finished_text">All apps have been restored</string>
@@ -157,6 +161,10 @@
     <string name="settings_export_config_summary">Export app groups, focus plans and duration presets</string>
     <string name="settings_import_config">Import app config</string>
     <string name="settings_import_config_summary">Import app groups, focus plans and presets from a JSON file</string>
+    <string name="settings_restore_suspended">Restore suspended apps</string>
+    <string name="settings_restore_suspended_summary">Manually unfreeze apps still suspended after an interrupted focus session</string>
+    <string name="settings_restore_suspended_confirm">Detected %1$d app(s) still suspended. Restore them now?</string>
+    <string name="settings_restore_suspended_none">No suspended apps found</string>
     <string name="settings_clear_stats">Clear focus stats</string>
     <string name="settings_clear_stats_summary">Delete all session history</string>
     <string name="settings_clear_stats_confirm">Clear all focus stats? This cannot be undone.</string>
@@ -182,6 +190,8 @@
     <string name="config_import_use_imported">Use imported "%1$s"</string>
     <string name="config_import_action">Start import</string>
     <string name="config_import_result_merge">Imported: %1$d groups, %2$d plans added, %3$d skipped, %4$d presets added</string>
+    <string name="config_import_apps_filtered">%1$d app(s) not installed on this device were skipped</string>
+    <string name="config_import_group_not_installed">%1$d app(s) not installed on this device</string>
 
     <!-- 全屏锁定 -->
     <string name="focus_lock_title">Focus mode active</string>

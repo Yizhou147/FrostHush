@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
@@ -54,6 +55,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +84,9 @@ import com.frosthush.app.focus.ShizukuManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 /**
@@ -122,6 +127,23 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
     var showRemindDialog by remember { mutableStateOf(false) }
+    // 恢复被暂停应用：检测到的仍暂停数量 + 确认对话框
+    var restoreCount by remember { mutableStateOf(0) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    /** 检测是否有应用仍被暂停（Shizuku 崩溃等导致专注结束后未能解冻），有则弹确认 */
+    fun checkSuspended() {
+        scope.launch {
+            val n = withContext(Dispatchers.Default) { FocusManager.suspendedEntries().size }
+            if (n == 0) {
+                Toast.makeText(context, context.getString(R.string.settings_restore_suspended_none), Toast.LENGTH_SHORT).show()
+            } else {
+                restoreCount = n
+                showRestoreConfirm = true
+            }
+        }
+    }
 
     val themeLabel = when (themeMode) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
@@ -332,6 +354,19 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 },
             )
             SettingCard(
+                icon = Icons.Filled.LockOpen,
+                title = stringResource(R.string.settings_restore_suspended),
+                summary = stringResource(R.string.settings_restore_suspended_summary),
+                onClick = { checkSuspended() },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
                 icon = Icons.Filled.DeleteSweep,
                 title = stringResource(R.string.settings_clear_stats),
                 summary = stringResource(R.string.settings_clear_stats_summary),
@@ -398,6 +433,35 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
             selected = planRemindSeconds,
             onSelect = { SettingsStore.setPlanRemindSeconds(it); showRemindDialog = false },
             onCancel = { showRemindDialog = false },
+        )
+    }
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            title = { Text(stringResource(R.string.settings_restore_suspended)) },
+            text = { Text(stringResource(R.string.settings_restore_suspended_confirm, restoreCount)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    scope.launch {
+                        val restored = withContext(Dispatchers.Default) { FocusManager.restoreSuspendedApps() }
+                        Toast.makeText(
+                            context,
+                            if (restored > 0) {
+                                context.getString(R.string.focus_suspended_restored, restored)
+                            } else {
+                                context.getString(R.string.focus_suspended_restore_failed)
+                            },
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirm = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 }
