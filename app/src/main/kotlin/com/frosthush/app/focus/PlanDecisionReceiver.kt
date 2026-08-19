@@ -12,7 +12,7 @@ class PlanDecisionReceiver : BroadcastReceiver() {
         val planId = intent.getLongExtra(PlanScheduler.EXTRA_PLAN_ID, -1L)
         when (intent.action) {
             PlanScheduler.ACTION_RESUME -> Thread { PlanScheduler.onResumePending(context, planId) }.start()
-            PlanScheduler.ACTION_CANCEL -> PlanScheduler.onCancelPending(planId)
+            PlanScheduler.ACTION_CANCEL -> PlanScheduler.onCancelPending(context, planId)
         }
     }
 }

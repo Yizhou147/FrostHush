@@ -196,7 +196,7 @@ private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
         dismissButton = {
             TextButton(onClick = {
                 onDismiss()
-                PlanScheduler.onCancelToday(planId)
+                PlanScheduler.onCancelToday(context, planId)
             }) { Text(stringResource(R.string.plan_remind_dialog_cancel)) }
         },
     )

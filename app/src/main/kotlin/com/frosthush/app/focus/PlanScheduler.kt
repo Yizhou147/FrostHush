@@ -111,6 +111,9 @@ object PlanScheduler {
     private fun handleStart(context: Context, planId: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) return
+        // 提醒通知（焦点岛）到此结束——无论后续是否启动专注、是否进入决策窗口，
+        // 都不再需要提醒岛，避免与即将发布的专注 FGS 岛共存导致两个焦点通知。
+        cancelReminderNotification(context)
         if (plan.weekdays.isNotEmpty()) schedulePlan(context, plan) // 排下一次
         // 同一天已执行过则跳过（跨天/重复触发场景；「立刻开始/终止」也会标记当日已执行）
         if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
@@ -155,6 +158,7 @@ object PlanScheduler {
 
     /** 用户点「立刻开始」：立即启动该计划专注（后台线程调用），今日不再等闹钟 */
     fun onStartNow(context: Context, planId: Long) {
+        cancelReminderNotification(context)
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) return
         if (FocusStore.activeSession() != null) return // 已有专注进行中，交给冲突逻辑
@@ -167,12 +171,14 @@ object PlanScheduler {
      * 不取消闹钟——今天 START 到点时 handleStart 会重排下次并因 executed 跳过；
      * 取消反而会丢失明天的重排。
      */
-    fun onCancelToday(planId: Long) {
+    fun onCancelToday(context: Context, planId: Long) {
+        cancelReminderNotification(context)
         FocusStore.markPlanExecuted(planId, FocusStore.todayCode())
     }
 
     /** 到点结束：仅当活动会话由该计划启动时才恢复（避免误杀手动专注） */
     private fun handleEnd(context: Context, planId: Long) {
+        cancelReminderNotification(context) // 兜底：理论上提醒早已发完，防止残留焦点岛
         val session = FocusStore.activeSession() ?: return
         if (session.planId == planId) {
             Thread { FocusManager.restoreAndEnd() }.start()
@@ -196,6 +202,7 @@ object PlanScheduler {
 
     /** 用户点「继续」：启动该计划专注（后台线程调用） */
     fun onResumePending(context: Context, planId: Long) {
+        cancelReminderNotification(context)
         val pending = FocusStore.pendingPlan() ?: return
         if (pending.planId != planId) return
         FocusStore.clearPendingPlan()
@@ -208,7 +215,8 @@ object PlanScheduler {
     }
 
     /** 用户点「停止」或决策窗口超时：放弃并清理 */
-    fun onCancelPending(planId: Long) {
+    fun onCancelPending(context: Context, planId: Long) {
+        cancelReminderNotification(context)
         val pending = FocusStore.pendingPlan() ?: return
         if (pending.planId != planId) return
         FocusStore.clearPendingPlan()
@@ -230,6 +238,7 @@ object PlanScheduler {
     }
 
     private fun handlePendingTimeout(context: Context) {
+        cancelReminderNotification(context)
         val pending = FocusStore.pendingPlan() ?: return
         FocusStore.clearPendingPlan()
         val plan = FocusStore.focusPlans().firstOrNull { it.id == pending.planId }
@@ -320,6 +329,18 @@ object PlanScheduler {
             NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(context.getString(R.string.plan_notification_channel)).build()
         )
+    }
+
+    /**
+     * 取消计划前提醒通知（NOTIFICATION_ID_REMIND）。
+     * 提醒通知在设置开启超级岛时注入了岛参数（焦点通知），autoCancel 对焦点通知不可靠
+     * （HyperOS HideDeletedFocusController 机制），必须显式 cancel 才能让岛消失，
+     * 否则与即将发布的专注 FGS 岛（FocusService ID=100）共存导致两个焦点通知。
+     */
+    private fun cancelReminderNotification(context: Context) {
+        runCatching {
+            NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID_REMIND)
+        }
     }
 
     private fun showReminderNotification(context: Context, plan: FocusPlan) {
