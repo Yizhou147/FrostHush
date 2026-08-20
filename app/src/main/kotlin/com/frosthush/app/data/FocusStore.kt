@@ -27,7 +27,6 @@ object FocusStore {
     private val appGroupsFile = File(dir, "appGroups.json")
     private val selectedGroupFile = File(dir, "selectedGroup.json")
     private val plansFile = File(dir, "focusPlans.json")
-    private val pendingPlanFile = File(dir, "pendingPlan.json")
     private val planExecutedFile = File(dir, "planExecuted.json")
 
     /** 时长有效范围（分钟） */
@@ -592,33 +591,16 @@ object FocusStore {
         if (idx >= 0) {
             plans[idx] = plan
             saveFocusPlans(plans)
+            // 编辑后清除当日已执行记录：用户改时间/应用集说明想重新安排，
+            // 当日执行记录会抑制提醒通知点击弹窗（onReminderClicked）与到点启动（handleStart），
+            // 清除后新设置能在今天重新触发。
+            clearPlanExecuted(plan.id)
         }
     }
 
     fun deleteFocusPlan(id: Long) {
         saveFocusPlans(focusPlans().filter { it.id != id })
         clearPlanExecuted(id)
-        if (pendingPlan()?.planId == id) clearPendingPlan()
-    }
-
-    // ---------- 待启动计划（冲突延后 + 5 分钟决策窗口） ----------
-
-    /** 待启动计划：计划到点但已有专注进行中时持久化，等当前专注结束后让用户决策 */
-    data class PendingPlan(val planId: Long, val deadline: Long)
-
-    fun pendingPlan(): PendingPlan? = runCatching {
-        if (!pendingPlanFile.exists()) return null
-        val json = JSONObject(pendingPlanFile.readText())
-        PendingPlan(planId = json.getLong("planId"), deadline = json.getLong("deadline"))
-    }.getOrNull()
-
-    fun setPendingPlan(planId: Long, deadline: Long) {
-        dir.mkdirs()
-        pendingPlanFile.writeText(JSONObject().put("planId", planId).put("deadline", deadline).toString())
-    }
-
-    fun clearPendingPlan() {
-        runCatching { pendingPlanFile.delete() }
     }
 
     // ---------- 计划已执行日（同一计划同一天只触发一次） ----------

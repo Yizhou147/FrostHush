@@ -198,8 +198,6 @@ object FocusManager {
                 true
             }
         }
-        // 专注结束后：若有待启动计划则进入 5 分钟决策窗口
-        if (done) PlanScheduler.checkPendingAfterFocusEnd()
         return done
     }
 

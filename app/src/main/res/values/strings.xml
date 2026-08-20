@@ -37,6 +37,8 @@
     <string name="focus_start">Start focus</string>
     <string name="focus_select_duration">Select focus duration</string>
     <string name="focus_confirm_warning">Once focus mode starts, the selected apps will be suspended and cannot be exited midway.</string>
+    <string name="focus_conflict_text">This focus session will cover the start time of the following plans. They will not take effect today:</string>
+    <string name="focus_conflict_hint">Repeating plans will take effect normally the next day; one-time (non-repeating) plans will no longer run.</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_start">Start</string>
     <string name="action_confirm">OK</string>
@@ -278,6 +280,9 @@
     <string name="plan_cross_midnight_hint">End time is before start time; focus ends the next day</string>
     <string name="plan_once_only">Once</string>
     <string name="plan_once_only_hint">This plan runs only once and is disabled afterward</string>
+    <string name="plan_conflict_banner_title">Enabled plans have time conflicts. Conflicting plans will not run until resolved:</string>
+    <string name="plan_conflict_pair">%1$s and %2$s</string>
+    <string name="plan_conflict_action">Highlight</string>
     <string name="plan_empty">No focus plans yet. Tap + to create one.</string>
     <string name="plan_notification_channel">Plans</string>
     <string name="plan_reminder_title">Focus reminder</string>
@@ -293,12 +298,6 @@
     <string name="plan_start_failed_title">Plan failed to start</string>
     <string name="plan_start_failed_shizuku">Plan failed to start. Please grant Shizuku permission.</string>
     <string name="plan_start_failed_empty">Plan failed to start. The app group is empty or the apps were uninstalled.</string>
-    <string name="plan_pending_title">A focus plan is waiting to start</string>
-    <string name="plan_pending_text">Plan "%1$s" is due. Start now?</string>
-    <string name="plan_pending_continue">Continue</string>
-    <string name="plan_pending_stop">Stop</string>
-    <string name="plan_pending_stopped">Stopped</string>
-    <string name="plan_pending_stopped_text">Plan "%1$s" was not started</string>
     <string name="plan_once_done_title">Plan finished</string>
     <string name="plan_once_done_text">Plan "%1$s" finished and was disabled</string>
 

@@ -37,6 +37,8 @@
     <string name="focus_start">开始专注</string>
     <string name="focus_select_duration">选择专注时长</string>
     <string name="focus_confirm_warning">开启专注模式后，所选应用将被暂停，且中途不可退出。</string>
+    <string name="focus_conflict_text">本次专注会覆盖以下计划专注的开始时间，这些计划本日将不会生效：</string>
+    <string name="focus_conflict_hint">重复计划第二天正常生效；不重复计划将不再执行。</string>
     <string name="action_cancel">取消</string>
     <string name="action_start">开始</string>
     <string name="action_confirm">确定</string>
@@ -276,6 +278,9 @@
     <string name="plan_cross_midnight_hint">结束时间早于开始时间，将在次日结束</string>
     <string name="plan_once_only">不重复</string>
     <string name="plan_once_only_hint">该计划只执行一次，执行后自动停用</string>
+    <string name="plan_conflict_banner_title">启用计划存在时段冲突，冲突计划将不生效，请调整至无冲突：</string>
+    <string name="plan_conflict_pair">%1$s 与 %2$s</string>
+    <string name="plan_conflict_action">高亮</string>
     <string name="plan_empty">暂无专注计划，点击右上角 + 新建</string>
     <string name="plan_notification_channel">计划</string>
     <string name="plan_reminder_title">专注提醒</string>
@@ -290,12 +295,6 @@
     <string name="plan_start_failed_title">计划启动失败</string>
     <string name="plan_start_failed_shizuku">计划启动失败，请授权 Shizuku</string>
     <string name="plan_start_failed_empty">计划启动失败，应用集为空或应用已卸载</string>
-    <string name="plan_pending_title">有专注计划等待启动</string>
-    <string name="plan_pending_text">计划「%1$s」已到时间，是否现在开始？</string>
-    <string name="plan_pending_continue">继续</string>
-    <string name="plan_pending_stop">停止</string>
-    <string name="plan_pending_stopped">已停止</string>
-    <string name="plan_pending_stopped_text">计划「%1$s」已取消启动</string>
     <string name="plan_once_done_title">计划已完成</string>
     <string name="plan_once_done_text">计划「%1$s」已执行完成并停用</string>
 

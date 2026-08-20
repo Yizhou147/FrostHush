@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -49,10 +50,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -75,6 +79,8 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.settings.PlanReliabilityDialog
 import com.frosthush.app.ui.settings.checkBatteryOptimization
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -96,6 +102,23 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
     // 省电未豁免提醒横幅 + 计划可靠性检查对话框
     var showReliability by remember { mutableStateOf(false) }
     val batteryExempted by remember { mutableStateOf(checkBatteryOptimization(context)) }
+    // 启用计划时段冲突检测 + 高亮闪烁
+    val conflicts = remember(version) { PlanScheduler.findPlanConflicts() }
+    var highlightConflictIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var highlightOn by remember { mutableStateOf(false) }
+    var highlightTrigger by remember { mutableIntStateOf(0) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(highlightTrigger) {
+        if (highlightTrigger > 0) {
+            // 闪烁 8 次（约 2.8 秒）后归位
+            repeat(8) {
+                highlightOn = !highlightOn
+                delay(350)
+            }
+            highlightOn = false
+        }
+    }
 
     // 系统返回：选择模式下退出选择模式，否则放行退出应用
     BackHandler(enabled = selectionMode) {
@@ -216,6 +239,58 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
                     }
                 }
             }
+            // 启用计划时段冲突提醒横幅（样式与 Shizuku 未授权/应用未解冻提醒一致）
+            if (conflicts.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ),
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Filled.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.plan_conflict_banner_title),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            conflicts.forEach { c ->
+                                Text(
+                                    stringResource(R.string.plan_conflict_pair, c.planA.name, c.planB.name),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                )
+                            }
+                        }
+                        TextButton(onClick = {
+                            highlightConflictIds = conflicts.flatMap { listOf(it.planA.id, it.planB.id) }.toSet()
+                            highlightTrigger++
+                            val firstId = highlightConflictIds.firstOrNull()
+                            val idx = plans.indexOfFirst { it.id == firstId }
+                            if (idx >= 0) {
+                                scope.launch { listState.animateScrollToItem(idx) }
+                            }
+                        }) {
+                            Text(
+                                stringResource(R.string.plan_conflict_action),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
+                }
+            }
             if (plans.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
                     Text(
@@ -228,7 +303,6 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
             } else {
                 // 排序交互：非多选模式长按行 → 进入多选；多选模式下长按某行 → 开始拖拽（该行放大并跟随手指，
                 // 其余行通过 animateItem 平滑让位），拖动跨越半行即交换顺序并持久化
-                val listState = rememberLazyListState()
                 var draggingId by remember { mutableStateOf<Long?>(null) }
                 var dragOffsetY by remember { mutableStateOf(0f) }
                 var draggedHeightPx by remember { mutableStateOf(0f) }
@@ -296,6 +370,7 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
                                 bindingText = bindingText(context, plan, groupNames),
                                 selectionMode = selectionMode,
                                 selected = plan.id in selected,
+                                conflictHighlight = plan.id in highlightConflictIds && highlightOn,
                                 onClick = {
                                     if (selectionMode) {
                                         selected = if (plan.id in selected) selected - plan.id else selected + plan.id
@@ -349,6 +424,7 @@ private fun PlanRow(
     bindingText: String,
     selectionMode: Boolean,
     selected: Boolean,
+    conflictHighlight: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -360,7 +436,8 @@ private fun PlanRow(
             // 多选模式下不注册长按（长按留给拖拽排序，避免手势冲突）；非多选模式长按=进入多选
             .combinedClickable(onClick = onClick, onLongClick = if (selectionMode) null else onLongClick)
             .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                // 选中态与冲突高亮都用同一蓝色（与点击进入多选时一致），冲突高亮靠闪烁区分
+                if (selected || conflictHighlight) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                 else Color.Transparent
             )
             .padding(horizontal = 16.dp, vertical = 10.dp),

@@ -50,3 +50,33 @@ jobs:
         with:
           name: FrostHush-release
           path: app/build/outputs/apk/release/*.apk
+
+      - name: Read version
+        id: version
+        run: echo "name=$(grep 'versionName' app/build.gradle.kts | head -1 | sed -E 's/.*\"([^\"]+)\".*/\1/')" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: 霜息 FrostHush v${{ steps.version.outputs.name }}
+          body: |
+            ## v1.1.2 更新内容
+
+            ### 专注计划冲突处理（新增）
+            - 普通专注覆盖计划预判：手动开始普通专注时，若结束时间晚于某启用计划今天的开始时刻，弹窗提示该计划本日将不生效；确认后该计划当日失效，次日正常生效
+            - 计划时段冲突红色横幅：两个启用计划时段重叠（含跨天尾部与次日头部）时，计划页顶部弹出红色横幅提示，点击「高亮」跳转到冲突计划行（蓝色闪烁）
+            - 冲突计划到点不生效：处于冲突组的计划到点自动跳过当日，开关仍开但不生效，用户调整至无冲突后正常生效
+            - 跨天普通专注预判次日：手动开始跨天普通专注（结束在次日）时，额外预判次日凌晨的计划是否被覆盖
+            - 删除延后决策窗口：原「计划到点已有专注时的 5 分钟决策窗口（继续/停止通知）」机制移除，由冲突组检查 + 预判告知覆盖所有冲突路径
+
+            ### 计划通知与提醒
+            - 计划通知可点击进入应用：启动失败 / 已停止 / 已完成通知点击后打开应用（此前点不开）
+            - 通知渠道命名区分：focus_plan 渠道命名为「计划提醒」，与专注通知分离
+            - 普通专注对话框加时间线：开始专注前对话框显示预计结束时刻
+            - 修复计划提醒通知点击不弹窗：计划今天执行过后改时间又测，提醒通知点击不弹「立刻开始 / 终止」对话框的问题
+            - 修复计划前提醒焦点岛在专注开始后残留导致两个焦点通知共存
+          files: app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

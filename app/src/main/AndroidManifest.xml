@@ -68,7 +68,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- 专注计划闹钟（提醒/开始/结束/决策窗口超时） -->
+        <!-- 专注计划闹钟（提醒/开始/结束） -->
         <receiver
             android:name=".focus.PlanAlarmReceiver"
             android:exported="false"/>
@@ -76,11 +76,6 @@
         <!-- 专注阶段操作（跳过休息） -->
         <receiver
             android:name=".focus.FocusActionReceiver"
-            android:exported="false"/>
-
-        <!-- 待启动计划决策（继续/停止） -->
-        <receiver
-            android:name=".focus.PlanDecisionReceiver"
             android:exported="false"/>
 
         <!-- 专注倒计时前台服务 -->

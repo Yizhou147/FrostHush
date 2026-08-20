@@ -104,6 +104,7 @@ import com.frosthush.app.data.AppRepository
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
+import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
@@ -155,6 +156,9 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
     }
     var showDurationDialog by remember { mutableStateOf(false) }
     var showWarningDialog by remember { mutableStateOf(false) }
+    // 普通专注会覆盖到的启用计划（开始时刻被本次专注盖住）+ 冲突提醒对话框
+    var conflictPlans by remember { mutableStateOf<List<FocusStore.FocusPlan>>(emptyList()) }
+    var showConflictDialog by remember { mutableStateOf(false) }
     // 黑名单列表：搜索词 + 长按多选状态
     var query by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
@@ -447,8 +451,16 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
             onStart = { segments ->
                 pendingSegments = segments
                 showDurationDialog = false
-                // 二次确认开关关闭时跳过警告直接开始
-                if (confirmBeforeStart) {
+                // 先预判：本次普通专注会覆盖哪些启用计划今天的开始时刻？
+                // 如有冲突，先弹提醒（确定后冲突计划本日失效一次），再走二次确认警告。
+                val now = System.currentTimeMillis()
+                val total = segments.sumOf { it.minutes }
+                val normalFocusEnd = now + total * 60_000L
+                val conflicts = PlanScheduler.findConflictingPlans(now, normalFocusEnd)
+                if (conflicts.isNotEmpty()) {
+                    conflictPlans = conflicts
+                    showConflictDialog = true
+                } else if (confirmBeforeStart) {
                     showWarningDialog = true
                 } else {
                     scope.launch {
@@ -456,6 +468,50 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                         if (err != null) snackbarHostState.showSnackbar(err)
                     }
                 }
+            },
+        )
+    }
+    if (showConflictDialog) {
+        // 普通专注会覆盖启用计划今天开始时刻：列出受影响计划，确定后标记当日失效，
+        // 再走二次确认警告（如开关开启）；取消=不开始专注。
+        AlertDialog(
+            onDismissRequest = { showConflictDialog = false },
+            title = { Text(stringResource(R.string.focus_start)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.focus_conflict_text))
+                    Spacer(Modifier.height(8.dp))
+                    conflictPlans.forEach { plan ->
+                        Text(
+                            "· " + plan.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.focus_conflict_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    PlanScheduler.markPlansSkippedToday(conflictPlans)
+                    showConflictDialog = false
+                    // 标记冲突计划失效后，继续走二次确认警告流程
+                    if (confirmBeforeStart) {
+                        showWarningDialog = true
+                    } else {
+                        scope.launch {
+                            val err = FocusManager.startFocus(pendingSegments)
+                            if (err != null) snackbarHostState.showSnackbar(err)
+                        }
+                    }
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConflictDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
