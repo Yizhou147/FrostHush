@@ -332,6 +332,19 @@ object PlanScheduler {
     }
 
     /**
+     * 构造打开 MainActivity 的 PendingIntent（点击通知进入应用）。
+     * FLAG_IMMUTABLE + FLAG_UPDATE_CURRENT：同一 requestCode 多次创建会更新而非堆叠。
+     * 用于计划失败/停止/完成/决策等通知的 contentIntent。
+     */
+    private fun mainContentIntent(context: Context): PendingIntent = PendingIntent.getActivity(
+        context, 0,
+        Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    /**
      * 取消计划前提醒通知（NOTIFICATION_ID_REMIND）。
      * 提醒通知在设置开启超级岛时注入了岛参数（焦点通知），autoCancel 对焦点通知不可靠
      * （HyperOS HideDeletedFocusController 机制），必须显式 cancel 才能让岛消失，
@@ -414,6 +427,8 @@ object PlanScheduler {
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_pending_title))
                     .setContentText(context.getString(R.string.plan_pending_text, plan.name))
+                    // 点击通知正文（非按钮）打开应用：继续/停止由通知底部 Action 按钮触发
+                    .setContentIntent(mainContentIntent(context))
                     .setAutoCancel(true)
                     .addAction(R.drawable.ic_stat_focus, context.getString(R.string.plan_pending_continue), resume)
                     .addAction(R.drawable.ic_stat_focus, context.getString(R.string.plan_pending_stop), cancel)
@@ -431,6 +446,8 @@ object PlanScheduler {
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_start_failed_title))
                     .setContentText(message)
+                    // 点击通知打开应用（此前点不开）
+                    .setContentIntent(mainContentIntent(context))
                     .setAutoCancel(true)
                     .build()
             )
@@ -446,6 +463,8 @@ object PlanScheduler {
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_pending_stopped))
                     .setContentText(context.getString(R.string.plan_pending_stopped_text, plan.name))
+                    // 点击通知打开应用（此前点不开）
+                    .setContentIntent(mainContentIntent(context))
                     .setAutoCancel(true)
                     .build()
             )
@@ -461,6 +480,8 @@ object PlanScheduler {
                     .setSmallIcon(R.drawable.ic_stat_focus)
                     .setContentTitle(context.getString(R.string.plan_once_done_title))
                     .setContentText(context.getString(R.string.plan_once_done_text, plan.name))
+                    // 点击通知打开应用（此前点不开）
+                    .setContentIntent(mainContentIntent(context))
                     .setAutoCancel(true)
                     .build()
             )

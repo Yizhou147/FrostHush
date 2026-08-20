@@ -108,9 +108,13 @@ import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
+import com.frosthush.app.ui.MaterialTimePickerDialog
 import com.frosthush.app.ui.SegmentMinutesDialog
 import com.frosthush.app.ui.SegmentRatioBar
 import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.minuteOfDayText
+import com.frosthush.app.ui.removeSegment
+import com.frosthush.app.ui.segmentEndTimeText
 import com.frosthush.app.ui.segmentsSummaryText
 import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
@@ -822,9 +826,11 @@ private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
     }
 }
 
-/** 开始专注的时间设置对话框：第一段专注时长输入 + 预设快捷选择 + 保存/管理预设。
+/** 开始专注的时间设置对话框：分段列表（与计划专注页统一）+ 预设快捷选择 + 保存/管理预设。
+ *  每段显示起止时间（基于对话框打开时系统当前时刻累加），点击结束时间可弹 TimePicker
+ *  按具体时刻调整，该段时长自动反算（与计划编辑页交互一致）。
  *  点「添加休息/添加专注」可扩展为分段专注（专注→休息→专注…），不加休息即普通连续专注。 */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun FocusTimeDialog(
     initial: Int,
@@ -844,6 +850,27 @@ private fun FocusTimeDialog(
     var showManagePresets by remember { mutableStateOf(false) }
     // 正在弹时长输入对话框的段索引；-1 = 无
     var durationDialogIndex by remember { mutableIntStateOf(-1) }
+    // 正在按时间段调整的段索引（点该段结束时间打开 TimePicker，时长自动反算）；-1 = 无
+    var editingEndIndex by remember { mutableIntStateOf(-1) }
+    // 对话框打开时取一次系统当前时刻的 minuteOfDay（0..1439）作为时间线基准；
+    // 不在对话框内每秒刷新，避免用户调整时长时数字跳变。
+    val startMinuteOfDay by remember {
+        mutableIntStateOf(
+            java.util.Calendar.getInstance().let {
+                it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE)
+            }
+        )
+    }
+    // 各段起止分钟数（基于开始分钟累加，未取模便于跨天显示判断）
+    val segmentBounds: List<Pair<Int, Int>> = remember(segments, startMinuteOfDay) {
+        val list = mutableListOf<Pair<Int, Int>>()
+        var acc = startMinuteOfDay
+        segments.forEach { s ->
+            list.add(acc to acc + s.minutes)
+            acc += s.minutes
+        }
+        list
+    }
 
     // 保存/管理预设对话框关闭后刷新预设列表
     LaunchedEffect(showSavePreset, showManagePresets) {
@@ -875,18 +902,7 @@ private fun FocusTimeDialog(
 
     fun deleteSegment(index: Int) {
         if (index <= 0 || segments.size <= 1) return
-        val list = segments.toMutableList().apply { removeAt(index) }
-        // 删除后相邻同类型段合并（专注→休息→专注 删休息 → 两段专注合并为一段）
-        val merged = mutableListOf<FocusStore.Segment>()
-        list.forEach { s ->
-            val last = merged.lastOrNull()
-            if (last != null && last.type == s.type) {
-                merged[merged.size - 1] = FocusStore.Segment(s.type, last.minutes + s.minutes)
-            } else {
-                merged.add(s)
-            }
-        }
-        segments = merged
+        segments = removeSegment(segments, index).toMutableList()
     }
 
     AlertDialog(
@@ -898,14 +914,17 @@ private fun FocusTimeDialog(
         text = {
             Column {
                 // 段列表：第一段为专注（主输入），其后交替休息/专注；
-                // 点某段时长胶囊弹输入对话框
+                // 每行显示起止时间（基准=打开对话框时的系统时刻），结束时间可点弹 TimePicker 按时刻反算时长
                 segments.forEachIndexed { index, seg ->
+                    val (s, e) = segmentBounds.getOrElse(index) { 0 to 0 }
                     SegmentRow(
                         segment = seg,
                         deletable = index > 0,
-                        onClickDuration = {
-                            durationDialogIndex = index
-                        },
+                        onClickDuration = { durationDialogIndex = index },
+                        startTimeText = minuteOfDayText(s % 1440),
+                        endTimeText = segmentEndTimeText(e),
+                        endTimeEditable = true,
+                        onEditEndTime = { editingEndIndex = index },
                         onDelete = { deleteSegment(index) },
                     )
                 }
@@ -988,6 +1007,32 @@ private fun FocusTimeDialog(
                 durationDialogIndex = -1
             },
             onCancel = { durationDialogIndex = -1 },
+        )
+    }
+    // 按时间段调整分段：选择该段新的结束时刻 → 时长自动反算，后续段顺延
+    // 单段最大 240 分钟（普通专注总时长上限）；新总时长超 240 在点开始时统一校验
+    if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
+        MaterialTimePickerDialog(
+            initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
+            initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
+            onDismiss = { editingEndIndex = -1 },
+            onConfirm = { h, m ->
+                val chosen = h * 60 + m // 当天时刻 0..1439
+                val segStart = segmentBounds[editingEndIndex].first
+                var segEnd = chosen
+                // 结束不晚于开始 → 视为次日结束（普通专注总时长上限 240 分钟，跨天很少见但兼容）
+                if (segEnd <= segStart % 1440) segEnd += 1440
+                val duration = segEnd - segStart
+                // 单段需 ≥1 分钟且 ≤ MAX_MINUTES（240）；普通专注总时长上限由点开始时统一校验
+                if (duration < FocusStore.MIN_MINUTES || duration > FocusStore.MAX_MINUTES) {
+                    Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                } else {
+                    segments = segments.toMutableList().apply {
+                        set(editingEndIndex, FocusStore.Segment(this[editingEndIndex].type, duration))
+                    }
+                }
+                editingEndIndex = -1
+            },
         )
     }
 }

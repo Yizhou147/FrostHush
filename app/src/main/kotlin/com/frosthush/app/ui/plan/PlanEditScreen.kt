@@ -41,10 +41,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDialog
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +64,7 @@ import com.frosthush.app.ui.MAX_SEGMENTS
 import com.frosthush.app.ui.SegmentMinutesDialog
 import com.frosthush.app.ui.SegmentRatioBar
 import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.MaterialTimePickerDialog
 import com.frosthush.app.ui.appendSegment
 import com.frosthush.app.ui.removeSegment
 import com.frosthush.app.ui.segmentEndTimeText
@@ -582,36 +580,6 @@ fun PlanEditScreen(plan: FocusPlan?, onBack: () -> Unit) {
                 }
             },
         )
-    }
-}
-
-/** Material3 时间选择对话框（24 小时制） */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MaterialTimePickerDialog(
-    initialHour: Int,
-    initialMinute: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (Int, Int) -> Unit,
-) {
-    val state = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = true,
-    )
-    TimePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { onConfirm(state.hour, state.minute) }) {
-                Text(stringResource(R.string.action_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-        title = { Text(stringResource(R.string.plan_time_title)) },
-    ) {
-        TimePicker(state = state)
     }
 }
 

@@ -79,6 +79,8 @@
     <string name="focus_suspended_restored">%1$d app(s) restored</string>
     <string name="focus_suspended_restore_failed">Restore failed. Make sure Shizuku is running.</string>
     <string name="focus_notification_channel">Focus</string>
+    <string name="focus_notification_channel_active">Focus in progress</string>
+    <string name="focus_notification_channel_finished">Focus ended</string>
     <string name="focus_finished_title">Focus ended</string>
     <string name="focus_finished_text">All apps have been restored</string>
     <string name="focus_suspended_dialog">%1$s has been paused. Please stay focused.</string>

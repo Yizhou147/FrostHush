@@ -146,7 +146,7 @@ class FocusService : Service() {
         // 重要度 HIGH：HyperOS 超级岛仅对高重要度通知呈现，且首次只 alert 一次
         NotificationManagerCompat.from(this).createNotificationChannel(
             NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_HIGH)
-                .setName(getString(R.string.focus_notification_channel)).build()
+                .setName(getString(R.string.focus_notification_channel_active)).build()
         )
     }
 

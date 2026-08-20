@@ -257,7 +257,7 @@ object FocusManager {
         val manager = NotificationManagerCompat.from(app)
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(FINISH_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
-                .setName(app.getString(R.string.focus_notification_channel)).build()
+                .setName(app.getString(R.string.focus_notification_channel_finished)).build()
         )
         val title = app.getString(R.string.focus_finished_title)
         val text = app.getString(R.string.focus_finished_text)

@@ -79,6 +79,8 @@
     <string name="focus_suspended_restored">已恢复 %1$d 个应用</string>
     <string name="focus_suspended_restore_failed">恢复失败，请确认 Shizuku 可用</string>
     <string name="focus_notification_channel">专注</string>
+    <string name="focus_notification_channel_active">专注进行中</string>
+    <string name="focus_notification_channel_finished">专注结束</string>
     <string name="focus_finished_title">专注结束</string>
     <string name="focus_finished_text">所有应用已恢复</string>
     <string name="focus_suspended_dialog">%1$s已暂停，请保持专注。</string>
