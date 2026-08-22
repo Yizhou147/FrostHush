@@ -18,17 +18,19 @@ import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.ActiveSession
 import com.frosthush.app.data.FocusStore.PhaseInfo
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.util.Format
 import com.frosthush.app.util.MiuiIsland
 
 /**
- * 专注模式前台服务：常驻通知显示当前阶段（专注/休息）+ 原生倒计时；
+ * 专注模式前台服务：常驻通知显示当前阶段（专注/休息）+ 倒计时；
  * 是否注入小米超级岛参数由设置 SettingsStore.focusIslandEnabled 控制，中途切换立即生效。
  *
- * 对齐番茄Todo 的岛行为（adb 逆向）：
- * - 卡片文案静态（专注中/休息中），倒计时走秒由通知 chronometer（when=本阶段结束时刻）与
- *   岛参数 timerInfo 原生渲染，**无需每秒 notify**
- * - 只在阶段切换/会话开始时 notify 岛通知，enableFloat 恒 true → 每次更新岛自动展开弹出
- *   （小岛变大、像普通通知一样滑入），不会每秒弹出
+ * 普通通知与焦点通知（超级岛）严格分开处理：
+ * - 普通通知（islandEnabled=false）：上行 contentTitle="专注进行中"、下行 contentText=格式化倒计时，
+ *   每秒 notify 更新 contentText（setOnlyAlertOnce 防打扰）。chronometer 仅在时间戳位置辅助显示。
+ * - 焦点通知（islandEnabled=true）：对齐番茄Todo 岛行为（adb 逆向），卡片文案静态（专注中/休息中），
+ *   倒计时走秒由通知 chronometer（when=本阶段结束时刻）与岛参数 timerInfo 原生渲染，**无需每秒 notify**；
+ *   只在阶段切换/会话开始时 notify，enableFloat 恒 true → 每次更新岛自动展开弹出，不会每秒弹出。
  *
  * 分段专注：每秒按会话时间轴计算当前阶段，阶段切换时：
  * - 进入休息段：解除暂停全部应用（锁屏随之隐藏，可自由使用手机）
@@ -67,6 +69,16 @@ class FocusService : Service() {
             val remaining = phase.remainingAt(now)
             // 最后一段（专注）到点：后台恢复并结束
             if (phase.isFocus && remaining <= 0) {
+                // 焦点通知模式：发布结束岛通知（不绑定 FGS，避免 stopService 时被系统取消）。
+                // 用 currentNotificationId++ + notify 换新 key 触发岛滑入；不调 startForeground，
+                // 这样 stopService 的 Cancel FGS notification 只移除 ID=100 的旧 FGS 通知，
+                // 不会移除结束岛通知（新 ID）。endMillis 必须传值（now+1000），否则 HyperOS
+                // FocusPlugin 抛 FocusParamsException: content is empty。
+                if (islandEnabled && SettingsStore.cache.notifyFinishEnabled) {
+                    currentNotificationId++
+                    val endNotification = buildEndNotification()
+                    runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, endNotification) }
+                }
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return
             }
@@ -79,6 +91,10 @@ class FocusService : Service() {
                 val notification = buildNotification(phase, session)
                 currentNotificationId++
                 runCatching { startForeground(currentNotificationId, notification) }
+                runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, notification) }
+            } else if (!islandEnabled) {
+                // 普通通知：每秒 notify 更新 contentText 倒计时（焦点通知不每秒 notify，岛走原生 chronometer）
+                val notification = buildNotification(phase, session)
                 runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, notification) }
             }
             handler.postDelayed(this, 1000L)
@@ -105,7 +121,13 @@ class FocusService : Service() {
         return START_STICKY
     }
 
-    /** 更新前台服务通知（阶段切换时随换新 ID 一起调用；倒计时走秒由 chronometer 与岛 timerInfo 原生渲染） */
+    /** 更新前台服务通知。普通通知与焦点通知（超级岛）严格分开处理：
+     *  - 普通通知（islandEnabled=false）：上行 contentTitle="专注进行中"、下行 contentText=格式化倒计时，
+     *    配合 setOnlyAlertOnce(true) 防每秒 notify 打扰；chronometer 仍在时间戳位置辅助显示。
+     *  - 焦点通知（islandEnabled=true）：卡片文案静态（contentText 仅作退化兜底），岛显示由 extras 中的
+     *    miui.focus.param 决定（ticker/aodTitle/chatInfo.title，通过 buildIslandExtras 的入参注入，
+     *    与 NotificationCompat.contentText 无关）；不每秒 notify，倒计时由 chronometer 与岛 timerInfo 原生渲染。
+     */
     private fun buildNotification(phase: PhaseInfo?, session: ActiveSession?): Notification {
         val contentIntent = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
@@ -115,13 +137,9 @@ class FocusService : Service() {
         val builder = NotificationCompat.Builder(this, channelID)
             .setSmallIcon(R.drawable.ic_stat_focus)
             .setContentTitle(frontTitle)
-            .setContentText(frontTitle)
             .setContentIntent(contentIntent)
             .setOngoing(true)
-            // 不设 onlyAlertOnce：现在只在会话开始/阶段切换时 notify（不每秒刷），
-            // 每次更新都作为打断性事件 → 岛浮动滑入（对齐番茄Todo；番茄通知亦无 ONLY_ALERT_ONCE，
-            // dumpsys 显示 flags=ONGOING_EVENT + mIsInterruptive=true）
-            // 卡片倒计时走秒：系统 chronometer（when=本阶段结束时刻，倒计时到 0），无需每秒 notify
+            // 卡片倒计时走秒：系统 chronometer（when=本阶段结束时刻，倒计时到 0）
             .setShowWhen(true)
             .setUsesChronometer(true)
             .setWhen(phase?.segmentEnd ?: session?.endMillis ?: System.currentTimeMillis())
@@ -130,14 +148,50 @@ class FocusService : Service() {
         }
         // 注意：不再给通知加「跳过休息」action——HyperOS 焦点通知（岛）不渲染通知按钮，
         // 跳过休息改由应用内按钮提供（点击岛/通知进应用 → FocusScreen 休息态点「跳过休息」）
-        // HyperOS 超级岛：仅当设置开启时才注入岛参数；倒计时指向当前阶段结束时间，
-        // 锚点在本阶段开始时固定；enableFloat 恒 true → 每次更新岛自动展开弹出（对齐番茄Todo）
         if (islandEnabled) {
+            // 焦点通知：不设 onlyAlertOnce（只在会话开始/阶段切换时 notify，每次更新作为打断性事件 → 岛浮动滑入，
+            // 对齐番茄Todo；番茄通知 dumpsys 显示 flags=ONGOING_EVENT + mIsInterruptive=true）。
+            // setContentText(frontTitle) 仅作"设备不支持焦点通知时退化为普通通知"的兜底文案，岛显示由 miui.focus.param 决定。
+            // 倒计时指向当前阶段结束时间，锚点在本阶段开始时固定；enableFloat 恒 true → 每次更新岛自动展开弹出（对齐番茄Todo）
+            builder.setContentText(frontTitle)
             runCatching {
                 val endMillis = phase?.segmentEnd ?: session?.endMillis ?: System.currentTimeMillis()
                 val anchor = if (islandTimerAnchor > 0L) islandTimerAnchor else System.currentTimeMillis()
                 builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, frontTitle, endMillis, anchor))
             }
+        } else {
+            // 普通通知：下行 contentText=格式化倒计时（每秒 notify 更新），setOnlyAlertOnce 防每秒提醒
+            builder.setOnlyAlertOnce(true)
+            val now = System.currentTimeMillis()
+            val remaining = phase?.remainingAt(now) ?: 0L
+            builder.setContentText(Format.countdown(remaining))
+        }
+        return builder.build()
+    }
+
+    /** 构建专注结束岛通知（焦点通知模式专用）。
+     *  跟休息时间弹出通知实现方法一致：currentNotificationId++ + startForeground + notify 触发岛滑入。
+     *  HyperOS FocusPlugin 解析 miui.focus.param 时要求必须有 sameWidthDigitInfo（倒计时区），
+     *  否则抛 FocusParamsException: content is empty。结束通知传 endMillis=now+1s + timerSystemCurrent=now
+     *  让 timerInfo 存在（倒计时立即到 0 显示 00:00），满足 HyperOS 解析要求。 */
+    private fun buildEndNotification(): Notification {
+        val title = getString(R.string.focus_finished_title)
+        val text = getString(R.string.focus_finished_text)
+        val contentIntent = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+        )
+        // 复用 FocusService 渠道（与休息切换一致，FocusService 渠道已通过 HyperOS 焦点通知鉴权）
+        val builder = NotificationCompat.Builder(this, channelID)
+            .setSmallIcon(R.drawable.ic_stat_focus)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(contentIntent)
+            .setOngoing(false)
+            .setAutoCancel(true)
+        runCatching {
+            val now = System.currentTimeMillis()
+            // endMillis=now+1000 + timerSystemCurrent=now → timerInfo 存在，倒计时立即到 0
+            builder.addExtras(MiuiIsland.buildIslandExtras(this, title, text, now + 1000L, now))
         }
         return builder.build()
     }
@@ -179,6 +233,7 @@ class FocusService : Service() {
 
     companion object {
         private const val NOTIFICATION_ID = 100
+        private const val FINISH_CHANNEL_ID = "focus_finished"
 
         const val ACTION_SKIP_REST = "com.frosthush.app.focus.SKIP_REST"
         const val REQUEST_SKIP_REST = 5001

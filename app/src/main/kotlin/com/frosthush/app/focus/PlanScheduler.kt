@@ -404,12 +404,14 @@ object PlanScheduler {
     )
 
     /**
-     * 取消计划前提醒通知（NOTIFICATION_ID_REMIND）。
+     * 取消计划前提醒通知（NOTIFICATION_ID_REMIND）并停止 ReminderService。
      * 提醒通知在设置开启超级岛时注入了岛参数（焦点通知），autoCancel 对焦点通知不可靠
      * （HyperOS HideDeletedFocusController 机制），必须显式 cancel 才能让岛消失，
      * 否则与即将发布的专注 FGS 岛（FocusService ID=100）共存导致两个焦点通知。
      */
     private fun cancelReminderNotification(context: Context) {
+        // 停止 ReminderService（普通通知模式下支撑每秒 ticker 的前台服务）
+        runCatching { context.stopService(Intent(context, ReminderService::class.java)) }
         runCatching {
             NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID_REMIND)
         }
@@ -417,21 +419,18 @@ object PlanScheduler {
 
     private fun showReminderNotification(context: Context, plan: FocusPlan) {
         ensureChannel(context)
-        // 点击通知 → 打开应用，AppRoot 弹「距开始倒计时」对话框（立刻开始 / 终止）
-        val clickIntent = Intent(context, MainActivity::class.java).apply {
-            action = ACTION_REMIND_CLICK
-            putExtra(EXTRA_PLAN_ID, plan.id)
-        }
-        val contentIntent = PendingIntent.getActivity(
-            context, requestCode(plan.id, 0), clickIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val contentIntent = reminderContentIntent(context, plan.id)
         val title = context.getString(R.string.plan_reminder_title)
-        val text = context.getString(
-            R.string.plan_reminder_text,
-            plan.name,
-            SettingsStore.cache.planRemindSeconds,
-        )
+        val startMillis = nextStartMillis(plan, System.currentTimeMillis())
+        val islandEnabled = SettingsStore.cache.focusIslandEnabled
+        // 焦点通知模式：文案用设置 remindSeconds（静态，岛倒计时由系统原生渲染）
+        // 普通通知模式：文案用实时剩余秒数（ReminderService 每秒更新）
+        val text = if (islandEnabled) {
+            context.getString(R.string.plan_reminder_text, plan.name, SettingsStore.cache.planRemindSeconds)
+        } else {
+            val remaining = ((startMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L).toInt()
+            context.getString(R.string.plan_reminder_text, plan.name, remaining)
+        }
         runCatching {
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_focus)
@@ -442,23 +441,41 @@ object PlanScheduler {
                 // fullScreenIntent 强制全屏弹出（点击仍进「距开始倒计时」对话框）
                 .setFullScreenIntent(contentIntent, true)
                 .setAutoCancel(true)
-            // 计划前提醒以焦点通知（超级岛）形式弹出：岛倒计时到计划开始时刻
-            // （仅在设置开启超级岛时；关闭后此通知走普通通知，全屏弹出与点击行为不变）
-            if (SettingsStore.cache.focusIslandEnabled) {
+            if (islandEnabled) {
+                // 焦点通知模式：注入岛参数，岛倒计时到计划开始时刻（不每秒 notify）
                 runCatching {
-                    val start = Calendar.getInstance().apply {
-                        set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
-                        set(Calendar.MINUTE, plan.startMinute % 60)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.timeInMillis
                     builder.addExtras(
-                        MiuiIsland.buildIslandExtras(context, title, text, start, System.currentTimeMillis())
+                        MiuiIsland.buildIslandExtras(context, title, text, startMillis, System.currentTimeMillis())
                     )
                 }
+            } else {
+                // 普通通知模式：setOnlyAlertOnce 防每秒 notify 提醒打扰
+                builder.setOnlyAlertOnce(true)
             }
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_REMIND, builder.build())
         }
+        // 普通通知模式：启动 ReminderService 前台服务支撑每秒 ticker（跟专注倒计时实现方法一致）
+        // 焦点通知模式不启动（岛倒计时由系统原生渲染）
+        if (!islandEnabled) {
+            val serviceIntent = Intent(context, ReminderService::class.java).apply {
+                putExtra(ReminderService.EXTRA_PLAN_ID, plan.id)
+                putExtra(ReminderService.EXTRA_PLAN_NAME, plan.name)
+                putExtra(ReminderService.EXTRA_START_MILLIS, startMillis)
+            }
+            androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent)
+        }
+    }
+
+    /** 提醒通知点击 PendingIntent（打开 MainActivity，带 ACTION_REMIND_CLICK + planId） */
+    private fun reminderContentIntent(context: Context, planId: Long): PendingIntent {
+        val clickIntent = Intent(context, MainActivity::class.java).apply {
+            action = ACTION_REMIND_CLICK
+            putExtra(EXTRA_PLAN_ID, planId)
+        }
+        return PendingIntent.getActivity(
+            context, requestCode(planId, 0), clickIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     private fun showStartFailedNotification(context: Context, message: String) {

@@ -191,8 +191,12 @@ object FocusManager {
                         session.toHistorySegments(end),
                     )
                 )
+                // 焦点通知模式：结束岛通知已由 FocusService（currentNotificationId++ + notify）发布，
+                // 这里不再调 showFinishNotification 避免重复发布；普通通知模式由 showFinishNotification 发布。
+                if (SettingsStore.cache.notifyFinishEnabled && !SettingsStore.cache.focusIslandEnabled) {
+                    showFinishNotification()
+                }
                 app.stopService(Intent(app, FocusService::class.java))
-                if (SettingsStore.cache.notifyFinishEnabled) showFinishNotification()
                 phase.value = null
                 bumpVersion()
                 true

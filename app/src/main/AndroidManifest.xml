@@ -87,5 +87,15 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="focus_countdown"/>
         </service>
+
+        <!-- 计划前提醒每秒计时前台服务（仅普通通知模式，跟专注倒计时实现方法一致） -->
+        <service
+            android:name=".focus.ReminderService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="plan_reminder_countdown"/>
+        </service>
     </application>
 </manifest>
