@@ -31,6 +31,9 @@ object PlanScheduler {
     const val ACTION_END = "com.frosthush.app.plan.END"
     const val ACTION_REMIND_CLICK = "com.frosthush.app.plan.REMIND_CLICK"
     const val EXTRA_PLAN_ID = "plan_id"
+    // 提醒闹钟注册时确定的计划真实开始时刻：闹钟可能被系统延迟投递，
+    // 投递时用注册时刻而非重算，避免因分钟已过而错算成下一天（24 小时倒计时 bug）
+    const val EXTRA_START_MILLIS = "plan_start_millis"
     // 触发发生日的 yyyyMMdd：同计划不同发生日的闹钟 PendingIntent 因 extra 不同而互相独立，
     // 保证重排下一次触发时不会覆盖当前发生日尚未触发的结束闹钟
     private const val EXTRA_DAY = "plan_day"
@@ -62,11 +65,19 @@ object PlanScheduler {
         val now = System.currentTimeMillis()
         val start = nextStartMillis(plan, now)
         val day = dayCodeOf(start)
-        // 开始前提醒（提前秒数由设置 planRemindSeconds 控制；0 = 不提醒，到点直接开始）
+        // 开始前提醒（提前秒数由设置 planRemindSeconds 控制；0 = 不提醒，到点直接开始）。
+        // 提醒闹钟携带计划真实开始时刻 start：即使闹钟延迟投递，倒计时仍指向本次计划开始，
+        // 不会因投递时分钟已过而错算成下一天（修复 24 小时倒计时）。
         val remindSeconds = SettingsStore.cache.planRemindSeconds
         val remindAt = start - remindSeconds * 1000L
-        if (remindSeconds > 0 && remindAt > now) {
-            setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day))
+        if (remindSeconds > 0) {
+            if (remindAt > now) {
+                setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day, start))
+            } else if (start > now) {
+                // 已在提醒点之后、计划开始之前才调度（开机/升级/编辑计划执行得晚）：
+                // 补发即时提醒（剩余秒数 = 距开始时刻），保证不会"到点直接开始、没跳提醒"
+                showReminderNotification(context, plan, start)
+            }
         }
         // 开始
         setExact(am, start, alarmIntent(context, ACTION_START, plan.id, day))
@@ -216,13 +227,19 @@ object PlanScheduler {
 
     // ---------- 闹钟回调 ----------
 
-    fun onAlarm(context: Context, action: String, planId: Long) {
+    fun onAlarm(context: Context, action: String, planId: Long, startMillis: Long = 0L) {
         when (action) {
             ACTION_REMIND -> {
                 val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
                 // 计划今天已执行/已跳过：不发提醒通知（避免"发通知但点击无反应"的不一致）
                 if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
-                showReminderNotification(context, plan)
+                // 优先用注册闹钟时的真实开始时刻（旧闹钟无该 extra 时回退重算）
+                val start = if (startMillis > 0L) startMillis
+                            else nextStartMillis(plan, System.currentTimeMillis())
+                // 提醒闹钟延迟投递（已到/已过开始时刻）：计划应由 START 启动，不再发提醒，
+                // 避免发布"错过开始时刻"的提醒通知（错倒计时 + 通知残留）
+                if (System.currentTimeMillis() >= start) return
+                showReminderNotification(context, plan, start)
             }
             ACTION_START -> Thread { handleStart(context, planId) }.start()
             ACTION_END -> handleEnd(context, planId)
@@ -318,7 +335,6 @@ object PlanScheduler {
      *  weekdays 为空（不重复）时取最近一次（今天未过则今天，否则明天）。 */
     private fun nextStartMillis(plan: FocusPlan, fromMillis: Long): Long {
         val c = Calendar.getInstance().apply { timeInMillis = fromMillis }
-        val minuteOfDay = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
         if (plan.weekdays.isEmpty()) {
             c.set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
             c.set(Calendar.MINUTE, plan.startMinute % 60)
@@ -332,12 +348,16 @@ object PlanScheduler {
             val dow = c.get(Calendar.DAY_OF_WEEK)
             // Calendar: SUNDAY=1..SATURDAY=7；计划星期：1=周一..7=周日
             val weekday = if (dow == Calendar.SUNDAY) 7 else dow - 1
-            if (weekday in plan.weekdays && (offset > 0 || minuteOfDay < plan.startMinute)) {
-                c.set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
-                c.set(Calendar.MINUTE, plan.startMinute % 60)
-                c.set(Calendar.SECOND, 0)
-                c.set(Calendar.MILLISECOND, 0)
-                return c.timeInMillis
+            if (weekday in plan.weekdays) {
+                // 候选日当天开始时刻：毫秒级比较（now 严格早于开始时刻才算"今天未过"），
+                // 避免分钟粒度误判导致跳过当天、顺延到明天
+                val candidate = (c.clone() as Calendar).apply {
+                    set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+                    set(Calendar.MINUTE, plan.startMinute % 60)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }
+                if (candidate.timeInMillis > fromMillis) return candidate.timeInMillis
             }
             c.add(Calendar.DAY_OF_YEAR, 1)
         }
@@ -371,11 +391,14 @@ object PlanScheduler {
             it.get(Calendar.YEAR) * 10000 + (it.get(Calendar.MONTH) + 1) * 100 + it.get(Calendar.DAY_OF_MONTH)
         }
 
-    private fun alarmIntent(context: Context, action: String, planId: Long, day: Int? = null): PendingIntent {
+    private fun alarmIntent(
+        context: Context, action: String, planId: Long, day: Int? = null, startMillis: Long? = null
+    ): PendingIntent {
         val intent = Intent(context, PlanAlarmReceiver::class.java).apply {
             this.action = action
             putExtra(EXTRA_PLAN_ID, planId)
             if (day != null) putExtra(EXTRA_DAY, day)
+            if (startMillis != null) putExtra(EXTRA_START_MILLIS, startMillis)
         }
         return PendingIntent.getBroadcast(
             context, requestCode(planId, actionIndex(action)), intent,
@@ -417,11 +440,10 @@ object PlanScheduler {
         }
     }
 
-    private fun showReminderNotification(context: Context, plan: FocusPlan) {
+    private fun showReminderNotification(context: Context, plan: FocusPlan, startMillis: Long) {
         ensureChannel(context)
         val contentIntent = reminderContentIntent(context, plan.id)
         val title = context.getString(R.string.plan_reminder_title)
-        val startMillis = nextStartMillis(plan, System.currentTimeMillis())
         val islandEnabled = SettingsStore.cache.focusIslandEnabled
         // 焦点通知模式：文案用设置 remindSeconds（静态，岛倒计时由系统原生渲染）
         // 普通通知模式：文案用实时剩余秒数（ReminderService 每秒更新）
