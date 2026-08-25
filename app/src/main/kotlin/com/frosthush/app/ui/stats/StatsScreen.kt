@@ -1,16 +1,24 @@
 package com.frosthush.app.ui.stats
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -21,10 +29,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.HourglassTop
@@ -36,6 +44,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,10 +64,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.HistoryRecord
@@ -66,11 +78,20 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.util.Format
 import kotlin.math.max
 
+/** 一个日期下的若干会话记录 */
+private class DayGroup(val dayStart: Long, val records: List<HistoryRecord>)
+
+/** 一个月份下的若干日期分组 */
+private class MonthGroup(val monthStart: Long, val days: List<DayGroup>) {
+    val totalMinutes: Int get() = days.sumOf { d -> d.records.sumOf { it.minutes } }
+    val count: Int get() = days.sumOf { it.records.size }
+}
+
 /**
  * 统计页：
- * - 聚合卡片：今日/本周/本月/本年 + 累计总时长/日均/最长单次
- * - 近 7/30 天柱状图（可切换）
- * - 会话明细：日期、起止时间、时长
+ * - 主列表：聚合卡片（今日/本周/本月/本年 + 累计总时长/日均/最长单次）、近 7/30 天柱状图
+ *   （可切换；点击某列直接进入对应月份的二级页面并展开/高亮该日会话明细）
+ * - 会话明细：月份列表（点击某个月份进入二级页面）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +101,97 @@ fun StatsScreen() {
     LaunchedEffect(version) { history = FocusStore.history() }
     var chartDays by remember { mutableIntStateOf(7) }
 
+    val monthPattern = stringResource(R.string.stats_month_label)
+    val dayPattern = stringResource(R.string.stats_day_label)
+    val sessionsFmt = stringResource(R.string.stats_sessions_count)
+
+    // 按月份→日期分组（月份倒序，日期倒序，当日记录倒序）
+    val monthGroups = remember(history) {
+        history.groupBy { Format.startOfMonth(it.start) }
+            .map { (monthStart, records) ->
+                MonthGroup(
+                    monthStart,
+                    records.groupBy { Format.startOfDay(it.start) }
+                        .map { (dayStart, recs) -> DayGroup(dayStart, recs.sortedByDescending { it.start }) }
+                        .sortedByDescending { it.dayStart },
+                )
+            }
+            .sortedByDescending { it.monthStart }
+    }
+
+    // 月份二级页面导航：null = 主列表
+    var openMonth by remember { mutableStateOf<Long?>(null) }
+    var expandedDays by remember { mutableStateOf(setOf<Long>()) }
+    var selectedDay by remember { mutableStateOf<Long?>(null) }
+
+    BackHandler(enabled = openMonth != null) { openMonth = null }
+
+    AnimatedContent(
+        targetState = openMonth,
+        transitionSpec = {
+            if (targetState != null) {
+                // 前进：进入月份二级页面（自右滑入）
+                (slideInHorizontally(tween(300)) { it } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { -it } + fadeOut(tween(300)))
+            } else {
+                // 返回：主列表自右滑回
+                (slideInHorizontally(tween(300)) { -it } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { it } + fadeOut(tween(300)))
+            }
+        },
+        label = "statsMonthNav",
+    ) { key ->
+        if (key == null) {
+            StatsMain(
+                history = history,
+                chartDays = chartDays,
+                onChartDaysChange = { chartDays = it },
+                monthGroups = monthGroups,
+                monthPattern = monthPattern,
+                sessionsFmt = sessionsFmt,
+                onOpenMonth = { openMonth = it },
+                onDateSelect = { dayStart ->
+                    val mg = monthGroups.firstOrNull { m -> m.days.any { it.dayStart == dayStart } }
+                    if (mg != null) {
+                        openMonth = mg.monthStart
+                        expandedDays = expandedDays + dayStart
+                        selectedDay = dayStart
+                    }
+                },
+            )
+        } else {
+            val mg = monthGroups.firstOrNull { it.monthStart == key }
+            if (mg != null) {
+                MonthDetailScreen(
+                    group = mg,
+                    monthPattern = monthPattern,
+                    dayPattern = dayPattern,
+                    sessionsFmt = sessionsFmt,
+                    expandedDays = expandedDays,
+                    selectedDay = selectedDay,
+                    onToggleDay = { day ->
+                        expandedDays = if (day in expandedDays) expandedDays - day else expandedDays + day
+                    },
+                    onBack = { openMonth = null },
+                )
+            }
+        }
+    }
+}
+
+/** 统计页主列表：聚合卡片 + 柱状图 + 月份列表 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StatsMain(
+    history: List<HistoryRecord>,
+    chartDays: Int,
+    onChartDaysChange: (Int) -> Unit,
+    monthGroups: List<MonthGroup>,
+    monthPattern: String,
+    sessionsFmt: String,
+    onOpenMonth: (Long) -> Unit,
+    onDateSelect: (Long) -> Unit,
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -87,52 +199,65 @@ fun StatsScreen() {
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-        if (history.isEmpty()) {
-            item {
-                Card(
-                    Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                    ),
-                ) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+            if (history.isEmpty()) {
+                item {
+                    Card(
+                        Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        ),
                     ) {
-                        Icon(
-                            Icons.Filled.BarChart,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            stringResource(R.string.stats_no_sessions),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Column(
+                            Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(
+                                Icons.Filled.BarChart,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                stringResource(R.string.stats_no_sessions),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            } else {
+                item { PeriodCards(history) }
+                item { SummaryRow(history) }
+                item {
+                    ChartSection(history, chartDays, onChartDaysChange, onDateSelect)
+                }
+                item {
+                    Text(
+                        stringResource(R.string.stats_sessions),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+                item {
+                    Column {
+                        monthGroups.forEachIndexed { index, mg ->
+                            MonthHeader(
+                                group = mg,
+                                label = Format.dateLabel(mg.monthStart, monthPattern),
+                                sessionsFmt = sessionsFmt,
+                                onClick = { onOpenMonth(mg.monthStart) },
+                            )
+                            if (index != monthGroups.lastIndex) {
+                                HorizontalDivider()
+                            }
+                        }
                     }
                 }
             }
-        } else {
-            item { PeriodCards(history) }
-            item { SummaryRow(history) }
-            item { ChartSection(history, chartDays) { chartDays = it } }
-            item {
-                Text(
-                    stringResource(R.string.stats_sessions),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-            items(history.asReversed(), key = { it.start }) { record ->
-                SessionRow(record)
-                HorizontalDivider()
-            }
         }
-    }
     }
 }
 
@@ -206,31 +331,41 @@ private fun StatCard(title: String, value: String, modifier: Modifier = Modifier
                 )
             }
             Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.titleMedium)
+            Text(
+                value,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+            )
         }
     }
 }
 
-/** 近 7/30 天柱状图 */
+/** 近 7/30 天柱状图（点击某列进入对应月份二级页面） */
 @Composable
-private fun ChartSection(history: List<FocusStore.HistoryRecord>, days: Int, onDaysChange: (Int) -> Unit) {
+private fun ChartSection(
+    history: List<FocusStore.HistoryRecord>,
+    days: Int,
+    onChartDaysChange: (Int) -> Unit,
+    onDateSelect: (Long) -> Unit,
+) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
         Column(Modifier.padding(12.dp)) {
             Row {
                 FilterChip(
                     selected = days == 7,
-                    onClick = { onDaysChange(7) },
+                    onClick = { onChartDaysChange(7) },
                     label = { Text(stringResource(R.string.stats_chart_7d)) },
                 )
                 Spacer(Modifier.size(8.dp))
                 FilterChip(
                     selected = days == 30,
-                    onClick = { onDaysChange(30) },
+                    onClick = { onChartDaysChange(30) },
                     label = { Text(stringResource(R.string.stats_chart_30d)) },
                 )
             }
             Spacer(Modifier.height(12.dp))
-            FocusBarChart(history, days)
+            FocusBarChart(history, days, onSelect = onDateSelect)
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth()) {
                 Text(
@@ -250,7 +385,7 @@ private fun ChartSection(history: List<FocusStore.HistoryRecord>, days: Int, onD
 }
 
 @Composable
-private fun FocusBarChart(history: List<FocusStore.HistoryRecord>, days: Int) {
+private fun FocusBarChart(history: List<FocusStore.HistoryRecord>, days: Int, onSelect: (Long) -> Unit) {
     val now = remember { System.currentTimeMillis() }
     val data = remember(history, days, now) {
         (days - 1 downTo 0).map { offset ->
@@ -261,7 +396,14 @@ private fun FocusBarChart(history: List<FocusStore.HistoryRecord>, days: Int) {
     }
     val maxMinutes = data.maxOrNull() ?: 0
     val primary = MaterialTheme.colorScheme.primary
-    Canvas(Modifier.fillMaxWidth().height(140.dp)) {
+    Canvas(
+        Modifier.fillMaxWidth().height(140.dp).pointerInput(days, now) {
+            detectTapGestures { tap ->
+                val col = (tap.x * days / size.width).toInt().coerceIn(0, days - 1)
+                onSelect(Format.startOfDay(now - (days - 1 - col) * 86_400_000L))
+            }
+        }
+    ) {
         if (maxMinutes <= 0) return@Canvas
         val gap = size.width / data.size
         val barWidth = gap * 0.6f
@@ -274,6 +416,226 @@ private fun FocusBarChart(history: List<FocusStore.HistoryRecord>, days: Int) {
                 size = Size(barWidth, barHeight),
                 cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
             )
+        }
+    }
+}
+
+/** 月份条目（主列表）：月份名 + 累计时长/次数 + 右箭头，点击进入二级页面 */
+@Composable
+private fun MonthHeader(
+    group: MonthGroup,
+    label: String,
+    sessionsFmt: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${FocusManager.minutesText(group.totalMinutes)} · ${sessionsFmt.format(group.count)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private fun minutesInRange(history: List<FocusStore.HistoryRecord>, from: Long, to: Long): Int =
+    history.filter { it.start >= from && it.start < to }.sumOf { it.minutes }
+
+/** 月份二级页面：顶部总览 + 该月按日期折叠的会话明细 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MonthDetailScreen(
+    group: MonthGroup,
+    monthPattern: String,
+    dayPattern: String,
+    sessionsFmt: String,
+    expandedDays: Set<Long>,
+    selectedDay: Long?,
+    onToggleDay: (Long) -> Unit,
+    onBack: () -> Unit,
+) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            TopAppBar(
+                title = { Text(Format.dateLabel(group.monthStart, monthPattern)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatCard(
+                            title = stringResource(R.string.stats_total),
+                            value = FocusManager.minutesText(group.totalMinutes),
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.TrendingUp,
+                        )
+                        StatCard(
+                            title = stringResource(R.string.stats_count_label),
+                            value = sessionsFmt.format(group.count),
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Filled.DateRange,
+                        )
+                    }
+                }
+            }
+            group.days.forEachIndexed { index, day ->
+                item(key = "d${day.dayStart}") {
+                    Column(Modifier.fillMaxWidth()) {
+                        DayHeader(
+                            group = day,
+                            expanded = day.dayStart in expandedDays,
+                            selected = day.dayStart == selectedDay,
+                            label = Format.dateLabel(day.dayStart, dayPattern),
+                            sessionsFmt = sessionsFmt,
+                            onClick = { onToggleDay(day.dayStart) },
+                        )
+                        AnimatedVisibility(
+                            visible = day.dayStart in expandedDays,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
+                        ) {
+                            Column(Modifier.padding(start = 12.dp, top = 4.dp)) {
+                                DayDistributionBar(dayBuckets(day))
+                                Spacer(Modifier.height(4.dp))
+                                day.records.forEach { rec ->
+                                    SessionRow(rec)
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                        if (index != group.days.lastIndex) {
+                            HorizontalDivider(Modifier.padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 日期分组头部：日期 + 当日累计/次数 + 圆点（折叠态，分布条移入展开区） */
+@Composable
+private fun DayHeader(
+    group: DayGroup,
+    expanded: Boolean,
+    selected: Boolean,
+    label: String,
+    sessionsFmt: String,
+    onClick: () -> Unit,
+) {
+    val dayTotal = group.records.sumOf { it.minutes }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 8.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${FocusManager.minutesText(dayTotal)} · ${sessionsFmt.format(group.records.size)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(
+            Modifier
+                .size(6.dp)
+                .padding(start = 6.dp)
+                .clip(CircleShape)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                )
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp).rotate(if (expanded) 180f else 0f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** 当日时长三段统计（上午 / 下午 / 晚上），按时间分桶 */
+private fun dayBuckets(day: DayGroup): IntArray {
+    val b = intArrayOf(0, 0, 0)
+    day.records.forEach { b[Format.hourBucket(it.start)] += it.minutes }
+    return b
+}
+
+/** 当日时长分布：三段横向条（上午/下午/晚上）按分钟数比例 */
+@Composable
+private fun DayDistributionBar(buckets: IntArray) {
+    val total = buckets.sum()
+    val colors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.tertiary,
+        MaterialTheme.colorScheme.secondary,
+    )
+    val placeholder = MaterialTheme.colorScheme.surfaceVariant
+    Canvas(Modifier.fillMaxWidth().padding(bottom = 2.dp).height(6.dp)) {
+        if (total <= 0) {
+            drawRoundRect(
+                color = placeholder,
+                topLeft = Offset.Zero,
+                size = Size(size.width, size.height),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+            )
+            return@Canvas
+        }
+        var x = 0f
+        buckets.forEachIndexed { i, v ->
+            if (v <= 0) return@forEachIndexed
+            val w = size.width * (v.toFloat() / total)
+            drawRoundRect(
+                color = colors[i % colors.size],
+                topLeft = Offset(x, 0f),
+                size = Size(w, size.height),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+            )
+            x += w
         }
     }
 }
@@ -372,6 +734,3 @@ private fun SessionRow(record: HistoryRecord) {
         }
     }
 }
-
-private fun minutesInRange(history: List<FocusStore.HistoryRecord>, from: Long, to: Long): Int =
-    history.filter { it.start >= from && it.start < to }.sumOf { it.minutes }

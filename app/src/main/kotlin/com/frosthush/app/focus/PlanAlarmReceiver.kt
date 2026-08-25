@@ -12,6 +12,7 @@ class PlanAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         val planId = intent.getLongExtra(PlanScheduler.EXTRA_PLAN_ID, -1L)
-        PlanScheduler.onAlarm(context, action, planId)
+        val startMillis = intent.getLongExtra(PlanScheduler.EXTRA_START_MILLIS, 0L)
+        PlanScheduler.onAlarm(context, action, planId, startMillis)
     }
 }

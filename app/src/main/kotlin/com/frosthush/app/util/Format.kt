@@ -26,6 +26,19 @@ object Format {
     fun time(millis: Long): String = timeFmt.format(Date(millis))
     fun dateTime(millis: Long): String = dateTimeFmt.format(Date(millis))
 
+    /** 按给定 pattern（如 "yyyy年M月" / "M月d日 EEE"）格式化日期标签，pattern 由字符串资源按语言提供 */
+    fun dateLabel(millis: Long, pattern: String): String =
+        SimpleDateFormat(pattern, Locale.getDefault()).format(Date(millis))
+
+    /** 取某记录所在小时的时段分桶，供当日时长分布使用：<12 上午 / 12-18 下午 / >=18 晚上 */
+    fun hourBucket(millis: Long): Int = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.HOUR_OF_DAY).let { hour ->
+        when {
+            hour < 12 -> 0
+            hour < 18 -> 1
+            else -> 2
+        }
+    }
+
     /** 所在日期的零点（毫秒） */
     fun startOfDay(millis: Long): Long {
         val c = Calendar.getInstance().apply { timeInMillis = millis }

@@ -25,6 +25,7 @@
     <string name="tab_focus">Focus</string>
     <string name="tab_plan">Plans</string>
     <string name="tab_stats">Stats</string>
+    <string name="back">Back</string>
     <string name="tab_settings">Settings</string>
     <string name="tab_about">About</string>
 
@@ -128,6 +129,7 @@
     <string name="stats_total">Total</string>
     <string name="stats_daily_avg">Daily average</string>
     <string name="stats_longest">Longest session</string>
+    <string name="stats_count_label">Sessions</string>
     <string name="stats_chart_7d">Last 7 days</string>
     <string name="stats_chart_30d">Last 30 days</string>
     <string name="stats_sessions">Session history</string>
@@ -135,6 +137,9 @@
     <string name="stats_session_item">%1$s  %2$s - %3$s</string>
     <string name="stats_duration_hours_minutes">%1$dh %2$dm</string>
     <string name="stats_duration_minutes_only">%1$dm</string>
+    <string name="stats_month_label">MMMM yyyy</string>
+    <string name="stats_day_label">EEE, MMM d</string>
+    <string name="stats_sessions_count">%1$d sessions</string>
 
     <!-- 设置 -->
     <string name="settings_default_duration">Default focus duration</string>
