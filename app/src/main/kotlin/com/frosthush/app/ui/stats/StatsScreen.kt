@@ -241,14 +241,19 @@ private fun StatsMain(
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 }
-                monthGroups.forEach { mg ->
-                    item(key = "m${mg.monthStart}") {
-                        MonthHeader(
-                            group = mg,
-                            label = Format.dateLabel(mg.monthStart, monthPattern),
-                            sessionsFmt = sessionsFmt,
-                            onClick = { onOpenMonth(mg.monthStart) },
-                        )
+                item {
+                    Column {
+                        monthGroups.forEachIndexed { index, mg ->
+                            MonthHeader(
+                                group = mg,
+                                label = Format.dateLabel(mg.monthStart, monthPattern),
+                                sessionsFmt = sessionsFmt,
+                                onClick = { onOpenMonth(mg.monthStart) },
+                            )
+                            if (index != monthGroups.lastIndex) {
+                                HorizontalDivider()
+                            }
+                        }
                     }
                 }
             }
@@ -427,24 +432,25 @@ private fun MonthHeader(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             label,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.weight(1f),
         )
         Text(
             "${FocusManager.minutesText(group.totalMinutes)} · ${sessionsFmt.format(group.count)}",
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(22.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -507,7 +513,7 @@ private fun MonthDetailScreen(
                     }
                 }
             }
-            group.days.forEach { day ->
+            group.days.forEachIndexed { index, day ->
                 item(key = "d${day.dayStart}") {
                     Column(Modifier.fillMaxWidth()) {
                         DayHeader(
@@ -523,12 +529,17 @@ private fun MonthDetailScreen(
                             enter = expandVertically() + fadeIn(),
                             exit = shrinkVertically() + fadeOut(),
                         ) {
-                            Column(Modifier.padding(start = 12.dp)) {
+                            Column(Modifier.padding(start = 12.dp, top = 4.dp)) {
+                                DayDistributionBar(dayBuckets(day))
+                                Spacer(Modifier.height(4.dp))
                                 day.records.forEach { rec ->
                                     SessionRow(rec)
                                     HorizontalDivider()
                                 }
                             }
+                        }
+                        if (index != group.days.lastIndex) {
+                            HorizontalDivider(Modifier.padding(top = 4.dp))
                         }
                     }
                 }
@@ -537,7 +548,7 @@ private fun MonthDetailScreen(
     }
 }
 
-/** 日期分组头部：日期 + 当日累计/次数 + 圆点 + 当日时长分布条 */
+/** 日期分组头部：日期 + 当日累计/次数 + 圆点（折叠态，分布条移入展开区） */
 @Composable
 private fun DayHeader(
     group: DayGroup,
@@ -548,52 +559,50 @@ private fun DayHeader(
     onClick: () -> Unit,
 ) {
     val dayTotal = group.records.sumOf { it.minutes }
-    val buckets = remember(group) {
-        val b = intArrayOf(0, 0, 0)
-        group.records.forEach { b[Format.hourBucket(it.start)] += it.minutes }
-        b
-    }
-    Column(Modifier.fillMaxWidth().padding(start = 8.dp)) {
-        Row(
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 8.dp, top = 14.dp, bottom = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${FocusManager.minutesText(dayTotal)} · ${sessionsFmt.format(group.records.size)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Box(
             Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (selected) FontWeight.Bold else null,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            Text(
-                "${FocusManager.minutesText(dayTotal)} · ${sessionsFmt.format(group.records.size)}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Box(
-                Modifier
-                    .size(6.dp)
-                    .padding(start = 6.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
-            )
-            Spacer(Modifier.width(4.dp))
-            Icon(
-                Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp).rotate(if (expanded) 180f else 0f),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        // 当日时长分布条（上午 / 下午 / 晚上）
-        DayDistributionBar(buckets)
+                .size(6.dp)
+                .padding(start = 6.dp)
+                .clip(CircleShape)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                )
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp).rotate(if (expanded) 180f else 0f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
+}
+
+/** 当日时长三段统计（上午 / 下午 / 晚上），按时间分桶 */
+private fun dayBuckets(day: DayGroup): IntArray {
+    val b = intArrayOf(0, 0, 0)
+    day.records.forEach { b[Format.hourBucket(it.start)] += it.minutes }
+    return b
 }
 
 /** 当日时长分布：三段横向条（上午/下午/晚上）按分钟数比例 */
