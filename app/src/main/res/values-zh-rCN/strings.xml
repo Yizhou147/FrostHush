@@ -25,6 +25,7 @@
     <string name="tab_focus">专注</string>
     <string name="tab_plan">计划</string>
     <string name="tab_stats">统计</string>
+    <string name="back">返回</string>
     <string name="tab_settings">设置</string>
     <string name="tab_about">关于</string>
 
@@ -126,6 +127,7 @@
     <string name="stats_total">累计总时长</string>
     <string name="stats_daily_avg">日均</string>
     <string name="stats_longest">最长单次</string>
+    <string name="stats_count_label">会话次数</string>
     <string name="stats_chart_7d">近 7 天</string>
     <string name="stats_chart_30d">近 30 天</string>
     <string name="stats_sessions">会话明细</string>
@@ -133,6 +135,9 @@
     <string name="stats_session_item">%1$s  %2$s - %3$s</string>
     <string name="stats_duration_hours_minutes">%1$d小时%2$d分</string>
     <string name="stats_duration_minutes_only">%1$d分钟</string>
+    <string name="stats_month_label">yyyy年M月</string>
+    <string name="stats_day_label">M月d日 EEE</string>
+    <string name="stats_sessions_count">%1$d次</string>
 
     <!-- 设置 -->
     <string name="settings_default_duration">默认专注时长</string>
