@@ -12,10 +12,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -28,35 +28,34 @@ import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.focus.FocusManager
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
 /**
  * 专注模式的全屏锁定倒计时界面（与雹专注模式一致）：
  * 不透明背景遮挡下层内容、消费所有触摸、拦截返回键，不可打断。
- * 分段专注时仅在专注段显示（休息段由 AppRoot 隐藏锁屏）；休息段到点自动恢复下一段专注，
- * 最后一段专注到点后按快照恢复并回调解除锁定。每秒刷新剩余时间。
+ * 分段专注时仅在专注段显示（休息段由 AppRoot 隐藏锁屏）；休息段到点自动恢复下一段专注。
+ * 倒计时以 FocusService 发布的 phase 为唯一数据源（与超级岛同源），每秒刷新剩余时间；
+ * 会话结束（phase 变 null / 会话被清理）时由 AppRoot 或本界面兜底解除锁定。
  */
 @Composable
 fun FocusLockScreen(onFinished: () -> Unit) {
     val context = LocalContext.current
+    // 阶段状态统一以 FocusService 发布的 phase 为准（与超级岛倒计时同源）：
+    // FocusService 每秒更新，StateFlow 变化自动触发重组刷新，锁屏不会再因自身循环
+    // 在进程冻结/墙钟跳变时被定格在旧值（如 00:00）；会话结束 phase 变 null 时由
+    // AppRoot 解除锁屏，本界面仅负责展示剩余时间，阶段推进/结束交给 FocusService。
+    val phase by FocusManager.phase.collectAsState()
     var remaining by remember { mutableLongStateOf(0L) }
     var pausedCount by remember { mutableIntStateOf(0) }
-    var isRest by remember { mutableStateOf(false) }
+    val isRest = phase?.isFocus == false
 
+    // 每秒依据最新阶段刷新剩余时间与暂停应用数；会话被清理（服务已结束）时退出锁屏
     LaunchedEffect(Unit) {
         while (true) {
             val session = FocusStore.activeSession() ?: break
-            val phase = session.phaseAt(System.currentTimeMillis())
-            remaining = phase.remainingAt(System.currentTimeMillis())
-            isRest = phase.type == FocusStore.SEGMENT_REST
+            val current = FocusManager.phase.value
+            remaining = current?.remainingAt(System.currentTimeMillis()) ?: 0L
             pausedCount = session.packages.size
-            if (phase.isFocus && remaining <= 0) {
-                // 最后一段专注到点：后台恢复并结束会话
-                withContext(Dispatchers.IO) { FocusManager.restoreAndEnd() }
-                break
-            }
             delay(1000L)
         }
         onFinished()
