@@ -15,6 +15,7 @@ import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.util.MiuiIsland
+import com.frosthush.app.util.DebugLog
 import java.util.Calendar
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -70,6 +71,10 @@ object PlanScheduler {
         // 不会因投递时分钟已过而错算成下一天（修复 24 小时倒计时）。
         val remindSeconds = SettingsStore.cache.planRemindSeconds
         val remindAt = start - remindSeconds * 1000L
+        DebugLog.d(
+            "Plan", "schedulePlan id=${plan.id} weekdays=${plan.weekdays} remindSeconds=$remindSeconds " +
+                "remindAt=$remindAt start=$start end=${start + plan.durationMinutes * 60_000L} now=$now"
+        )
         if (remindSeconds > 0) {
             if (remindAt > now) {
                 setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day, start))
@@ -232,13 +237,21 @@ object PlanScheduler {
             ACTION_REMIND -> {
                 val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
                 // 计划今天已执行/已跳过：不发提醒通知（避免"发通知但点击无反应"的不一致）
-                if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
+                if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
+                    DebugLog.d("Remind", "跳过提醒（今日已执行/跳过）planId=$planId")
+                    return
+                }
                 // 优先用注册闹钟时的真实开始时刻（旧闹钟无该 extra 时回退重算）
                 val start = if (startMillis > 0L) startMillis
                             else nextStartMillis(plan, System.currentTimeMillis())
                 // 提醒闹钟延迟投递（已到/已过开始时刻）：计划应由 START 启动，不再发提醒，
                 // 避免发布"错过开始时刻"的提醒通知（错倒计时 + 通知残留）
-                if (System.currentTimeMillis() >= start) return
+                val now = System.currentTimeMillis()
+                if (now >= start) {
+                    // 关键排查点：提醒被吞的原因——闹钟投递延迟超过了提醒窗口
+                    DebugLog.d("Remind", "提醒被吞：投递已过开始时刻 planId=$planId start=$start now=$now late=${now - start}ms")
+                    return
+                }
                 showReminderNotification(context, plan, start)
             }
             ACTION_START -> Thread { handleStart(context, planId) }.start()
@@ -249,26 +262,35 @@ object PlanScheduler {
     /** 到点：先排下一次触发；冲突组/已有专注则当日跳过，否则启动计划专注 */
     private fun handleStart(context: Context, planId: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
-        if (!plan.enabled) return
+        if (!plan.enabled) {
+            DebugLog.d("Plan", "handleStart 计划已停用 id=$planId")
+            return
+        }
         // 提醒通知（焦点岛）到此结束——无论后续是否启动专注，
         // 都不再需要提醒岛，避免与即将发布的专注 FGS 岛共存导致两个焦点通知。
         cancelReminderNotification(context)
         if (plan.weekdays.isNotEmpty()) schedulePlan(context, plan) // 排下一次
         // 同一天已执行过则跳过（跨天/重复触发场景；「立刻开始/终止」也会标记当日已执行）
-        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
+            DebugLog.d("Plan", "handleStart 今日已执行/跳过 id=$planId")
+            return
+        }
         // 冲突组检查：该计划处于当前启用计划的时段冲突中 → 当日不生效。
         // 用户需调整至无冲突才会生效（开关仍开但到点跳过，计划页红色横幅已提示）。
         // 标记当日已执行后，重复计划 schedulePlan 已重排下次→次日再检查；不重复计划保持 enabled，
         // 下次 scheduleAll（重启/打开应用）才可能重新注册闹钟。
         if (isInConflictGroup(plan)) {
+            DebugLog.d("Plan", "handleStart 冲突组跳过 id=$planId")
             FocusStore.markPlanExecuted(plan.id, FocusStore.todayCode())
             return
         }
         // 已有专注进行中：当日跳过（兜底——冲突组检查 + 场景一预判已覆盖常规情况）
         if (FocusStore.activeSession() != null) {
+            DebugLog.d("Plan", "handleStart 已有专注进行中跳过 id=$planId")
             FocusStore.markPlanExecuted(plan.id, FocusStore.todayCode())
             return
         }
+        DebugLog.d("Plan", "handleStart 启动计划专注 id=$planId now=${System.currentTimeMillis()}")
         val err = startPlanFocusAndMark(context, plan)
         if (err != null) {
             showStartFailedNotification(context, err)
@@ -324,6 +346,7 @@ object PlanScheduler {
     private fun handleEnd(context: Context, planId: Long) {
         cancelReminderNotification(context) // 兜底：理论上提醒早已发完，防止残留焦点岛
         val session = FocusStore.activeSession() ?: return
+        DebugLog.d("Plan", "handleEnd id=$planId sessionPlanId=${session.planId} match=${session.planId == planId}")
         if (session.planId == planId) {
             Thread { FocusManager.restoreAndEnd() }.start()
         }
@@ -368,6 +391,8 @@ object PlanScheduler {
     // ---------- 闹钟 / 通知辅助 ----------
 
     private fun setExact(am: AlarmManager, triggerAtMillis: Long, pi: PendingIntent) {
+        val now = System.currentTimeMillis()
+        DebugLog.d("Alarm", "setExact triggerAt=$triggerAtMillis now=$now ahead=${triggerAtMillis - now}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi)
         } else {
@@ -442,9 +467,14 @@ object PlanScheduler {
 
     private fun showReminderNotification(context: Context, plan: FocusPlan, startMillis: Long) {
         ensureChannel(context)
+        val islandEnabled = SettingsStore.cache.focusIslandEnabled
+        val now = System.currentTimeMillis()
+        DebugLog.d(
+            "Remind", "showReminder plan=${plan.name} start=$startMillis now=$now " +
+                "remaining=${(startMillis - now) / 1000L}s island=$islandEnabled"
+        )
         val contentIntent = reminderContentIntent(context, plan.id)
         val title = context.getString(R.string.plan_reminder_title)
-        val islandEnabled = SettingsStore.cache.focusIslandEnabled
         // 焦点通知模式：文案用设置 remindSeconds（静态，岛倒计时由系统原生渲染）
         // 普通通知模式：文案用实时剩余秒数（ReminderService 每秒更新）
         val text = if (islandEnabled) {

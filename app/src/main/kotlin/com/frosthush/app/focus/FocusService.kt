@@ -20,6 +20,7 @@ import com.frosthush.app.data.FocusStore.PhaseInfo
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.util.Format
 import com.frosthush.app.util.MiuiIsland
+import com.frosthush.app.util.DebugLog
 
 /**
  * 专注模式前台服务：常驻通知显示当前阶段（专注/休息）+ 倒计时；
@@ -59,6 +60,7 @@ class FocusService : Service() {
         override fun run() {
             val session = FocusStore.activeSession()
             if (session == null) {
+                DebugLog.d("Focus", "tick 会话已空，结束服务")
                 FocusManager.phase.value = null
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return
@@ -69,6 +71,7 @@ class FocusService : Service() {
             val remaining = phase.remainingAt(now)
             // 最后一段（专注）到点：后台恢复并结束
             if (phase.isFocus && remaining <= 0) {
+                DebugLog.d("Focus", "tick 专注段到点结束 now=$now remaining=$remaining phaseIndex=${phase.index}")
                 // 焦点通知模式：发布结束岛通知（不绑定 FGS，避免 stopService 时被系统取消）。
                 // 用 currentNotificationId++ + notify 换新 key 触发岛滑入；不调 startForeground，
                 // 这样 stopService 的 Cancel FGS notification 只移除 ID=100 的旧 FGS 通知，
@@ -85,6 +88,10 @@ class FocusService : Service() {
             // 阶段切换：暂停/解除应用 + 重锚定岛 + 换新 ID 重新发布岛通知（新 key → 打断 → 岛滑入）。
             // 提醒由岛滑入承担，不再发独立 heads-up 通知
             if (phase.index != lastPhaseIndex) {
+                DebugLog.d(
+                    "Focus", "tick 阶段切换 index=${phase.index} type=${phase.type} " +
+                        "segmentStart=${phase.segmentStart} segmentEnd=${phase.segmentEnd} now=$now"
+                )
                 lastPhaseIndex = phase.index
                 islandTimerAnchor = now
                 Thread { FocusManager.applySuspensionByPhase(session) }.start()
@@ -109,6 +116,11 @@ class FocusService : Service() {
         islandTimerAnchor = System.currentTimeMillis()
         val session = FocusStore.activeSession()
         val phase = session?.phaseAt(System.currentTimeMillis())
+        DebugLog.d(
+            "Focus", "onStartCommand now=${System.currentTimeMillis()} phaseIndex=${phase?.index} " +
+                "type=${phase?.type} sessionStart=${session?.startMillis} sessionEnd=${session?.endMillis} " +
+                "duration=${session?.durationMinutes} island=$islandEnabled"
+        )
         lastPhaseIndex = phase?.index ?: -1
         FocusManager.phase.value = phase
         runCatching { createNotificationChannel() }

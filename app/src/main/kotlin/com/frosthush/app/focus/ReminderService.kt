@@ -14,6 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.frosthush.app.MainActivity
 import com.frosthush.app.R
+import com.frosthush.app.util.DebugLog
 
 /**
  * 计划前提醒每秒计时前台服务（仅普通通知模式使用）。
@@ -39,10 +40,12 @@ class ReminderService : Service() {
             val remaining = ((startMillis - now) / 1000L).coerceAtLeast(0L).toInt()
             if (remaining <= 0) {
                 // 计划已开始（PlanScheduler.handleStart 会 cancel 通知），停止服务
+                DebugLog.d("RemindTick", "到点停止 now=$now startMillis=$startMillis")
                 stopSelf()
                 return
             }
             updateNotification(remaining)
+            DebugLog.d("RemindTick", "remaining=${remaining}s now=$now startMillis=$startMillis")
             handler.postDelayed(this, 1000L)
         }
     }
@@ -51,8 +54,12 @@ class ReminderService : Service() {
         planId = intent?.getLongExtra(EXTRA_PLAN_ID, 0) ?: 0
         planName = intent?.getStringExtra(EXTRA_PLAN_NAME) ?: ""
         startMillis = intent?.getLongExtra(EXTRA_START_MILLIS, 0L) ?: 0L
-        runCatching { createChannel() }
         val now = System.currentTimeMillis()
+        DebugLog.d(
+            "Remind", "onStartCommand plan=$planName startMillis=$startMillis now=$now " +
+                "remaining=${(startMillis - now) / 1000L}s"
+        )
+        runCatching { createChannel() }
         val remaining = ((startMillis - now) / 1000L).coerceAtLeast(0L).toInt()
         val notification = buildNotification(remaining)
         // 提醒通知 ID 复用 PlanScheduler.NOTIFICATION_ID_REMIND（202），保持同一 key 便于 cancel

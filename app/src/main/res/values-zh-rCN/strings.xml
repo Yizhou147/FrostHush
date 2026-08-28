@@ -340,4 +340,10 @@
     <string name="permission_apps_guide_title">需要手动开启</string>
     <string name="permission_apps_guide_text">系统未弹出授权窗口，请前往系统设置 → 应用信息 → 权限管理，手动开启「获取应用列表」。</string>
     <string name="permission_apps_guide_action">前往设置</string>
+
+    <!-- 诊断日志（仅 debug 构建显示） -->
+    <string name="debug_export_log">导出诊断日志</string>
+    <string name="debug_export_log_summary">仅调试版可用，导出关键事件日志用于排查问题</string>
+    <string name="debug_exported">诊断日志已导出：%1$s</string>
+    <string name="debug_export_failed">导出失败</string>
 </resources>

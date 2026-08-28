@@ -343,4 +343,10 @@
     <string name="permission_apps_guide_title">Manual setup required</string>
     <string name="permission_apps_guide_text">This device did not show the permission dialog. Please open system settings → App info → Manage permissions, and allow "App list access".</string>
     <string name="permission_apps_guide_action">Open settings</string>
+
+    <!-- 诊断日志（仅 debug 构建显示） -->
+    <string name="debug_export_log">Export diagnostic log</string>
+    <string name="debug_export_log_summary">Debug-only; export key event logs for troubleshooting</string>
+    <string name="debug_exported">Diagnostic log exported: %1$s</string>
+    <string name="debug_export_failed">Export failed</string>
 </resources>
