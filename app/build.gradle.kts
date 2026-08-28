@@ -23,6 +23,8 @@ android {
     buildTypes {
         debug {
             versionNameSuffix = "-debug"
+            // 独立包名后缀 com.frosthush.app.debug：与正式版共存安装，数据/闹钟互不影响
+            applicationIdSuffix = ".debug"
         }
         release {
             isMinifyEnabled = true
