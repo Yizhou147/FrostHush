@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.os.Process
 import android.os.SystemClock
 import android.provider.MediaStore
 import com.frosthush.app.BuildConfig
@@ -48,7 +49,8 @@ object DebugLog {
     }
 
     private fun append(tag: String, msg: String) {
-        val line = "${timeFmt.format(Date())} +${SystemClock.elapsedRealtime() / 1000}s [${Thread.currentThread().name}] $tag: $msg"
+        // pid 随每条日志带上：进程被系统回收/冻结后重启会换新 pid，日志里 pid 变化即进程换过
+        val line = "${timeFmt.format(Date())} +${SystemClock.elapsedRealtime() / 1000}s [${Thread.currentThread().name}] pid=${Process.myPid()} $tag: $msg"
         synchronized(buffer) {
             buffer.addLast(line)
             if (buffer.size > MAX_ENTRIES) buffer.removeFirst()

@@ -52,6 +52,10 @@ object PlanScheduler {
 
     /** 重建所有启用计划的闹钟（开机、应用升级、计划改动后调用） */
     fun scheduleAll(context: Context) {
+        val stack = Thread.currentThread().stackTrace.take(6).joinToString(" <- ") {
+            it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber
+        }
+        DebugLog.d("Plan", "scheduleAll 调用来源: $stack")
         FocusStore.focusPlans().filter { it.enabled }.forEach { schedulePlan(context, it) }
     }
 
@@ -77,7 +81,7 @@ object PlanScheduler {
         )
         if (remindSeconds > 0) {
             if (remindAt > now) {
-                setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day, start))
+                setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day, start), ACTION_REMIND, plan.id)
             } else if (start > now) {
                 // 已在提醒点之后、计划开始之前才调度（开机/升级/编辑计划执行得晚）：
                 // 补发即时提醒（剩余秒数 = 距开始时刻），保证不会"到点直接开始、没跳提醒"
@@ -85,9 +89,9 @@ object PlanScheduler {
             }
         }
         // 开始
-        setExact(am, start, alarmIntent(context, ACTION_START, plan.id, day))
+        setExact(am, start, alarmIntent(context, ACTION_START, plan.id, day), ACTION_START, plan.id)
         // 结束（到点恢复应用）
-        setExact(am, start + plan.durationMinutes * 60_000L, alarmIntent(context, ACTION_END, plan.id, day))
+        setExact(am, start + plan.durationMinutes * 60_000L, alarmIntent(context, ACTION_END, plan.id, day), ACTION_END, plan.id)
     }
 
     /** 取消计划已注册的全部闹钟（当前 + 未来 7 天内的发生日；实际最多存在两个） */
@@ -390,9 +394,14 @@ object PlanScheduler {
 
     // ---------- 闹钟 / 通知辅助 ----------
 
-    private fun setExact(am: AlarmManager, triggerAtMillis: Long, pi: PendingIntent) {
+    private fun setExact(am: AlarmManager, triggerAtMillis: Long, pi: PendingIntent, action: String, planId: Long) {
         val now = System.currentTimeMillis()
-        DebugLog.d("Alarm", "setExact triggerAt=$triggerAtMillis now=$now ahead=${triggerAtMillis - now}")
+        // ahead 为负说明注册了"已过时间"的闹钟：AlarmManager 会立即投递——这是排查
+        // "提前开始/延迟开始"的关键（区分系统延迟投递 vs 应用注册过期时间）
+        DebugLog.d(
+            "Alarm", "setExact action=$action planId=$planId triggerAt=$triggerAtMillis " +
+                "now=$now ahead=${triggerAtMillis - now}"
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
             am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi)
         } else {
