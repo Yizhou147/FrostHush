@@ -22,11 +22,9 @@ android {
 
     buildTypes {
         debug {
-            versionNameSuffix = "-debug"
-            // 独立包名后缀 com.frosthush.app.debug：与正式版共存安装，数据/闹钟互不影响
-            applicationIdSuffix = ".debug"
-            // 缩小 debug 包体积：与 release 同开 R8 混淆 + 资源压缩（21MB → ~2MB）。
-            // DebugLog 为内存日志、导出走 MediaStore，均不依赖混淆产物，诊断功能不受影响。
+            // 诊断日志为正式代码（DebugLog 不依赖 DEBUG 门控），测试直接用 release 构建
+            // （正式包名 com.frosthush.app + 正式签名，可覆盖安装正式版）。
+            // debug 构建同样开 R8 压缩，包体积与 release 一致。
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

@@ -7,7 +7,6 @@ import android.os.Environment
 import android.os.Process
 import android.os.SystemClock
 import android.provider.MediaStore
-import com.frosthush.app.BuildConfig
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -35,9 +34,8 @@ object DebugLog {
     @Volatile
     private var lastOffset = Long.MIN_VALUE
 
-    /** 写入一条诊断日志。release 构建为 no-op。 */
+    /** 写入一条诊断日志。 */
     fun d(tag: String, msg: String) {
-        if (!BuildConfig.DEBUG) return
         val wall = System.currentTimeMillis()
         val mono = SystemClock.elapsedRealtime()
         val offset = wall - mono
@@ -65,7 +63,6 @@ object DebugLog {
      * 返回成功写入的显示文案；失败或非 debug 构建返回 null。
      */
     fun export(context: Context): String? {
-        if (!BuildConfig.DEBUG) return null
         val name = "FrostHush-debug-log-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
         val content = buildString {
             appendLine("FrostHush 诊断日志（debug 构建）")

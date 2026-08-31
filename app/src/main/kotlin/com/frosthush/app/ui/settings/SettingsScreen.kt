@@ -77,7 +77,6 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
-import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
@@ -369,33 +368,31 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                     )
                 },
             )
-            // 导出诊断日志入口：仅 debug 构建显示（正式版不含），用于收集计划时间不准等 bug 的关键事件日志
-            if (BuildConfig.DEBUG) {
-                SettingCard(
-                    icon = Icons.Filled.BugReport,
-                    title = stringResource(R.string.debug_export_log),
-                    summary = stringResource(R.string.debug_export_log_summary),
-                    onClick = {
-                        val result = DebugLog.export(context)
-                        Toast.makeText(
-                            context,
-                            if (result != null) {
-                                context.getString(R.string.debug_exported, result)
-                            } else {
-                                context.getString(R.string.debug_export_failed)
-                            },
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    },
-                    trailing = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                )
-            }
+            // 导出诊断日志入口：收集计划时间不准等 bug 的关键事件日志（内存环形日志，手动导出）
+            SettingCard(
+                icon = Icons.Filled.BugReport,
+                title = stringResource(R.string.debug_export_log),
+                summary = stringResource(R.string.debug_export_log_summary),
+                onClick = {
+                    val result = DebugLog.export(context)
+                    Toast.makeText(
+                        context,
+                        if (result != null) {
+                            context.getString(R.string.debug_exported, result)
+                        } else {
+                            context.getString(R.string.debug_export_failed)
+                        },
+                        Toast.LENGTH_LONG,
+                    ).show()
+                },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
             SettingCard(
                 icon = Icons.Filled.DeleteSweep,
                 title = stringResource(R.string.settings_clear_stats),

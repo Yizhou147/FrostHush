@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- debug 构建覆盖：应用名加后缀，与正式版区分 -->
-    <string name="app_name">FrostHush Debug</string>
-</resources>
