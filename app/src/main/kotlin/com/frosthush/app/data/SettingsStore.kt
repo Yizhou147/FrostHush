@@ -25,7 +25,7 @@ object SettingsStore {
         // 新增休息段默认时长（手动专注/计划分段添加休息时使用）
         val defaultRestMinutes: Int = DEFAULT_REST_MINUTES,
         val notifyFinishEnabled: Boolean = true,
-        val focusIslandEnabled: Boolean = true,
+        val focusIslandEnabled: Boolean = false,
         val themeMode: Int = THEME_SYSTEM, // 0 跟随系统 / 1 浅色 / 2 深色
         val confirmBeforeStart: Boolean = true,
         val welcomeDone: Boolean = false,
@@ -76,7 +76,7 @@ object SettingsStore {
                     defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
                     defaultRestMinutes = prefs[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES,
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
-                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: true,
+                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: false,
                     themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
                     confirmBeforeStart = prefs[KEY_CONFIRM_BEFORE_START] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
@@ -90,7 +90,7 @@ object SettingsStore {
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
     val defaultRestMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES }
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
-    val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: true }
+    val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: false }
     val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
     val confirmBeforeStart: Flow<Boolean> = app.dataStore.data.map { it[KEY_CONFIRM_BEFORE_START] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
