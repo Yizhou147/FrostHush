@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
@@ -123,12 +124,18 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
     val planRemindSeconds by SettingsStore.planRemindSeconds
         .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
+    val suspendFallback by SettingsStore.suspendFallbackMode
+        .collectAsState(initial = SettingsStore.cache.suspendFallbackMode)
     var showDurationDialog by remember { mutableStateOf(false) }
     var showRestDurationDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
     var showRemindDialog by remember { mutableStateOf(false) }
+    // 强制冻结：范围选择对话框 + 首次开启的副作用警告
+    var showFallbackScopeDialog by remember { mutableStateOf(false) }
+    var showFallbackWarning by remember { mutableStateOf(false) }
+    var pendingFallbackMode by remember { mutableStateOf(SettingsStore.FALLBACK_OFF) }
     // 恢复被暂停应用：检测到的仍暂停数量 + 确认对话框
     var restoreCount by remember { mutableStateOf(0) }
     var showRestoreConfirm by remember { mutableStateOf(false) }
@@ -151,6 +158,13 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
+    }
+
+    // 强制冻结当前范围文案
+    val fallbackSummary = when (suspendFallback) {
+        SettingsStore.FALLBACK_CLONE_ONLY -> stringResource(R.string.settings_force_freeze_summary_clone)
+        SettingsStore.FALLBACK_ALL -> stringResource(R.string.settings_force_freeze_summary_all)
+        else -> stringResource(R.string.settings_force_freeze_summary_off)
     }
 
     // 导出专注统计 → 系统文件选择器保存
@@ -301,6 +315,19 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 onClick = { SettingsStore.setConfirmBeforeStart(!confirmBeforeStart) },
                 trailing = {
                     Switch(checked = confirmBeforeStart, onCheckedChange = { SettingsStore.setConfirmBeforeStart(it) })
+                },
+            )
+            SettingCard(
+                icon = Icons.Filled.Block,
+                title = stringResource(R.string.settings_force_freeze),
+                summary = fallbackSummary,
+                onClick = { showFallbackScopeDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 },
             )
             SettingCard(
@@ -460,6 +487,66 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
             selected = planRemindSeconds,
             onSelect = { SettingsStore.setPlanRemindSeconds(it); showRemindDialog = false },
             onCancel = { showRemindDialog = false },
+        )
+    }
+    if (showFallbackScopeDialog) {
+        AlertDialog(
+            onDismissRequest = { showFallbackScopeDialog = false },
+            title = { Text(stringResource(R.string.settings_force_freeze_scope_title)) },
+            text = {
+                Column {
+                    listOf(
+                        SettingsStore.FALLBACK_OFF to stringResource(R.string.settings_force_freeze_scope_off),
+                        SettingsStore.FALLBACK_CLONE_ONLY to stringResource(R.string.settings_force_freeze_scope_clone),
+                        SettingsStore.FALLBACK_ALL to stringResource(R.string.settings_force_freeze_scope_all),
+                    ).forEach { (mode, label) ->
+                        Text(
+                            label,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showFallbackScopeDialog = false
+                                    if (mode == SettingsStore.FALLBACK_OFF) {
+                                        SettingsStore.setSuspendFallbackMode(mode)
+                                    } else if (suspendFallback != SettingsStore.FALLBACK_OFF) {
+                                        // 已开启：直接切换范围
+                                        SettingsStore.setSuspendFallbackMode(mode)
+                                    } else {
+                                        // 从关闭首次开启：先弹副作用警告，确认后才生效
+                                        pendingFallbackMode = mode
+                                        showFallbackWarning = true
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showFallbackScopeDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+    if (showFallbackWarning) {
+        AlertDialog(
+            onDismissRequest = { showFallbackWarning = false },
+            title = { Text(stringResource(R.string.settings_force_freeze_warning_title)) },
+            text = { Text(stringResource(R.string.settings_force_freeze_warning_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFallbackWarning = false
+                    SettingsStore.setSuspendFallbackMode(pendingFallbackMode)
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFallbackWarning = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
     if (showRestoreConfirm) {

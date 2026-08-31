@@ -7,6 +7,8 @@ import android.os.Environment
 import android.os.Process
 import android.os.SystemClock
 import android.provider.MediaStore
+import com.frosthush.app.BuildConfig
+import com.frosthush.app.data.SettingsStore
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -55,6 +57,14 @@ object DebugLog {
         }
     }
 
+    /** 记录异常：附带异常类型、message 与堆栈前几帧（定位权限/系统拒绝等根因） */
+    fun e(tag: String, msg: String, t: Throwable) {
+        val stack = t.stackTrace.take(4).joinToString(" <- ") {
+            it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber
+        }
+        d(tag, "$msg | ${t::class.java.simpleName}: ${t.message} | $stack")
+    }
+
     /** 日志快照（最早的在前），供导出/调试展示 */
     fun snapshot(): String = synchronized(buffer) { buffer.joinToString("\n") }
 
@@ -65,8 +75,10 @@ object DebugLog {
     fun export(context: Context): String? {
         val name = "FrostHush-debug-log-${SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())}.txt"
         val content = buildString {
-            appendLine("FrostHush 诊断日志（debug 构建）")
+            appendLine("FrostHush 诊断日志")
             appendLine("设备: ${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+            appendLine("版本: ${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE}) / 编译于 ${BuildConfig.BUILD_TIME}")
+            appendLine("强制冻结兜底模式: ${SettingsStore.cache.suspendFallbackMode}")
             appendLine("导出时刻: wall=${System.currentTimeMillis()} mono=${SystemClock.elapsedRealtime()}")
             appendLine("------------------------")
             append(snapshot())

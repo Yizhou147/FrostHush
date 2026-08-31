@@ -1,4 +1,7 @@
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -18,6 +21,9 @@ android {
         targetSdk = 36
         versionCode = 6
         versionName = "1.2.0"
+        // 编译时间（精确到秒）：关于页展示 + 诊断日志导出头部
+        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     buildTypes {

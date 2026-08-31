@@ -13,6 +13,7 @@ import androidx.annotation.RequiresApi
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.R
+import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.util.DebugLog
 import com.frosthush.app.util.Targets
 import moe.shizuku.server.IShizukuService
@@ -56,7 +57,11 @@ object HShizuku {
     fun setAppSuspendedForFocus(packageName: String, suspended: Boolean, userId: Int = myUserId): Boolean {
         // 硬防御：绝不允许暂停自身（黑名单历史数据/剪贴板导入可能误带本应用）
         if (packageName == BuildConfig.APPLICATION_ID) return false
-        if (getApplicationInfoOrNull(packageName, userId) == null) return false
+        if (getApplicationInfoOrNull(packageName, userId) == null) {
+            // 记录具体原因：应用不存在 vs 跨用户查询被系统拒绝（区别于权限拒绝）
+            DebugLog.d("Suspend", "getApplicationInfo 为 null pkg=$packageName user=$userId suspended=$suspended")
+            return false
+        }
         if (Targets.P) setAppRestricted(packageName, userId, suspended)
         if (suspended) forceStopApp(packageName, userId)
         return runCatching {
@@ -101,7 +106,10 @@ object HShizuku {
 
                 else -> return false // Android 6 及以下不支持暂停
             } as Array<*>).isEmpty()
-        }.getOrElse { false }
+        }.getOrElse {
+            DebugLog.e("Suspend", "setAppSuspendedForFocus 失败 pkg=$packageName user=$userId suspended=$suspended", it)
+            false
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -189,28 +197,44 @@ object HShizuku {
     /**
      * 冻结/暂停指定用户的应用（专注入口）。
      * 优先 setPackagesSuspendedAsUser（体验好：系统「已暂停」弹窗 + 定制文案）；
-     * 失败（如 HyperOS 2 等系统 shell 跨用户暂停被 PackageManagerService 拒绝）时
-     * 回退 `pm disable-user --user <id>`（CHANGE_COMPONENT_ENABLED_STATE 权限路径
-     * 对跨用户放行，实测 HyperOS 2 分身用户可用）。
+     * 失败时按设置「强制冻结」模式（SettingsStore.suspendFallbackMode）回退
+     * `pm disable-user --user <id>`：仅分身或所有用户应用（禁用更彻底，但桌面图标会暂时消失）。
      */
     fun freezeForFocus(packageName: String, userId: Int = myUserId): Boolean {
         if (setAppSuspendedForFocus(packageName, true, userId)) {
             DebugLog.d("Suspend", "freeze suspend 成功 pkg=$packageName user=$userId")
             return true
         }
-        DebugLog.d("Suspend", "freeze suspend 失败，回退 disable-user pkg=$packageName user=$userId")
+        val mode = SettingsStore.cache.suspendFallbackMode
+        val isClone = userId != myUserId
+        val allowed = when (mode) {
+            SettingsStore.FALLBACK_ALL -> true
+            SettingsStore.FALLBACK_CLONE_ONLY -> isClone
+            else -> false
+        }
+        if (!allowed) {
+            DebugLog.d("Suspend", "freeze suspend 失败且兜底未启用 pkg=$packageName user=$userId mode=$mode")
+            return false
+        }
+        DebugLog.d("Suspend", "freeze suspend 失败，回退 disable-user pkg=$packageName user=$userId mode=$mode")
         return setAppDisabledForUser(packageName, true, userId)
     }
 
     /**
      * 解除冻结/恢复（专注结束/休息段）。
-     * suspend 与 disable 两条路径都执行（均幂等）：暂停若走了 suspend → unsuspend；
-     * 若回退 disable → enable。无论走了哪条路径都能恢复，不会残留冻结状态。
+     * 始终先 unsuspend；是否 enable 由「强制冻结」模式决定（避免误启用用户手动禁用的应用）。
      */
     fun restoreForFocus(packageName: String, userId: Int = myUserId): Boolean {
         val a = setAppSuspendedForFocus(packageName, false, userId)
-        val b = setAppDisabledForUser(packageName, false, userId)
-        DebugLog.d("Suspend", "restore suspend=$a enable=$b pkg=$packageName user=$userId")
+        val mode = SettingsStore.cache.suspendFallbackMode
+        val isClone = userId != myUserId
+        val enableAllowed = when (mode) {
+            SettingsStore.FALLBACK_ALL -> true
+            SettingsStore.FALLBACK_CLONE_ONLY -> isClone
+            else -> false
+        }
+        val b = if (enableAllowed) setAppDisabledForUser(packageName, false, userId) else false
+        DebugLog.d("Suspend", "restore suspend=$a enable=$b pkg=$packageName user=$userId mode=$mode")
         return a || b
     }
 

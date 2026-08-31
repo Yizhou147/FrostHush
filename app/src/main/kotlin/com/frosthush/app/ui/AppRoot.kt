@@ -269,6 +269,7 @@ private fun MainScaffold() {
                             configImportData = data
                             configImportOpened = true
                         },
+                        onOpenSettings = { tab = 3 },
                     )
                 }
             }
@@ -287,6 +288,7 @@ private fun MainTabs(
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
     onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     val tabs = listOf(
         TabSpec(R.string.tab_focus, Icons.Filled.Timer),
@@ -324,6 +326,7 @@ private fun MainTabs(
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
                 onOpenConfigImport = onOpenConfigImport,
+                onOpenSettings = onOpenSettings,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -361,6 +364,7 @@ private fun MainTabs(
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
                 onOpenConfigImport = onOpenConfigImport,
+                onOpenSettings = onOpenSettings,
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
         }
@@ -376,6 +380,7 @@ private fun TabContent(
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
     onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 切换底栏页面时淡入淡出过渡
@@ -386,7 +391,7 @@ private fun TabContent(
         modifier = modifier,
     ) { current ->
         when (current) {
-            0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport, onOpenGroups = onOpenGroups)
+            0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport, onOpenGroups = onOpenGroups, onOpenSettings = onOpenSettings)
             1 -> PlanScreen(onNewPlan = onNewPlan, onEditPlan = onEditPlan)
             2 -> StatsScreen()
             3 -> SettingsScreen(onOpenConfigImport = onOpenConfigImport)
