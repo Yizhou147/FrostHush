@@ -31,10 +31,23 @@ object PlanScheduler {
     const val ACTION_START = "com.frosthush.app.plan.START"
     const val ACTION_END = "com.frosthush.app.plan.END"
     const val ACTION_REMIND_CLICK = "com.frosthush.app.plan.REMIND_CLICK"
+    // 提醒窗口闹钟（新机制，替代原 REMIND + START 两个闹钟）：注册在开始时刻前
+    // (提醒秒数 + 缓冲)，投递后由 ReminderService 前台服务在应用内对齐提醒/开始时刻，
+    // 吸收系统闹钟合批投递的提前/延迟波动，保证提醒必然出现在开始之前。
+    const val ACTION_WINDOW = "com.frosthush.app.plan.WINDOW"
+
+    /**
+     * 窗口闹钟相对提醒时刻的提前缓冲：系统合批投递实测提前 33.5s / 延迟 151s，
+     * 5 分钟缓冲可完整吸收两者（延迟 ≤5 分钟时提醒必然在开始前出现）。
+     */
+    private const val WINDOW_BUFFER_MS = 5 * 60 * 1000L
+
     const val EXTRA_PLAN_ID = "plan_id"
     // 提醒闹钟注册时确定的计划真实开始时刻：闹钟可能被系统延迟投递，
     // 投递时用注册时刻而非重算，避免因分钟已过而错算成下一天（24 小时倒计时 bug）
     const val EXTRA_START_MILLIS = "plan_start_millis"
+    // 窗口闹钟携带的提醒提前秒数（注册时确定，避免投递时设置已变）
+    const val EXTRA_REMIND_SECONDS = "plan_remind_seconds"
     // 触发发生日的 yyyyMMdd：同计划不同发生日的闹钟 PendingIntent 因 extra 不同而互相独立，
     // 保证重排下一次触发时不会覆盖当前发生日尚未触发的结束闹钟
     private const val EXTRA_DAY = "plan_day"
@@ -56,11 +69,22 @@ object PlanScheduler {
             it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber
         }
         DebugLog.d("Plan", "scheduleAll 调用来源: $stack")
+        // 先取消所有计划（含停用）的全部闹钟（旧 REMIND/START + 新 WINDOW/END），
+        // 防止升级后旧闹钟残留触发导致重复/错乱（START 残留会提前启动专注）
+        FocusStore.focusPlans().forEach { cancelPlan(context, it.id) }
         FocusStore.focusPlans().filter { it.enabled }.forEach { schedulePlan(context, it) }
     }
 
-    /** 注册单个计划的下一次触发（提醒 + 开始 + 结束）；停用/无星期时取消。
-     *  weekdays 为空表示"不重复"：同样注册最近一次触发，执行后自动停用。 */
+    /**
+     * 注册单个计划的下一次触发（窗口 + 结束）；停用/无星期时取消。
+     * weekdays 为空表示"不重复"：同样注册最近一次触发，执行后自动停用。
+     *
+     * 新机制（2026-08-31）：只注册 2 个闹钟——
+     * 1. WINDOW 窗口闹钟：注册在 (开始 - 提醒秒数 - 5min 缓冲)，投递后启动 ReminderService
+     *    前台服务，由应用内对齐到"提醒时刻"与"开始时刻"。系统合批投递的提前/延迟波动
+     *    被缓冲吸收，提醒必然出现在开始之前，不再有"提醒被吞/提前开始/提醒与开始错乱"。
+     * 2. END 结束闹钟：到点恢复应用（不变）。
+     */
     fun schedulePlan(context: Context, plan: FocusPlan) {
         if (!plan.enabled) {
             cancelPlan(context, plan.id)
@@ -70,38 +94,28 @@ object PlanScheduler {
         val now = System.currentTimeMillis()
         val start = nextStartMillis(plan, now)
         val day = dayCodeOf(start)
-        // 开始前提醒（提前秒数由设置 planRemindSeconds 控制；0 = 不提醒，到点直接开始）。
-        // 提醒闹钟携带计划真实开始时刻 start：即使闹钟延迟投递，倒计时仍指向本次计划开始，
-        // 不会因投递时分钟已过而错算成下一天（修复 24 小时倒计时）。
         val remindSeconds = SettingsStore.cache.planRemindSeconds
-        val remindAt = start - remindSeconds * 1000L
+        // 窗口闹钟时刻：开始前 (提醒秒数 + 缓冲)。即使系统把它提前/延迟投递
+        // （实测 ±2.5min），投递时刻仍在开始之前，ReminderService 能对齐出提醒。
+        val windowAt = start - remindSeconds * 1000L - WINDOW_BUFFER_MS
         DebugLog.d(
             "Plan", "schedulePlan id=${plan.id} weekdays=${plan.weekdays} remindSeconds=$remindSeconds " +
-                "remindAt=$remindAt start=$start end=${start + plan.durationMinutes * 60_000L} now=$now"
+                "windowAt=$windowAt start=$start end=${start + plan.durationMinutes * 60_000L} now=$now"
         )
-        if (remindSeconds > 0) {
-            if (remindAt > now) {
-                setExact(am, remindAt, alarmIntent(context, ACTION_REMIND, plan.id, day, start), ACTION_REMIND, plan.id)
-            } else if (start > now) {
-                // 已在提醒点之后、计划开始之前才调度（开机/升级/编辑计划执行得晚）：
-                // 补发即时提醒（剩余秒数 = 距开始时刻），保证不会"到点直接开始、没跳提醒"
-                showReminderNotification(context, plan, start)
-            }
-        }
-        // 开始
-        setExact(am, start, alarmIntent(context, ACTION_START, plan.id, day), ACTION_START, plan.id)
+        setExact(am, windowAt, windowIntent(context, plan, day, start, remindSeconds), ACTION_WINDOW, plan.id)
         // 结束（到点恢复应用）
         setExact(am, start + plan.durationMinutes * 60_000L, alarmIntent(context, ACTION_END, plan.id, day), ACTION_END, plan.id)
     }
 
-    /** 取消计划已注册的全部闹钟（当前 + 未来 7 天内的发生日；实际最多存在两个） */
+    /** 取消计划已注册的全部闹钟（当前 + 未来 7 天内的发生日；实际最多存在两个）。
+     *  同时取消旧 REMIND/START（升级残留清理）。 */
     fun cancelPlan(context: Context, planId: Long) {
         val am = context.getSystemService(AlarmManager::class.java)
         val base = Calendar.getInstance()
         repeat(8) { i ->
             if (i > 0) base.add(Calendar.DAY_OF_YEAR, 1)
             val day = dayCodeOf(base.timeInMillis)
-            listOf(ACTION_REMIND, ACTION_START, ACTION_END).forEach { action ->
+            listOf(ACTION_REMIND, ACTION_START, ACTION_END, ACTION_WINDOW).forEach { action ->
                 am.cancel(alarmIntent(context, action, planId, day))
             }
         }
@@ -238,33 +252,39 @@ object PlanScheduler {
 
     fun onAlarm(context: Context, action: String, planId: Long, startMillis: Long = 0L) {
         when (action) {
-            ACTION_REMIND -> {
-                val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
-                // 计划今天已执行/已跳过：不发提醒通知（避免"发通知但点击无反应"的不一致）
-                if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
-                    DebugLog.d("Remind", "跳过提醒（今日已执行/跳过）planId=$planId")
-                    return
-                }
-                // 优先用注册闹钟时的真实开始时刻（旧闹钟无该 extra 时回退重算）
-                val start = if (startMillis > 0L) startMillis
-                            else nextStartMillis(plan, System.currentTimeMillis())
-                // 提醒闹钟延迟投递（已到/已过开始时刻）：计划应由 START 启动，不再发提醒，
-                // 避免发布"错过开始时刻"的提醒通知（错倒计时 + 通知残留）
-                val now = System.currentTimeMillis()
-                if (now >= start) {
-                    // 关键排查点：提醒被吞的原因——闹钟投递延迟超过了提醒窗口
-                    DebugLog.d("Remind", "提醒被吞：投递已过开始时刻 planId=$planId start=$start now=$now late=${now - start}ms")
-                    return
-                }
-                showReminderNotification(context, plan, start)
-            }
+            ACTION_WINDOW -> startReminderService(context, planId, startMillis)
+            // 旧机制残留 START 闹钟（升级前已注册）：兜底处理，行为与到点一致
             ACTION_START -> Thread { handleStart(context, planId) }.start()
+            // 旧机制残留 REMIND 闹钟：忽略，提醒统一由 ReminderService（窗口流程）负责，
+            // 避免重复提醒/与倒计时错乱
+            ACTION_REMIND -> DebugLog.d("Remind", "旧 REMIND 闹钟触发，忽略（新机制由 ReminderService 处理）planId=$planId")
             ACTION_END -> handleEnd(context, planId)
         }
     }
 
-    /** 到点：先排下一次触发；冲突组/已有专注则当日跳过，否则启动计划专注 */
-    private fun handleStart(context: Context, planId: Long) {
+    /**
+     * 窗口闹钟投递：启动 ReminderService 前台服务，由它在应用内对齐"提醒时刻/开始时刻"。
+     * 提前/延迟投递都被缓冲吸收；投递已过开始时刻时 ReminderService 直接启动专注。
+     */
+    private fun startReminderService(context: Context, planId: Long, startMillis: Long) {
+        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
+        // 计划今天已执行/已跳过：不启动（避免无意义的等待/提醒）
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
+            DebugLog.d("Remind", "跳过窗口（今日已执行/跳过）planId=$planId")
+            return
+        }
+        val serviceIntent = Intent(context, ReminderService::class.java).apply {
+            putExtra(ReminderService.EXTRA_PLAN_ID, plan.id)
+            putExtra(ReminderService.EXTRA_PLAN_NAME, plan.name)
+            putExtra(ReminderService.EXTRA_START_MILLIS, startMillis)
+            putExtra(ReminderService.EXTRA_REMIND_SECONDS, SettingsStore.cache.planRemindSeconds)
+        }
+        androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent)
+    }
+
+    /** 到点：先排下一次触发；冲突组/已有专注则当日跳过，否则启动计划专注。
+     *  internal：由 ReminderService（窗口流程）在开始时刻调用启动专注。 */
+    internal fun handleStart(context: Context, planId: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) {
             DebugLog.d("Plan", "handleStart 计划已停用 id=$planId")
@@ -413,6 +433,7 @@ object PlanScheduler {
         ACTION_REMIND -> 0
         ACTION_START -> 1
         ACTION_END -> 2
+        ACTION_WINDOW -> 4 // 3 预留（无冲突），保证 requestCode 唯一
         else -> 3 // 兜底（目前无其他 action）
     }
 
@@ -436,6 +457,23 @@ object PlanScheduler {
         }
         return PendingIntent.getBroadcast(
             context, requestCode(planId, actionIndex(action)), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    /** 窗口闹钟 PendingIntent：携带计划真实开始时刻与提醒秒数（投递时不再重算/读取设置） */
+    private fun windowIntent(
+        context: Context, plan: FocusPlan, day: Int, startMillis: Long, remindSeconds: Int
+    ): PendingIntent {
+        val intent = Intent(context, PlanAlarmReceiver::class.java).apply {
+            action = ACTION_WINDOW
+            putExtra(EXTRA_PLAN_ID, plan.id)
+            putExtra(EXTRA_DAY, day)
+            putExtra(EXTRA_START_MILLIS, startMillis)
+            putExtra(EXTRA_REMIND_SECONDS, remindSeconds)
+        }
+        return PendingIntent.getBroadcast(
+            context, requestCode(plan.id, actionIndex(ACTION_WINDOW)), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
@@ -474,7 +512,14 @@ object PlanScheduler {
         }
     }
 
-    private fun showReminderNotification(context: Context, plan: FocusPlan, startMillis: Long) {
+    /**
+     * 显示计划前提醒通知（焦点岛/普通通知）。
+     * internal：由 ReminderService（窗口流程）在提醒时刻调用；ReminderService 已常驻，
+     * 普通通知模式的每秒 ticker 由它自己更新，这里不再启动服务。
+     */
+    internal fun showReminderNotification(
+        context: Context, plan: FocusPlan, startMillis: Long, remindSeconds: Int
+    ) {
         ensureChannel(context)
         val islandEnabled = SettingsStore.cache.focusIslandEnabled
         val now = System.currentTimeMillis()
@@ -484,10 +529,10 @@ object PlanScheduler {
         )
         val contentIntent = reminderContentIntent(context, plan.id)
         val title = context.getString(R.string.plan_reminder_title)
-        // 焦点通知模式：文案用设置 remindSeconds（静态，岛倒计时由系统原生渲染）
+        // 焦点通知模式：文案用注册时的 remindSeconds（静态，岛倒计时由系统原生渲染）
         // 普通通知模式：文案用实时剩余秒数（ReminderService 每秒更新）
         val text = if (islandEnabled) {
-            context.getString(R.string.plan_reminder_text, plan.name, SettingsStore.cache.planRemindSeconds)
+            context.getString(R.string.plan_reminder_text, plan.name, remindSeconds)
         } else {
             val remaining = ((startMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L).toInt()
             context.getString(R.string.plan_reminder_text, plan.name, remaining)
@@ -514,16 +559,6 @@ object PlanScheduler {
                 builder.setOnlyAlertOnce(true)
             }
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_REMIND, builder.build())
-        }
-        // 普通通知模式：启动 ReminderService 前台服务支撑每秒 ticker（跟专注倒计时实现方法一致）
-        // 焦点通知模式不启动（岛倒计时由系统原生渲染）
-        if (!islandEnabled) {
-            val serviceIntent = Intent(context, ReminderService::class.java).apply {
-                putExtra(ReminderService.EXTRA_PLAN_ID, plan.id)
-                putExtra(ReminderService.EXTRA_PLAN_NAME, plan.name)
-                putExtra(ReminderService.EXTRA_START_MILLIS, startMillis)
-            }
-            androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent)
         }
     }
 

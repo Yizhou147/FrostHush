@@ -292,6 +292,10 @@
     <string name="plan_notification_channel">Plans</string>
     <string name="plan_reminder_title">Focus reminder</string>
     <string name="plan_reminder_text">Plan "%1$s" will start focus in %2$d seconds</string>
+    <string name="plan_preparing_title">Plan starting soon</string>
+    <string name="plan_preparing_text">"%1$s" starts in %2$s</string>
+    <string name="plan_preparing_min_sec">%1$d min %2$d s</string>
+    <string name="plan_preparing_sec">%1$d s</string>
     <string name="plan_remind_dialog_title">Plan "%1$s" starts soon</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="one">Focus starts in %1$d second</item>

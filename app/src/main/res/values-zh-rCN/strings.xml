@@ -290,6 +290,10 @@
     <string name="plan_notification_channel">计划</string>
     <string name="plan_reminder_title">专注提醒</string>
     <string name="plan_reminder_text">计划「%1$s」将在 %2$d 秒后开始专注</string>
+    <string name="plan_preparing_title">计划即将开始</string>
+    <string name="plan_preparing_text">「%1$s」距开始 %2$s</string>
+    <string name="plan_preparing_min_sec">%1$d分%2$d秒</string>
+    <string name="plan_preparing_sec">%1$d秒</string>
     <string name="plan_remind_dialog_title">计划「%1$s」即将开始</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="other">%1$d 秒后开始专注</item>
