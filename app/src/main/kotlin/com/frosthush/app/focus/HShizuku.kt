@@ -13,6 +13,7 @@ import androidx.annotation.RequiresApi
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.R
+import com.frosthush.app.util.DebugLog
 import com.frosthush.app.util.Targets
 import moe.shizuku.server.IShizukuService
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -184,6 +185,47 @@ object HShizuku {
         android.util.Log.e("FrostHush", "Shizuku 执行命令失败: $command", it)
         null
     }
+
+    /**
+     * 冻结/暂停指定用户的应用（专注入口）。
+     * 优先 setPackagesSuspendedAsUser（体验好：系统「已暂停」弹窗 + 定制文案）；
+     * 失败（如 HyperOS 2 等系统 shell 跨用户暂停被 PackageManagerService 拒绝）时
+     * 回退 `pm disable-user --user <id>`（CHANGE_COMPONENT_ENABLED_STATE 权限路径
+     * 对跨用户放行，实测 HyperOS 2 分身用户可用）。
+     */
+    fun freezeForFocus(packageName: String, userId: Int = myUserId): Boolean {
+        if (setAppSuspendedForFocus(packageName, true, userId)) {
+            DebugLog.d("Suspend", "freeze suspend 成功 pkg=$packageName user=$userId")
+            return true
+        }
+        DebugLog.d("Suspend", "freeze suspend 失败，回退 disable-user pkg=$packageName user=$userId")
+        return setAppDisabledForUser(packageName, true, userId)
+    }
+
+    /**
+     * 解除冻结/恢复（专注结束/休息段）。
+     * suspend 与 disable 两条路径都执行（均幂等）：暂停若走了 suspend → unsuspend；
+     * 若回退 disable → enable。无论走了哪条路径都能恢复，不会残留冻结状态。
+     */
+    fun restoreForFocus(packageName: String, userId: Int = myUserId): Boolean {
+        val a = setAppSuspendedForFocus(packageName, false, userId)
+        val b = setAppDisabledForUser(packageName, false, userId)
+        DebugLog.d("Suspend", "restore suspend=$a enable=$b pkg=$packageName user=$userId")
+        return a || b
+    }
+
+    /**
+     * 禁用/启用指定用户的应用（`pm disable-user` / `pm enable` 命令，走 Shizuku shell 通道）。
+     * disabled 后该用户的应用进程被杀且无法启动，效果等同冻结；enable 完整恢复。
+     * 跨用户不需要 suspend 权限（实测 HyperOS 2 分身用户可用）。
+     */
+    fun setAppDisabledForUser(packageName: String, disabled: Boolean, userId: Int = myUserId): Boolean = runCatching {
+        val cmd = if (disabled) "pm disable-user --user $userId $packageName"
+                  else "pm enable --user $userId $packageName"
+        val out = execute(cmd)
+        // 成功输出 "Package xxx new state: disabled-user/enabled"；失败输出 Exception/Error
+        out != null && out.contains("new state:")
+    }.getOrDefault(false)
 
     /**
      * 指定用户已安装包名列表（分身/XSpace 等用户空间），返回 (包名, 是否系统分区路径)。

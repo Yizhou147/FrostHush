@@ -63,7 +63,7 @@ object FocusManager {
         var restored = 0
         suspendedEntries().forEach { entry ->
             val (pkg, userId) = FocusStore.parseEntry(entry)
-            if (HShizuku.setAppSuspendedForFocus(pkg, false, userId)) restored++
+            if (HShizuku.restoreForFocus(pkg, userId)) restored++
         }
         return restored
     }
@@ -111,7 +111,7 @@ object FocusManager {
         var suspended = 0
         packages.forEach { entry ->
             val (pkg, userId) = FocusStore.parseEntry(entry)
-            if (HShizuku.setAppSuspendedForFocus(pkg, true, userId)) suspended++
+            if (HShizuku.freezeForFocus(pkg, userId)) suspended++
         }
         if (suspended == 0) {
             // 全部失败：回滚会话、停止服务，并再次刷新 UI 退出全屏专注
@@ -153,7 +153,7 @@ object FocusManager {
         var suspended = 0
         packages.forEach { entry ->
             val (pkg, userId) = FocusStore.parseEntry(entry)
-            if (HShizuku.setAppSuspendedForFocus(pkg, true, userId)) suspended++
+            if (HShizuku.freezeForFocus(pkg, userId)) suspended++
         }
         if (suspended == 0) {
             // 全部失败：回滚会话、停止服务，并再次刷新 UI 退出全屏专注
@@ -181,7 +181,7 @@ object FocusManager {
                 FocusStore.clearActiveSession()
                 session.packages.forEach { entry ->
                     val (pkg, userId) = FocusStore.parseEntry(entry)
-                    runCatching { HShizuku.setAppSuspendedForFocus(pkg, false, userId) }
+                    runCatching { HShizuku.restoreForFocus(pkg, userId) }
                 }
                 val end = minOf(session.endMillis, System.currentTimeMillis())
                 FocusStore.addHistory(
@@ -227,7 +227,11 @@ object FocusManager {
         val focus = session.phaseAt(System.currentTimeMillis()).isFocus
         session.packages.forEach { entry ->
             val (pkg, userId) = FocusStore.parseEntry(entry)
-            runCatching { HShizuku.setAppSuspendedForFocus(pkg, focus, userId) }
+            // 专注段冻结（suspend 优先，失败回退 disable-user）、休息段解除（两路都恢复）
+            runCatching {
+                if (focus) HShizuku.freezeForFocus(pkg, userId)
+                else HShizuku.restoreForFocus(pkg, userId)
+            }
         }
     }
 
