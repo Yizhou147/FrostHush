@@ -252,14 +252,58 @@ object PlanScheduler {
 
     fun onAlarm(context: Context, action: String, planId: Long, startMillis: Long = 0L) {
         when (action) {
-            ACTION_WINDOW -> startReminderService(context, planId, startMillis)
-            // 旧机制残留 START 闹钟（升级前已注册）：兜底处理，行为与到点一致
+            ACTION_WINDOW -> onWindowFired(context, planId, startMillis)
+            // 提醒闹钟（窗口投递后动态注册）：投递时启动 ReminderService 显示提醒并到点开始
+            ACTION_REMIND -> startReminderService(context, planId, startMillis)
+            // 无提醒计划（提醒秒数=0）的开始闹钟
             ACTION_START -> Thread { handleStart(context, planId) }.start()
-            // 旧机制残留 REMIND 闹钟：忽略，提醒统一由 ReminderService（窗口流程）负责，
-            // 避免重复提醒/与倒计时错乱
-            ACTION_REMIND -> DebugLog.d("Remind", "旧 REMIND 闹钟触发，忽略（新机制由 ReminderService 处理）planId=$planId")
             ACTION_END -> handleEnd(context, planId)
         }
+    }
+
+    /**
+     * 窗口闹钟投递（缓冲起点，可能提前/延迟）：
+     * - 已过开始时刻（重度延迟）→ 直接开始专注；
+     * - 落在提醒窗口内（延迟但未过开始）→ 立即启动 ReminderService（倒计时缩短的提醒）；
+     * - 提前投递 → 不启动任何服务、不弹任何通知，动态注册「提醒/开始闹钟」。
+     *   缓冲期零通知零服务：前台服务通知无法隐藏（系统强制），而用户不希望在开始前
+     *   看到任何霜息通知——由动态闹钟在提醒时刻再拉起服务。
+     */
+    private fun onWindowFired(context: Context, planId: Long, startMillis: Long) {
+        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
+            DebugLog.d("Remind", "窗口投递但今日已执行/跳过 planId=$planId")
+            return
+        }
+        val now = System.currentTimeMillis()
+        val remindSeconds = SettingsStore.cache.planRemindSeconds
+        if (now >= startMillis) {
+            // 重度延迟（已过开始时刻）：直接开始，提醒无意义
+            DebugLog.d("Remind", "窗口投递已过开始时刻，直接开始 planId=$planId late=${now - startMillis}ms")
+            Thread { handleStart(context, planId) }.start()
+            return
+        }
+        if (now >= startMillis - remindSeconds * 1000L) {
+            // 投递落在提醒窗口内：立即启动 ReminderService（倒计时缩短的提醒）
+            DebugLog.d("Remind", "窗口投递落在提醒窗口内，立即启动提醒 planId=$planId")
+            startReminderService(context, planId, startMillis)
+            return
+        }
+        // 提前投递：动态注册提醒（或无提醒时直接注册开始）闹钟，缓冲期零服务零通知
+        val am = context.getSystemService(AlarmManager::class.java)
+        val day = dayCodeOf(startMillis)
+        if (remindSeconds > 0) {
+            setExact(
+                am, startMillis - remindSeconds * 1000L,
+                alarmIntent(context, ACTION_REMIND, plan.id, day, startMillis), ACTION_REMIND, plan.id
+            )
+        } else {
+            setExact(am, startMillis, alarmIntent(context, ACTION_START, plan.id, day), ACTION_START, plan.id)
+        }
+        DebugLog.d(
+            "Remind", "窗口提前投递，注册提醒/开始闹钟 planId=$planId " +
+                "remindAt=${startMillis - remindSeconds * 1000L} now=$now"
+        )
     }
 
     /**
