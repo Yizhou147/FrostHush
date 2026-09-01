@@ -190,9 +190,10 @@ class ReminderService : Service() {
             NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(getString(R.string.plan_notification_channel)).build()
         )
-        // 静默准备频道（低重要性：缓冲期前台服务保活用，不响不震不弹出）
+        // 静默准备频道（MIN 重要性：缓冲期前台服务保活用。状态栏无图标、折叠在通知栏底部、
+        // 无声音无震动，用户完全无感知；到真正的提醒时刻才用高优先级频道弹提醒）
         NotificationManagerCompat.from(this).createNotificationChannel(
-            NotificationChannelCompat.Builder(prepareChannelID, NotificationManagerCompat.IMPORTANCE_LOW)
+            NotificationChannelCompat.Builder(prepareChannelID, NotificationManagerCompat.IMPORTANCE_MIN)
                 .setName(getString(R.string.plan_prepare_channel)).build()
         )
     }
