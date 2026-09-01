@@ -31,6 +31,8 @@ import com.frosthush.app.util.DebugLog
  */
 class ReminderService : Service() {
     private val channelID = "focus_plan"
+    // 静默准备频道：缓冲期前台服务保活通知用（低重要性，不打扰）
+    private val prepareChannelID = "focus_plan_prepare"
     private val handler = Handler(Looper.getMainLooper())
 
     private var planId: Long = 0
@@ -89,7 +91,7 @@ class ReminderService : Service() {
             // 窗口闹钟重度延迟（投递已过开始时刻）：直接启动专注，提醒无意义不再发
             DebugLog.d("Remind", "投递已过开始时刻，直接开始 planId=$planId late=${now - startMillis}ms")
             // 先 startForeground 保活（startForegroundService 后 5 秒内必须调用，防崩溃）
-            startForeground(NOTIFICATION_ID, buildPreparingNotification(now))
+            startForeground(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
             runCatching { PlanScheduler.handleStart(this, planId) }
             stopSelf()
             return START_NOT_STICKY
@@ -100,8 +102,9 @@ class ReminderService : Service() {
             startForeground(NOTIFICATION_ID, buildReminderTicker(now))
             showReminderNotification()
         } else {
-            // 提前/准点投递：先显示"即将开始"准备通知（低调），到提醒时刻升级为提醒
-            startForeground(NOTIFICATION_ID, buildPreparingNotification(now))
+            // 提前/准点投递：先以静默准备通知保活前台服务（低重要性频道，不响不震不弹出，
+            // 用户无感知，仅系统可见），到真正的提醒时刻才显示高优先级提醒
+            startForeground(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
         }
         handler.removeCallbacksAndMessages(null)
         handler.post(tickRunnable)
@@ -121,10 +124,10 @@ class ReminderService : Service() {
         }
     }
 
-    /** 准备状态：每秒更新剩余时间 */
+    /** 准备状态：每秒静默更新剩余时间（低重要性频道，不打扰） */
     private fun updatePreparingNotification(now: Long) {
         runCatching {
-            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, buildPreparingNotification(now))
+            NotificationManagerCompat.from(this).notify(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
         }
     }
 
@@ -146,18 +149,19 @@ class ReminderService : Service() {
             .build()
     }
 
-    /** 准备状态通知（低调，不响铃）：计划名 + 距开始剩余时间 */
+    /** 准备状态通知（静默）：低重要性独立频道，不响铃不震动不弹出，用户无感知，仅作前台服务保活 */
     private fun buildPreparingNotification(now: Long): Notification {
         val remainingMs = startMillis - now
         val text = getString(R.string.plan_preparing_text, planName, formatRemaining(remainingMs))
-        return NotificationCompat.Builder(this, channelID)
+        return NotificationCompat.Builder(this, prepareChannelID)
             .setSmallIcon(R.drawable.ic_stat_focus)
             .setContentTitle(getString(R.string.plan_preparing_title))
             .setContentText(text)
             .setContentIntent(reminderClickIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
     }
 
@@ -181,9 +185,15 @@ class ReminderService : Service() {
     )
 
     private fun createChannel() {
+        // 提醒频道（高重要性：弹出/响铃）
         NotificationManagerCompat.from(this).createNotificationChannel(
             NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(getString(R.string.plan_notification_channel)).build()
+        )
+        // 静默准备频道（低重要性：缓冲期前台服务保活用，不响不震不弹出）
+        NotificationManagerCompat.from(this).createNotificationChannel(
+            NotificationChannelCompat.Builder(prepareChannelID, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName(getString(R.string.plan_prepare_channel)).build()
         )
     }
 
@@ -201,5 +211,7 @@ class ReminderService : Service() {
         const val EXTRA_START_MILLIS = "start_millis"
         const val EXTRA_REMIND_SECONDS = "plan_remind_seconds"
         private const val NOTIFICATION_ID = 202 // 与 PlanScheduler.NOTIFICATION_ID_REMIND 一致
+        // 静默准备通知 ID（独立于提醒 ID，前台服务保活；stopForeground 时自动移除）
+        private const val PREPARE_NOTIFICATION_ID = 204
     }
 }

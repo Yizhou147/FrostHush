@@ -311,6 +311,7 @@
     <string name="plan_preparing_text">"%1$s" starts in %2$s</string>
     <string name="plan_preparing_min_sec">%1$d min %2$d s</string>
     <string name="plan_preparing_sec">%1$d s</string>
+    <string name="plan_prepare_channel">Plan preparation</string>
     <string name="plan_remind_dialog_title">Plan "%1$s" starts soon</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="one">Focus starts in %1$d second</item>

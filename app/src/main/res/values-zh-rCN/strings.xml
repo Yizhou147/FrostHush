@@ -309,6 +309,7 @@
     <string name="plan_preparing_text">「%1$s」距开始 %2$s</string>
     <string name="plan_preparing_min_sec">%1$d分%2$d秒</string>
     <string name="plan_preparing_sec">%1$d秒</string>
+    <string name="plan_prepare_channel">计划准备</string>
     <string name="plan_remind_dialog_title">计划「%1$s」即将开始</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="other">%1$d 秒后开始专注</item>
