@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.focus.FocusManager
+import com.frosthush.app.util.DebugLog
 import kotlinx.coroutines.delay
 
 /**
@@ -56,6 +57,17 @@ fun FocusLockScreen(onFinished: () -> Unit) {
             val current = FocusManager.phase.value
             remaining = current?.remainingAt(System.currentTimeMillis()) ?: 0L
             pausedCount = session.packages.size
+            // 诊断打点（抓 00:00 bug 现场）：仅异常状态记录，正常不刷日志——
+            // 会话存在但 phase 为空 / remaining 归 0 时每秒留一条，配合 FocusService 的
+            // tick 异常日志即可还原"锁屏 00:00"是 phase 停更还是 UI 层问题
+            if (current == null) {
+                DebugLog.d("LockScreen", "异常：会话存在但 phase 为 null（会显示 00:00）sessionEnd=${session.endMillis}")
+            } else if (remaining <= 0L) {
+                DebugLog.d(
+                    "LockScreen", "异常：remaining=0 phase=idx${current.index} " +
+                        "segEnd=${current.segmentEnd} now=${System.currentTimeMillis()} sessionEnd=${session.endMillis}"
+                )
+            }
             delay(1000L)
         }
         onFinished()

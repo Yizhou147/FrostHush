@@ -58,12 +58,25 @@ class FocusService : Service() {
 
     private val tickRunnable = object : Runnable {
         override fun run() {
+            // 全程 try/catch：任何一步抛异常都不能让 tick 停表（否则 phase 停止更新，
+            // 锁屏倒计时会定格在旧值/00:00，而服务还活着）——记日志后继续调度
+            val cont = try {
+                tickOnce()
+            } catch (t: Throwable) {
+                DebugLog.e("Focus", "tick 异常（已兜底继续调度，防停表）", t)
+                true
+            }
+            if (cont) handler.postDelayed(this, 1000L)
+        }
+
+        /** 单次 tick；返回 false 表示会话已结束无需继续调度 */
+        private fun tickOnce(): Boolean {
             val session = FocusStore.activeSession()
             if (session == null) {
                 DebugLog.d("Focus", "tick 会话已空，结束服务")
                 FocusManager.phase.value = null
                 Thread { FocusManager.restoreAndEnd() }.start()
-                return
+                return false
             }
             val now = System.currentTimeMillis()
             val phase = session.phaseAt(now)
@@ -80,10 +93,19 @@ class FocusService : Service() {
                 if (islandEnabled && SettingsStore.cache.notifyFinishEnabled) {
                     currentNotificationId++
                     val endNotification = buildEndNotification()
-                    runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, endNotification) }
+                    runCatching {
+                        NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, endNotification)
+                        DebugLog.d("Focus", "结束通知已发布 id=$currentNotificationId")
+                    }.onFailure {
+                        DebugLog.e("Focus", "结束通知发布失败 id=$currentNotificationId", it)
+                    }
+                } else {
+                    DebugLog.d(
+                        "Focus", "不发布结束通知 island=$islandEnabled notifyFinish=${SettingsStore.cache.notifyFinishEnabled}"
+                    )
                 }
                 Thread { FocusManager.restoreAndEnd() }.start()
-                return
+                return false
             }
             // 阶段切换：暂停/解除应用 + 重锚定岛 + 换新 ID 重新发布岛通知（新 key → 打断 → 岛滑入）。
             // 提醒由岛滑入承担，不再发独立 heads-up 通知
@@ -104,7 +126,7 @@ class FocusService : Service() {
                 val notification = buildNotification(phase, session)
                 runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, notification) }
             }
-            handler.postDelayed(this, 1000L)
+            return true
         }
     }
 
