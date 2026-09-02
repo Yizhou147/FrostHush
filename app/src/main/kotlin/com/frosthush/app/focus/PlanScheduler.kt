@@ -260,9 +260,12 @@ object PlanScheduler {
 
     fun onAlarm(context: Context, action: String, planId: Long, startMillis: Long = 0L) {
         when (action) {
-            // 提醒闹钟（setAlarmClock 准点投递）：启动 ReminderService 显示提醒并到点开始
-            ACTION_REMIND -> startReminderService(context, planId, startMillis)
-            // 开始兜底闹钟（无提醒计划 / ReminderService 被回收）：到点启动专注
+            // 提醒闹钟（setAlarmClock 准点投递）：投递即提醒时刻，直接发布提醒通知。
+            // 焦点岛模式直接 notify 上岛，不经 ReminderService——FGS 通知同 ID 覆盖成岛
+            // 会被 HyperOS 推迟约 10s 上屏（v1.2.0 直接 notify 是准的，重构后引入延迟）；
+            // 普通通知模式 notify 后由 ReminderService 前台服务支撑每秒走秒。
+            ACTION_REMIND -> showReminder(context, planId, startMillis)
+            // 开始闹钟（含无提醒计划）：到点启动专注
             ACTION_START -> Thread { handleStart(context, planId) }.start()
             ACTION_END -> handleEnd(context, planId)
             // 旧窗口闹钟（废弃机制残留，升级后由 scheduleAll cancelPlan 清理，不会触发）
@@ -270,27 +273,23 @@ object PlanScheduler {
     }
 
     /**
-     * 提醒闹钟投递：启动 ReminderService 前台服务，由它在提醒时刻显示提醒通知，
-     * 内部对齐到开始时刻启动专注。setAlarmClock 投递误差毫秒级，无需缓冲吸收。
+     * 提醒闹钟投递：已过开始时刻则交给 START 兜底（不发过期提醒）；否则发布提醒通知。
+     * setAlarmClock 投递误差毫秒级，投递即提醒时刻，无中间服务层。
      */
-    private fun startReminderService(context: Context, planId: Long, startMillis: Long) {
+    private fun showReminder(context: Context, planId: Long, startMillis: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
-        // 计划今天已执行/已跳过：不启动（避免无意义的等待/提醒）
-        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
-            DebugLog.d("Remind", "跳过提醒（今日已执行/跳过）planId=$planId")
-            return
-        }
-        val serviceIntent = Intent(context, ReminderService::class.java).apply {
-            putExtra(ReminderService.EXTRA_PLAN_ID, plan.id)
-            putExtra(ReminderService.EXTRA_PLAN_NAME, plan.name)
-            putExtra(ReminderService.EXTRA_START_MILLIS, startMillis)
-            putExtra(ReminderService.EXTRA_REMIND_SECONDS, SettingsStore.cache.planRemindSeconds)
-        }
-        androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent)
+        // 计划今天已执行/已跳过：不发提醒（避免"发通知但点击无反应"）
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
+        // 优先用注册闹钟时的真实开始时刻（旧闹钟无该 extra 时回退重算）
+        val start = if (startMillis > 0L) startMillis
+                    else nextStartMillis(plan, System.currentTimeMillis())
+        // 提醒闹钟延迟投递（已到/已过开始时刻）：计划应由 START 启动，不再发提醒
+        if (System.currentTimeMillis() >= start) return
+        showReminderNotification(context, plan, start)
     }
 
     /** 到点：先排下一次触发；冲突组/已有专注则当日跳过，否则启动计划专注。
-     *  internal：由 ReminderService（窗口流程）在开始时刻调用启动专注。 */
+     *  由 START 闹钟投递 / 「立刻开始」触发。 */
     internal fun handleStart(context: Context, planId: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) {
@@ -529,12 +528,10 @@ object PlanScheduler {
 
     /**
      * 显示计划前提醒通知（焦点岛/普通通知）。
-     * internal：由 ReminderService 在提醒时刻调用；普通通知模式的每秒 ticker
-     * 由它自己更新，这里不再启动服务。
+     * 焦点岛模式：直接 notify（不经前台服务，避免 FGS 覆盖成岛被 HyperOS 延迟上屏）；
+     * 普通通知模式：notify 后启动 ReminderService 前台服务支撑每秒走秒。
      */
-    internal fun showReminderNotification(
-        context: Context, plan: FocusPlan, startMillis: Long, remindSeconds: Int
-    ) {
+    private fun showReminderNotification(context: Context, plan: FocusPlan, startMillis: Long) {
         ensureChannel(context)
         val islandEnabled = SettingsStore.cache.focusIslandEnabled
         val now = System.currentTimeMillis()
@@ -544,10 +541,10 @@ object PlanScheduler {
         )
         val contentIntent = reminderContentIntent(context, plan.id)
         val title = context.getString(R.string.plan_reminder_title)
-        // 焦点通知模式：文案用注册时的 remindSeconds（静态，岛倒计时由系统原生渲染）
+        // 焦点通知模式：文案用设置提醒秒数（静态，岛倒计时由系统原生渲染）
         // 普通通知模式：文案用实时剩余秒数（ReminderService 每秒更新）
         val text = if (islandEnabled) {
-            context.getString(R.string.plan_reminder_text, plan.name, remindSeconds)
+            context.getString(R.string.plan_reminder_text, plan.name, SettingsStore.cache.planRemindSeconds)
         } else {
             val remaining = ((startMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L).toInt()
             context.getString(R.string.plan_reminder_text, plan.name, remaining)
@@ -574,6 +571,16 @@ object PlanScheduler {
                 builder.setOnlyAlertOnce(true)
             }
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_REMIND, builder.build())
+        }
+        // 普通通知模式：启动 ReminderService 前台服务支撑每秒 ticker（跟专注倒计时实现方法一致）。
+        // 焦点通知模式不启动（岛倒计时由系统原生渲染，开始由 START 闹钟准点处理）
+        if (!islandEnabled) {
+            val serviceIntent = Intent(context, ReminderService::class.java).apply {
+                putExtra(ReminderService.EXTRA_PLAN_ID, plan.id)
+                putExtra(ReminderService.EXTRA_PLAN_NAME, plan.name)
+                putExtra(ReminderService.EXTRA_START_MILLIS, startMillis)
+            }
+            androidx.core.content.ContextCompat.startForegroundService(context, serviceIntent)
         }
     }
 
