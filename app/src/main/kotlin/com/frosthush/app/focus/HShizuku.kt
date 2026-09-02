@@ -202,7 +202,6 @@ object HShizuku {
      */
     fun freezeForFocus(packageName: String, userId: Int = myUserId): Boolean {
         if (setAppSuspendedForFocus(packageName, true, userId)) {
-            DebugLog.d("Suspend", "freeze suspend 成功 pkg=$packageName user=$userId")
             return true
         }
         val mode = SettingsStore.cache.suspendFallbackMode
@@ -234,8 +233,11 @@ object HShizuku {
             else -> false
         }
         val b = if (enableAllowed) setAppDisabledForUser(packageName, false, userId) else false
-        DebugLog.d("Suspend", "restore suspend=$a enable=$b pkg=$packageName user=$userId mode=$mode")
-        return a || b
+        val ok = a || b
+        // 诊断日志只记失败：成功恢复/冻结是常态（一次专注 130+ 应用），
+        // 成功也打会刷屏环形缓冲、挤掉提醒/倒计时等关键异常日志
+        if (!ok) DebugLog.d("Suspend", "restore 失败 suspend=$a enable=$b pkg=$packageName user=$userId mode=$mode")
+        return ok
     }
 
     /**
