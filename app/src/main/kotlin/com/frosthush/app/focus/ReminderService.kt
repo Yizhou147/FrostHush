@@ -18,56 +18,39 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.util.DebugLog
 
 /**
- * 计划提醒窗口前台服务（新机制，2026-08-31）。
+ * 计划前提醒前台服务（2026-09-02 重构）。
  *
- * 由窗口闹钟（ACTION_WINDOW，注册在 开始 - 提醒秒数 - 5min 缓冲）触发启动。
- * 前台服务在应用内对齐三个时刻，吸收系统闹钟合批投递的提前/延迟波动：
- *  - 投递即已过开始时刻（重度延迟）：直接启动专注，不发提醒（提醒无意义）；
- *  - 到提醒时刻（start - remindSeconds）：显示提醒通知（焦点岛/普通）；
- *  - 到开始时刻（start）：调用 PlanScheduler.handleStart 启动专注并停止。
- * 只要系统延迟 ≤ 缓冲（5min），提醒必然出现在开始之前，不再有"提醒被吞/提前开始"。
+ * 由提醒闹钟（setAlarmClock 注册在 开始 - 提醒秒数，系统闹钟类闹钟准点投递）启动。
+ * 投递即提醒时刻：立即显示提醒通知（焦点岛/普通走秒），服务只在提醒与开始之间
+ * 短活对齐到开始时刻启动专注，然后自停。不再有旧的"窗口缓冲期提前保活"——
+ * 那段期间的前台服务强制通知（静默准备通知）用户可见且被禁止，已删除。
  *
- * 普通通知模式的提醒通知每秒更新倒计时（ticker）；焦点岛模式由系统原生渲染静态倒计时。
+ * - 普通通知模式：提醒通知每秒更新倒计时（ticker），服务保持到开始时刻；
+ * - 焦点岛模式：由系统按通知参数原生渲染倒计时（无需每秒 notify），服务同样保持到开始时刻。
+ * - 投递已过开始时刻（闹钟延迟/异常）：直接启动专注，不发提醒（提醒无意义）。
  */
 class ReminderService : Service() {
     private val channelID = "focus_plan"
-    // 静默准备频道：缓冲期前台服务保活通知用（低重要性，不打扰）
-    private val prepareChannelID = "focus_plan_prepare"
     private val handler = Handler(Looper.getMainLooper())
 
     private var planId: Long = 0
     private var planName: String = ""
     private var startMillis: Long = 0L
     private var remindSeconds: Int = 0
-    private var remindAt: Long = 0L
-    private var reminderShown = false
 
     private val tickRunnable = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
-            when {
-                now >= startMillis -> {
-                    // 到开始时刻：启动专注（handleStart 内部会停止本服务并清理提醒通知）
-                    DebugLog.d("Remind", "到点启动专注 now=$now startMillis=$startMillis")
-                    runCatching { PlanScheduler.handleStart(this@ReminderService, planId) }
-                    stopSelf()
-                    return
-                }
-                now >= remindAt && !reminderShown -> {
-                    // 到提醒时刻：显示提醒通知（一次；普通模式后续由每秒 tick 更新倒计时）
-                    reminderShown = true
-                    showReminderNotification()
-                }
-                reminderShown -> {
-                    // 提醒已显示：普通通知模式每秒更新倒计时（焦点岛模式静态无需更新）
-                    if (!SettingsStore.cache.focusIslandEnabled) {
-                        updateReminderTicker(now)
-                    }
-                }
-                else -> {
-                    // 准备状态：每秒更新剩余时间（低调通知，不打扰）
-                    updatePreparingNotification(now)
-                }
+            if (now >= startMillis) {
+                // 到开始时刻：启动专注（handleStart 内部会停止本服务并清理提醒通知）
+                DebugLog.d("Remind", "到点启动专注 now=$now startMillis=$startMillis")
+                runCatching { PlanScheduler.handleStart(this@ReminderService, planId) }
+                stopSelf()
+                return
+            }
+            // 提醒已显示：普通通知模式每秒更新倒计时（焦点岛模式静态由系统原生渲染）
+            if (!SettingsStore.cache.focusIslandEnabled) {
+                updateReminderTicker(now)
             }
             handler.postDelayed(this, 1000L)
         }
@@ -79,33 +62,24 @@ class ReminderService : Service() {
         startMillis = intent?.getLongExtra(EXTRA_START_MILLIS, 0L) ?: 0L
         remindSeconds = intent?.getIntExtra(EXTRA_REMIND_SECONDS, SettingsStore.cache.planRemindSeconds)
             ?: SettingsStore.cache.planRemindSeconds
-        remindAt = startMillis - remindSeconds * 1000L
-        reminderShown = false
         val now = System.currentTimeMillis()
         DebugLog.d(
-            "Remind", "onStartCommand plan=$planName startMillis=$startMillis remindAt=$remindAt " +
+            "Remind", "onStartCommand plan=$planName startMillis=$startMillis remindAt=${startMillis - remindSeconds * 1000L} " +
                 "now=$now remaining=${(startMillis - now) / 1000L}s"
         )
         runCatching { createChannel() }
         if (now >= startMillis) {
-            // 窗口闹钟重度延迟（投递已过开始时刻）：直接启动专注，提醒无意义不再发
+            // 投递已过开始时刻（闹钟延迟/异常）：直接启动专注，提醒无意义不再发
             DebugLog.d("Remind", "投递已过开始时刻，直接开始 planId=$planId late=${now - startMillis}ms")
             // 先 startForeground 保活（startForegroundService 后 5 秒内必须调用，防崩溃）
-            startForeground(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
+            startForeground(NOTIFICATION_ID, buildReminderTicker(now))
             runCatching { PlanScheduler.handleStart(this, planId) }
             stopSelf()
             return START_NOT_STICKY
         }
-        if (now >= remindAt) {
-            // 轻度延迟（投递落在提醒窗口内）：立即显示提醒（倒计时缩短）
-            reminderShown = true
-            startForeground(NOTIFICATION_ID, buildReminderTicker(now))
-            showReminderNotification()
-        } else {
-            // 提前/准点投递：先以静默准备通知保活前台服务（低重要性频道，不响不震不弹出，
-            // 用户无感知，仅系统可见），到真正的提醒时刻才显示高优先级提醒
-            startForeground(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
-        }
+        // 正常投递（提醒时刻前后）：前台服务通知即提醒本身，显示后内部对齐到开始时刻
+        startForeground(NOTIFICATION_ID, buildReminderTicker(now))
+        showReminderNotification()
         handler.removeCallbacksAndMessages(null)
         handler.post(tickRunnable)
         return START_STICKY
@@ -121,13 +95,6 @@ class ReminderService : Service() {
     private fun updateReminderTicker(now: Long) {
         runCatching {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, buildReminderTicker(now))
-        }
-    }
-
-    /** 准备状态：每秒静默更新剩余时间（低重要性频道，不打扰） */
-    private fun updatePreparingNotification(now: Long) {
-        runCatching {
-            NotificationManagerCompat.from(this).notify(PREPARE_NOTIFICATION_ID, buildPreparingNotification(now))
         }
     }
 
@@ -149,30 +116,6 @@ class ReminderService : Service() {
             .build()
     }
 
-    /** 准备状态通知（静默）：低重要性独立频道，不响铃不震动不弹出，用户无感知，仅作前台服务保活 */
-    private fun buildPreparingNotification(now: Long): Notification {
-        val remainingMs = startMillis - now
-        val text = getString(R.string.plan_preparing_text, planName, formatRemaining(remainingMs))
-        return NotificationCompat.Builder(this, prepareChannelID)
-            .setSmallIcon(R.drawable.ic_stat_focus)
-            .setContentTitle(getString(R.string.plan_preparing_title))
-            .setContentText(text)
-            .setContentIntent(reminderClickIntent())
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .build()
-    }
-
-    private fun formatRemaining(ms: Long): String {
-        val totalSec = (ms / 1000L).coerceAtLeast(0L)
-        val m = totalSec / 60
-        val s = totalSec % 60
-        return if (m > 0) getString(R.string.plan_preparing_min_sec, m, s)
-        else getString(R.string.plan_preparing_sec, s)
-    }
-
     /** 点击通知打开应用（带 ACTION_REMIND_CLICK + planId，AppRoot 弹「距开始倒计时」对话框） */
     private fun reminderClickIntent(): PendingIntent = PendingIntent.getActivity(
         this, planId.toInt(),
@@ -190,12 +133,6 @@ class ReminderService : Service() {
             NotificationChannelCompat.Builder(channelID, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName(getString(R.string.plan_notification_channel)).build()
         )
-        // 静默准备频道（MIN 重要性：缓冲期前台服务保活用。状态栏无图标、折叠在通知栏底部、
-        // 无声音无震动，用户完全无感知；到真正的提醒时刻才用高优先级频道弹提醒）
-        NotificationManagerCompat.from(this).createNotificationChannel(
-            NotificationChannelCompat.Builder(prepareChannelID, NotificationManagerCompat.IMPORTANCE_MIN)
-                .setName(getString(R.string.plan_prepare_channel)).build()
-        )
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -212,7 +149,5 @@ class ReminderService : Service() {
         const val EXTRA_START_MILLIS = "start_millis"
         const val EXTRA_REMIND_SECONDS = "plan_remind_seconds"
         private const val NOTIFICATION_ID = 202 // 与 PlanScheduler.NOTIFICATION_ID_REMIND 一致
-        // 静默准备通知 ID（独立于提醒 ID，前台服务保活；stopForeground 时自动移除）
-        private const val PREPARE_NOTIFICATION_ID = 204
     }
 }
