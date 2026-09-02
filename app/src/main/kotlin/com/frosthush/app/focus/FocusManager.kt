@@ -196,7 +196,17 @@ object FocusManager {
                 if (SettingsStore.cache.notifyFinishEnabled && !SettingsStore.cache.focusIslandEnabled) {
                     showFinishNotification()
                 }
-                app.stopService(Intent(app, FocusService::class.java))
+                // 延迟停止 FGS：结束岛（焦点通知）已由 FocusService tick 发布（新 ID notify）。
+                // 若立即 stopService，焦点会话随即结束，HyperOS 可能在结束岛渲染完成前将其清除
+                // （实测 notify 成功、log 无异常，但用户看不到结束通知）。延迟 ~5s 让结束岛
+                // 先完整滑出展示，再由 stopService 移除旧前台通知并结束焦点会话。
+                Thread {
+                    try {
+                        Thread.sleep(5000)
+                    } catch (_: InterruptedException) {
+                    }
+                    app.stopService(Intent(app, FocusService::class.java))
+                }.start()
                 phase.value = null
                 bumpVersion()
                 true
