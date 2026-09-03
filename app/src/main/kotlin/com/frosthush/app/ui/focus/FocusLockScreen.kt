@@ -63,10 +63,15 @@ fun FocusLockScreen(onFinished: () -> Unit) {
             if (current == null) {
                 DebugLog.d("LockScreen", "异常：会话存在但 phase 为 null（会显示 00:00）sessionEnd=${session.endMillis}")
             } else if (remaining <= 0L) {
-                DebugLog.d(
-                    "LockScreen", "异常：remaining=0 phase=idx${current.index} " +
-                        "segEnd=${current.segmentEnd} now=${System.currentTimeMillis()} sessionEnd=${session.endMillis}"
-                )
+                // 仅当已过本段结束 2 秒以上仍为 0 才算异常（tick 停更/phase 未推进）：
+                // 正常到点瞬间（tick 慢 <1s 未切换）remaining 也会短暂归 0，需排除误报
+                val now = System.currentTimeMillis()
+                if (now - current.segmentEnd > 2000L) {
+                    DebugLog.d(
+                        "LockScreen", "异常：remaining=0 phase=idx${current.index} " +
+                            "segEnd=${current.segmentEnd} now=$now sessionEnd=${session.endMillis}"
+                    )
+                }
             }
             delay(1000L)
         }
