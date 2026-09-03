@@ -134,7 +134,12 @@ import kotlin.math.roundToInt
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () -> Unit) {
+fun FocusScreen(
+    onOpenStats: () -> Unit,
+    onImport: () -> Unit,
+    onOpenGroups: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -159,6 +164,17 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
     // 普通专注会覆盖到的启用计划（开始时刻被本次专注盖住）+ 冲突提醒对话框
     var conflictPlans by remember { mutableStateOf<List<FocusStore.FocusPlan>>(emptyList()) }
     var showConflictDialog by remember { mutableStateOf(false) }
+    // 专注启动失败（应用全部未能冻结）→ 弹窗告知解决方法，替代笼统的「操作失败」
+    var showFocusErrorDialog by remember { mutableStateOf(false) }
+
+    /** 专注启动错误处理：全部冻结失败弹详细对话框，其余错误保持 snackbar */
+    fun handleStartError(err: String) {
+        if (err == context.getString(R.string.operation_failed)) {
+            showFocusErrorDialog = true
+        } else {
+            scope.launch { snackbarHostState.showSnackbar(err) }
+        }
+    }
     // 黑名单列表：搜索词 + 长按多选状态
     var query by remember { mutableStateOf("") }
     var selectionMode by remember { mutableStateOf(false) }
@@ -465,7 +481,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                 } else {
                     scope.launch {
                         val err = FocusManager.startFocus(segments)
-                        if (err != null) snackbarHostState.showSnackbar(err)
+                        if (err != null) handleStartError(err)
                     }
                 }
             },
@@ -505,7 +521,7 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                     } else {
                         scope.launch {
                             val err = FocusManager.startFocus(pendingSegments)
-                            if (err != null) snackbarHostState.showSnackbar(err)
+                            if (err != null) handleStartError(err)
                         }
                     }
                 }) { Text(stringResource(R.string.action_confirm)) }
@@ -525,12 +541,31 @@ fun FocusScreen(onOpenStats: () -> Unit, onImport: () -> Unit, onOpenGroups: () 
                     showWarningDialog = false
                     scope.launch {
                         val err = FocusManager.startFocus(pendingSegments)
-                        if (err != null) snackbarHostState.showSnackbar(err)
+                        if (err != null) handleStartError(err)
                     }
                 }) { Text(stringResource(R.string.action_start)) }
             },
             dismissButton = {
                 TextButton(onClick = { showWarningDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (showFocusErrorDialog) {
+        // 全部应用未能冻结：弹窗告知原因与解决方法（替代笼统的「操作失败」）
+        AlertDialog(
+            onDismissRequest = { showFocusErrorDialog = false },
+            title = { Text(stringResource(R.string.focus_fail_title)) },
+            text = { Text(stringResource(R.string.focus_fail_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFocusErrorDialog = false
+                    onOpenSettings()
+                }) { Text(stringResource(R.string.focus_fail_goto_settings)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFocusErrorDialog = false }) {
+                    Text(stringResource(R.string.focus_fail_ok))
+                }
             },
         )
     }

@@ -3,7 +3,6 @@ package com.frosthush.app.focus
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.IBinder
@@ -14,13 +13,16 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.frosthush.app.MainActivity
 import com.frosthush.app.R
+import com.frosthush.app.util.DebugLog
 
 /**
- * 计划前提醒每秒计时前台服务（仅普通通知模式使用）。
+ * 计划前提醒每秒计时前台服务（仅普通通知模式使用，2026-09-02 回归 v1.2.0 语义）。
  *
  * 跟专注倒计时（FocusService）实现方法一致：前台服务 + Handler 每秒 postDelayed 循环，
  * 保证进程优先级稳定，ticker 不会因进程被杀而中断。
- * 焦点通知模式不启动此服务（岛倒计时由系统原生渲染）。
+ * 焦点通知（超级岛）模式不启动此服务——岛由 PlanScheduler 直接 notify 上屏
+ * （走 FGS 覆盖成岛会被 HyperOS 推迟约 10s 上屏），岛倒计时由系统原生渲染，
+ * 计划开始由 START 闹钟准点处理。
  *
  * 到计划开始时刻（remaining <= 0）自动 stopSelf；
  * PlanScheduler.cancelReminderNotification 也会停止此服务。
@@ -38,7 +40,8 @@ class ReminderService : Service() {
             val now = System.currentTimeMillis()
             val remaining = ((startMillis - now) / 1000L).coerceAtLeast(0L).toInt()
             if (remaining <= 0) {
-                // 计划已开始（PlanScheduler.handleStart 会 cancel 通知），停止服务
+                // 计划已开始（START 闹钟 handleStart 会 cancel 通知），停止服务
+                DebugLog.d("Remind", "ReminderService 到点自停 plan=$planName startMillis=$startMillis")
                 stopSelf()
                 return
             }
@@ -54,6 +57,10 @@ class ReminderService : Service() {
         runCatching { createChannel() }
         val now = System.currentTimeMillis()
         val remaining = ((startMillis - now) / 1000L).coerceAtLeast(0L).toInt()
+        DebugLog.d(
+            "Remind", "ReminderService onStartCommand plan=$planName startMillis=$startMillis " +
+                "now=$now remaining=${remaining}s"
+        )
         val notification = buildNotification(remaining)
         // 提醒通知 ID 复用 PlanScheduler.NOTIFICATION_ID_REMIND（202），保持同一 key 便于 cancel
         runCatching { startForeground(NOTIFICATION_ID, notification) }

@@ -7,11 +7,15 @@ import com.frosthush.app.data.AppRepository
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.util.DebugLog
 
 class FrostHushApp : Application() {
     override fun onCreate() {
         super.onCreate()
         app = this
+        // 进程启动/被系统回收后重启打点：配合每条日志的 pid 判断闹钟投递是否因进程
+        // 被杀/冻结而延迟（10:40:31 两闹钟同时补投现象的排查依据）
+        DebugLog.d("Lifecycle", "Application.onCreate 进程启动 now=${System.currentTimeMillis()}")
         SettingsStore.init()
         // 清理历史残留的「专注阶段提醒」渠道（focus_phase）：
         // 工作总结第 22 项（2026-08-13）已删除该渠道对应代码与字符串，

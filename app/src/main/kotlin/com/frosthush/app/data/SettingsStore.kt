@@ -25,12 +25,16 @@ object SettingsStore {
         // 新增休息段默认时长（手动专注/计划分段添加休息时使用）
         val defaultRestMinutes: Int = DEFAULT_REST_MINUTES,
         val notifyFinishEnabled: Boolean = true,
-        val focusIslandEnabled: Boolean = true,
+        val focusIslandEnabled: Boolean = false,
         val themeMode: Int = THEME_SYSTEM, // 0 跟随系统 / 1 浅色 / 2 深色
         val confirmBeforeStart: Boolean = true,
         val welcomeDone: Boolean = false,
         // 计划开始前提醒秒数（0 = 不提醒，到点直接开始专注）
         val planRemindSeconds: Int = DEFAULT_PLAN_REMIND_SECONDS,
+        // 冻结失败兜底模式：0 关闭 / 1 仅分身应用 / 2 所有用户应用。
+        // suspend（暂停，系统弹窗体验）失败时回退 disable（禁用）——被禁用应用冻结更彻底，
+        // 但专注期间桌面图标会消失（专注结束后恢复）。
+        val suspendFallbackMode: Int = FALLBACK_OFF,
     )
 
     const val DEFAULT_FOCUS_MINUTES = 30
@@ -41,6 +45,12 @@ object SettingsStore {
     const val DEFAULT_PLAN_REMIND_SECONDS = 15
     /** 计划提醒秒数合法范围：0（不提醒）~ 3600 */
     val PLAN_REMIND_RANGE = 0..3600
+    /** 冻结兜底模式：关闭（suspend 失败不额外处理） */
+    const val FALLBACK_OFF = 0
+    /** 冻结兜底模式：仅分身应用（suspend 失败时回退禁用分身） */
+    const val FALLBACK_CLONE_ONLY = 1
+    /** 冻结兜底模式：所有用户应用（suspend 失败时一律回退禁用） */
+    const val FALLBACK_ALL = 2
 
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
     private val KEY_DEFAULT_REST_MINUTES = intPreferencesKey("default_rest_minutes")
@@ -50,6 +60,7 @@ object SettingsStore {
     private val KEY_CONFIRM_BEFORE_START = booleanPreferencesKey("confirm_before_start")
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
     private val KEY_PLAN_REMIND_SECONDS = intPreferencesKey("plan_remind_seconds")
+    private val KEY_SUSPEND_FALLBACK = intPreferencesKey("suspend_fallback_mode")
 
     /** 内存缓存：供不便于挂起的后台代码同步读取 */
     var cache: Settings = Settings()
@@ -65,11 +76,12 @@ object SettingsStore {
                     defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
                     defaultRestMinutes = prefs[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES,
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
-                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: true,
+                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: false,
                     themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
                     confirmBeforeStart = prefs[KEY_CONFIRM_BEFORE_START] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
                     planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
+                    suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
                 )
             }
         }
@@ -78,7 +90,7 @@ object SettingsStore {
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
     val defaultRestMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES }
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
-    val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: true }
+    val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: false }
     val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
     val confirmBeforeStart: Flow<Boolean> = app.dataStore.data.map { it[KEY_CONFIRM_BEFORE_START] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
@@ -137,6 +149,15 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_PLAN_REMIND_SECONDS] = seconds }
             cache = cache.copy(planRemindSeconds = seconds)
+        }
+    }
+
+    val suspendFallbackMode: Flow<Int> = app.dataStore.data.map { it[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF }
+
+    fun setSuspendFallbackMode(mode: Int) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_SUSPEND_FALLBACK] = mode }
+            cache = cache.copy(suspendFallbackMode = mode)
         }
     }
 }

@@ -38,6 +38,10 @@
     <string name="focus_start">Start focus</string>
     <string name="focus_select_duration">Select focus duration</string>
     <string name="focus_confirm_warning">Once focus mode starts, the selected apps will be suspended and cannot be exited midway.</string>
+    <string name="focus_fail_title">Focus failed to start</string>
+    <string name="focus_fail_body">Some apps could not be frozen. This usually happens with cloned (dual-instance) apps: the system does not allow suspending apps of another user via Shizuku.\n\nSolutions:\n① Enable "Force freeze" in Settings — apps that cannot be suspended will be frozen by disabling instead (more thorough, but their icons disappear during focus).\n② If the device is rooted, start Shizuku in root mode to suspend them normally.</string>
+    <string name="focus_fail_goto_settings">Go to settings</string>
+    <string name="focus_fail_ok">Got it</string>
     <string name="focus_conflict_text">This focus session will cover the start time of the following plans. They will not take effect today:</string>
     <string name="focus_conflict_hint">Repeating plans will take effect normally the next day; one-time (non-repeating) plans will no longer run.</string>
     <string name="action_cancel">Cancel</string>
@@ -157,6 +161,16 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_confirm_before_start">Confirm before starting</string>
+    <string name="settings_force_freeze">Force freeze</string>
+    <string name="settings_force_freeze_summary_off">Off</string>
+    <string name="settings_force_freeze_summary_clone">Cloned apps only</string>
+    <string name="settings_force_freeze_summary_all">All user apps</string>
+    <string name="settings_force_freeze_scope_title">Force freeze scope</string>
+    <string name="settings_force_freeze_scope_off">Off (suspend only)</string>
+    <string name="settings_force_freeze_scope_clone">Cloned apps</string>
+    <string name="settings_force_freeze_scope_all">All user apps</string>
+    <string name="settings_force_freeze_warning_title">Enable force freeze?</string>
+    <string name="settings_force_freeze_warning_text">When enabled, apps that cannot be suspended will be frozen by disabling instead. Disabling is more thorough (background running is also blocked), but during focus the app icon disappears from the launcher (restored when focus ends), and some launchers may rearrange icon order. Enabling this is only needed on systems that block suspending cloned apps.</string>
     <string name="settings_confirm_before_start_summary">Show the "cannot exit midway" warning before starting focus</string>
     <string name="settings_plan_remind">Remind before plans start</string>
     <string name="settings_plan_remind_summary_seconds">Remind %1$d seconds before start</string>
@@ -207,6 +221,7 @@
 
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
+    <string name="about_build_time">Built at %s</string>
     <string name="about_hail_title">Hail</string>
     <string name="about_hail_url">github.com/aistra0528/Hail</string>
     <string name="about_project_title">FrostHush repository</string>
@@ -292,6 +307,11 @@
     <string name="plan_notification_channel">Plans</string>
     <string name="plan_reminder_title">Focus reminder</string>
     <string name="plan_reminder_text">Plan "%1$s" will start focus in %2$d seconds</string>
+    <string name="plan_preparing_title">Plan starting soon</string>
+    <string name="plan_preparing_text">"%1$s" starts in %2$s</string>
+    <string name="plan_preparing_min_sec">%1$d min %2$d s</string>
+    <string name="plan_preparing_sec">%1$d s</string>
+    <string name="plan_prepare_channel">Plan preparation</string>
     <string name="plan_remind_dialog_title">Plan "%1$s" starts soon</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="one">Focus starts in %1$d second</item>
@@ -343,4 +363,10 @@
     <string name="permission_apps_guide_title">Manual setup required</string>
     <string name="permission_apps_guide_text">This device did not show the permission dialog. Please open system settings → App info → Manage permissions, and allow "App list access".</string>
     <string name="permission_apps_guide_action">Open settings</string>
+
+    <!-- 诊断日志（仅 debug 构建显示） -->
+    <string name="debug_export_log">Export diagnostic log</string>
+    <string name="debug_export_log_summary">Debug-only; export key event logs for troubleshooting</string>
+    <string name="debug_exported">Diagnostic log exported: %1$s</string>
+    <string name="debug_export_failed">Export failed</string>
 </resources>

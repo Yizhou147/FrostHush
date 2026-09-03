@@ -13,6 +13,8 @@ import androidx.annotation.RequiresApi
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.R
+import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.util.DebugLog
 import com.frosthush.app.util.Targets
 import moe.shizuku.server.IShizukuService
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -55,7 +57,11 @@ object HShizuku {
     fun setAppSuspendedForFocus(packageName: String, suspended: Boolean, userId: Int = myUserId): Boolean {
         // 硬防御：绝不允许暂停自身（黑名单历史数据/剪贴板导入可能误带本应用）
         if (packageName == BuildConfig.APPLICATION_ID) return false
-        if (getApplicationInfoOrNull(packageName, userId) == null) return false
+        if (getApplicationInfoOrNull(packageName, userId) == null) {
+            // 记录具体原因：应用不存在 vs 跨用户查询被系统拒绝（区别于权限拒绝）
+            DebugLog.d("Suspend", "getApplicationInfo 为 null pkg=$packageName user=$userId suspended=$suspended")
+            return false
+        }
         if (Targets.P) setAppRestricted(packageName, userId, suspended)
         if (suspended) forceStopApp(packageName, userId)
         return runCatching {
@@ -100,7 +106,10 @@ object HShizuku {
 
                 else -> return false // Android 6 及以下不支持暂停
             } as Array<*>).isEmpty()
-        }.getOrElse { false }
+        }.getOrElse {
+            DebugLog.e("Suspend", "setAppSuspendedForFocus 失败 pkg=$packageName user=$userId suspended=$suspended", it)
+            false
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
@@ -184,6 +193,65 @@ object HShizuku {
         android.util.Log.e("FrostHush", "Shizuku 执行命令失败: $command", it)
         null
     }
+
+    /**
+     * 冻结/暂停指定用户的应用（专注入口）。
+     * 优先 setPackagesSuspendedAsUser（体验好：系统「已暂停」弹窗 + 定制文案）；
+     * 失败时按设置「强制冻结」模式（SettingsStore.suspendFallbackMode）回退
+     * `pm disable-user --user <id>`：仅分身或所有用户应用（禁用更彻底，但桌面图标会暂时消失）。
+     */
+    fun freezeForFocus(packageName: String, userId: Int = myUserId): Boolean {
+        if (setAppSuspendedForFocus(packageName, true, userId)) {
+            return true
+        }
+        val mode = SettingsStore.cache.suspendFallbackMode
+        val isClone = userId != myUserId
+        val allowed = when (mode) {
+            SettingsStore.FALLBACK_ALL -> true
+            SettingsStore.FALLBACK_CLONE_ONLY -> isClone
+            else -> false
+        }
+        if (!allowed) {
+            DebugLog.d("Suspend", "freeze suspend 失败且兜底未启用 pkg=$packageName user=$userId mode=$mode")
+            return false
+        }
+        DebugLog.d("Suspend", "freeze suspend 失败，回退 disable-user pkg=$packageName user=$userId mode=$mode")
+        return setAppDisabledForUser(packageName, true, userId)
+    }
+
+    /**
+     * 解除冻结/恢复（专注结束/休息段）。
+     * 始终先 unsuspend；是否 enable 由「强制冻结」模式决定（避免误启用用户手动禁用的应用）。
+     */
+    fun restoreForFocus(packageName: String, userId: Int = myUserId): Boolean {
+        val a = setAppSuspendedForFocus(packageName, false, userId)
+        val mode = SettingsStore.cache.suspendFallbackMode
+        val isClone = userId != myUserId
+        val enableAllowed = when (mode) {
+            SettingsStore.FALLBACK_ALL -> true
+            SettingsStore.FALLBACK_CLONE_ONLY -> isClone
+            else -> false
+        }
+        val b = if (enableAllowed) setAppDisabledForUser(packageName, false, userId) else false
+        val ok = a || b
+        // 诊断日志只记失败：成功恢复/冻结是常态（一次专注 130+ 应用），
+        // 成功也打会刷屏环形缓冲、挤掉提醒/倒计时等关键异常日志
+        if (!ok) DebugLog.d("Suspend", "restore 失败 suspend=$a enable=$b pkg=$packageName user=$userId mode=$mode")
+        return ok
+    }
+
+    /**
+     * 禁用/启用指定用户的应用（`pm disable-user` / `pm enable` 命令，走 Shizuku shell 通道）。
+     * disabled 后该用户的应用进程被杀且无法启动，效果等同冻结；enable 完整恢复。
+     * 跨用户不需要 suspend 权限（实测 HyperOS 2 分身用户可用）。
+     */
+    fun setAppDisabledForUser(packageName: String, disabled: Boolean, userId: Int = myUserId): Boolean = runCatching {
+        val cmd = if (disabled) "pm disable-user --user $userId $packageName"
+                  else "pm enable --user $userId $packageName"
+        val out = execute(cmd)
+        // 成功输出 "Package xxx new state: disabled-user/enabled"；失败输出 Exception/Error
+        out != null && out.contains("new state:")
+    }.getOrDefault(false)
 
     /**
      * 指定用户已安装包名列表（分身/XSpace 等用户空间），返回 (包名, 是否系统分区路径)。

@@ -38,6 +38,10 @@
     <string name="focus_start">开始专注</string>
     <string name="focus_select_duration">选择专注时长</string>
     <string name="focus_confirm_warning">开启专注模式后，所选应用将被暂停，且中途不可退出。</string>
+    <string name="focus_fail_title">专注启动失败</string>
+    <string name="focus_fail_body">部分应用无法冻结。这通常是分身（双开）应用受系统限制：系统不允许通过 Shizuku 暂停其他用户空间的应用。\n\n解决方法：\n① 在「设置 → 强制冻结」中开启，无法暂停的应用将改用"禁用"方式冻结（更彻底，但专注期间图标会暂时消失）；\n② 若设备已 root，用 Shizuku 的 root 模式启动后可正常暂停。</string>
+    <string name="focus_fail_goto_settings">去设置</string>
+    <string name="focus_fail_ok">知道了</string>
     <string name="focus_conflict_text">本次专注会覆盖以下计划专注的开始时间，这些计划本日将不会生效：</string>
     <string name="focus_conflict_hint">重复计划第二天正常生效；不重复计划将不再执行。</string>
     <string name="action_cancel">取消</string>
@@ -155,6 +159,16 @@
     <string name="settings_theme_light">浅色</string>
     <string name="settings_theme_dark">深色</string>
     <string name="settings_confirm_before_start">开始前二次确认</string>
+    <string name="settings_force_freeze">强制冻结</string>
+    <string name="settings_force_freeze_summary_off">关闭</string>
+    <string name="settings_force_freeze_summary_clone">仅分身应用</string>
+    <string name="settings_force_freeze_summary_all">所有用户应用</string>
+    <string name="settings_force_freeze_scope_title">强制冻结范围</string>
+    <string name="settings_force_freeze_scope_off">关闭（仅正常暂停）</string>
+    <string name="settings_force_freeze_scope_clone">仅分身应用</string>
+    <string name="settings_force_freeze_scope_all">所有用户应用</string>
+    <string name="settings_force_freeze_warning_title">开启强制冻结？</string>
+    <string name="settings_force_freeze_warning_text">开启后，对无法正常暂停的应用将改用"禁用"方式冻结：冻结更彻底（后台运行也一并禁止），但冻结期间应用图标会从桌面消失（专注结束后恢复），部分桌面可能打乱图标顺序。仅在系统不支持暂停分身应用时才需要开启。</string>
     <string name="settings_confirm_before_start_summary">开始专注前弹出「不可中途退出」确认</string>
     <string name="settings_plan_remind">计划开始前提醒</string>
     <string name="settings_plan_remind_summary_seconds">开始前 %1$d 秒提醒</string>
@@ -205,6 +219,7 @@
 
     <!-- 关于 -->
     <string name="about_version">版本 %s</string>
+    <string name="about_build_time">编译于 %s</string>
     <string name="about_hail_title">雹（Hail）</string>
     <string name="about_hail_url">github.com/aistra0528/Hail</string>
     <string name="about_project_title">霜息（FrostHush）仓库</string>
@@ -290,6 +305,11 @@
     <string name="plan_notification_channel">计划</string>
     <string name="plan_reminder_title">专注提醒</string>
     <string name="plan_reminder_text">计划「%1$s」将在 %2$d 秒后开始专注</string>
+    <string name="plan_preparing_title">计划即将开始</string>
+    <string name="plan_preparing_text">「%1$s」距开始 %2$s</string>
+    <string name="plan_preparing_min_sec">%1$d分%2$d秒</string>
+    <string name="plan_preparing_sec">%1$d秒</string>
+    <string name="plan_prepare_channel">计划准备</string>
     <string name="plan_remind_dialog_title">计划「%1$s」即将开始</string>
     <plurals name="plan_remind_dialog_text_seconds">
         <item quantity="other">%1$d 秒后开始专注</item>
@@ -340,4 +360,10 @@
     <string name="permission_apps_guide_title">需要手动开启</string>
     <string name="permission_apps_guide_text">系统未弹出授权窗口，请前往系统设置 → 应用信息 → 权限管理，手动开启「获取应用列表」。</string>
     <string name="permission_apps_guide_action">前往设置</string>
+
+    <!-- 诊断日志（仅 debug 构建显示） -->
+    <string name="debug_export_log">导出诊断日志</string>
+    <string name="debug_export_log_summary">仅调试版可用，导出关键事件日志用于排查问题</string>
+    <string name="debug_exported">诊断日志已导出：%1$s</string>
+    <string name="debug_export_failed">导出失败</string>
 </resources>

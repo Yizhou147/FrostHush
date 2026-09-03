@@ -1,4 +1,7 @@
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -16,13 +19,21 @@ android {
         applicationId = "com.frosthush.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.2.0"
+        versionCode = 7
+        versionName = "1.2.1"
+        // 编译时间（精确到分钟）：关于页展示 + 诊断日志导出头部
+        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     buildTypes {
         debug {
-            versionNameSuffix = "-debug"
+            // 诊断日志为正式代码（DebugLog 不依赖 DEBUG 门控），测试直接用 release 构建
+            // （正式包名 com.frosthush.app + 正式签名，可覆盖安装正式版）。
+            // debug 构建同样开 R8 压缩，包体积与 release 一致。
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
         release {
             isMinifyEnabled = true
