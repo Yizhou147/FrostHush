@@ -19,8 +19,8 @@ android {
         applicationId = "com.frosthush.app"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.2.0"
+        versionCode = 7
+        versionName = "1.2.1"
         // 编译时间（精确到分钟）：关于页展示 + 诊断日志导出头部
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
