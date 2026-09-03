@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Process
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -45,16 +46,26 @@ object FocusManager {
     /**
      * 检测当前仍处于暂停状态的应用条目（所有应用集条目取并集）。
      * 专注过程中 Shizuku 崩溃导致结束后未能解冻时，用于手动恢复。
-     * 检测走 PackageManager（主应用无需 Shizuku 连接），可在任意时刻调用。
+     * 主用户检测走 PackageManager（无需 Shizuku 连接），分身经 Shizuku shell 检测，可在任意时刻调用。
      */
     fun suspendedEntries(): List<String> {
         val entries = FocusStore.appGroups().flatMap { it.entries }.distinct()
+        val myUser = Process.myUserHandle().hashCode()
         return entries.filter { entry ->
             val (pkg, userId) = FocusStore.parseEntry(entry)
-            runCatching {
-                val info = HShizuku.getApplicationInfoOrNull(pkg, userId)
-                info != null && (info.flags and ApplicationInfo.FLAG_SUSPENDED) != 0
-            }.getOrDefault(false)
+            if (userId == myUser) {
+                // 主用户：PackageManager 直查（无需 Shizuku 连接，Shizuku 崩溃后也能检测到）
+                runCatching {
+                    val info = HShizuku.getApplicationInfoOrNull(pkg, userId)
+                    info != null && (info.flags and ApplicationInfo.FLAG_SUSPENDED) != 0
+                }.getOrDefault(false)
+            } else {
+                // 分身：主应用 uid 跨用户反射 getApplicationInfoAsUser 会被系统拒绝返回 null
+                // （无 INTERACT_ACROSS_USERS），导致分身永远漏检、无法恢复；
+                // 改走 Shizuku shell（dumpsys，与 listPackagesForUser 同通道）检测。
+                // Shizuku 不可用时视为未暂停（恢复分身同样依赖 Shizuku）。
+                HShizuku.isSuspendedInUser(pkg, userId) == true
+            }
         }
     }
 

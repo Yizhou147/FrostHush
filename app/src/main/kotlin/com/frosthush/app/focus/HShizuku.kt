@@ -276,6 +276,20 @@ object HShizuku {
     }.getOrElse { emptyList() }
 
     /**
+     * 检测指定用户（分身）中的应用是否处于暂停状态（FLAG_SUSPENDED）。
+     * 走 Shizuku shell 执行 `dumpsys package <pkg>` 解析该用户的 "User N:" 状态行：
+     * 主应用 uid 直连反射 getApplicationInfoAsUser 跨用户会被系统拒绝（无 INTERACT_ACROSS_USERS → null），
+     * 而 shell（adb uid 2000 / root）有跨用户读取权限（与 listPackagesForUser 同通道）。
+     * 返回 null 表示无法检测（Shizuku 不可用 / 包不存在 / 解析失败），调用方按未暂停处理。
+     */
+    fun isSuspendedInUser(packageName: String, userId: Int): Boolean? = runCatching {
+        val out = execute("dumpsys package $packageName") ?: return null
+        val userLine = out.lineSequence()
+            .firstOrNull { it.trimStart().startsWith("User $userId:") } ?: return null
+        userLine.contains("suspended=true")
+    }.getOrNull()
+
+    /**
      * 构造 UserHandle：本地 android.jar 为裁剪版，缺 UserHandle(int) 构造器与 of()，
      * 运行时系统均支持（API 17+），用反射构造。
      */
