@@ -153,7 +153,7 @@
     <string name="settings_notify_finish">Focus end notification</string>
     <string name="settings_notify_finish_summary">Send a notification when focus ends</string>
     <string name="settings_focus_island">Xiaomi Super Island</string>
-    <string name="settings_focus_island_summary">Built-in whitelist unlock module; enable FrostHush in LSPosed and check System UI and XMSF scopes</string>
+    <string name="settings_focus_island_summary">Requires the module to unlock the focus notification whitelist</string>
     <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI and XMSF scopes (libxposed API 101)</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_summary">Current: %1$s</string>
@@ -366,7 +366,7 @@
 
     <!-- 诊断日志（仅 debug 构建显示） -->
     <string name="debug_export_log">Export diagnostic log</string>
-    <string name="debug_export_log_summary">Debug-only; export key event logs for troubleshooting</string>
+    <string name="debug_export_log_summary">Export key event logs for troubleshooting</string>
     <string name="debug_exported">Diagnostic log exported: %1$s</string>
     <string name="debug_export_failed">Export failed</string>
 </resources>

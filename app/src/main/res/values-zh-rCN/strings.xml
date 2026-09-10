@@ -151,7 +151,7 @@
     <string name="settings_notify_finish">专注结束通知</string>
     <string name="settings_notify_finish_summary">专注结束后发送通知提醒</string>
     <string name="settings_focus_island">小米超级岛</string>
-    <string name="settings_focus_island_summary">已内置白名单解锁模块，需在 LSPosed 启用并勾选系统界面与 XMSF</string>
+    <string name="settings_focus_island_summary">需模块解锁焦点通知白名单</string>
     <string name="module_description">内置焦点通知白名单解锁模块，需在 LSPosed 启用霜息并勾选系统界面与 XMSF 作用域（libxposed API 101）</string>
     <string name="settings_theme">主题模式</string>
     <string name="settings_theme_summary">当前：%1$s</string>
@@ -363,7 +363,7 @@
 
     <!-- 诊断日志（仅 debug 构建显示） -->
     <string name="debug_export_log">导出诊断日志</string>
-    <string name="debug_export_log_summary">仅调试版可用，导出关键事件日志用于排查问题</string>
+    <string name="debug_export_log_summary">导出关键事件日志用于排查问题</string>
     <string name="debug_exported">诊断日志已导出：%1$s</string>
     <string name="debug_export_failed">导出失败</string>
 </resources>
