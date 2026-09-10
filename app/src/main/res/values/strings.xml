@@ -221,7 +221,6 @@
 
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
-    <string name="about_build_time">Built at %s</string>
     <string name="about_hail_title">Hail</string>
     <string name="about_hail_url">github.com/aistra0528/Hail</string>
     <string name="about_project_title">FrostHush repository</string>
