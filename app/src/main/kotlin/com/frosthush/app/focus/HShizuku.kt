@@ -221,10 +221,14 @@ object HShizuku {
 
     /**
      * 解除冻结/恢复（专注结束/休息段）。
-     * 始终先 unsuspend；是否 enable 由「强制冻结」模式决定（避免误启用用户手动禁用的应用）。
+     * 始终先 unsuspend；binder unsuspend 失败时回退 shell `pm unsuspend`——Android 15 起 suspend 记录
+     * originator，Shizuku 模式切换（adb↔root）后 binder 调用者不一致会被拒；shell 身份 unsuspend 在
+     * HyperOS 3 放行（实测可解任意来源的 suspend）。是否 enable 由「强制冻结」模式决定（避免误启用
+     * 用户手动禁用的应用）。
      */
     fun restoreForFocus(packageName: String, userId: Int = myUserId): Boolean {
-        val a = setAppSuspendedForFocus(packageName, false, userId)
+        var a = setAppSuspendedForFocus(packageName, false, userId)
+        if (!a) a = unsuspendViaShell(packageName, userId)
         val mode = SettingsStore.cache.suspendFallbackMode
         val isClone = userId != myUserId
         val enableAllowed = when (mode) {
@@ -239,6 +243,21 @@ object HShizuku {
         if (!ok) DebugLog.d("Suspend", "restore 失败 suspend=$a enable=$b pkg=$packageName user=$userId mode=$mode")
         return ok
     }
+
+    /**
+     * binder unsuspend 的 shell 兜底：`pm unsuspend --user <id> <pkg>`（走 Shizuku execute）。
+     * - Shizuku adb 模式（server=shell uid 2000）：直接跑，HyperOS 3 放行 shell，能解任意来源的 suspend；
+     * - Shizuku root 模式（server=root）：root 跑 pm unsuspend 在 HyperOS 上静默失效（target 解析异常，
+     *   实测 PMS 日志 "No change is needed ... Skipping"，操作不到目标用户），改经 KernelSU `su 2000 -c`
+     *   切回 shell 身份执行。
+     * 返回是否成功（stdout 含 "new suspended state: false"）。
+     */
+    fun unsuspendViaShell(packageName: String, userId: Int): Boolean = runCatching {
+        val cmd = if (isRoot) "su 2000 -c 'pm unsuspend --user $userId $packageName'"
+                  else "pm unsuspend --user $userId $packageName"
+        val out = execute(cmd)
+        out?.contains("new suspended state: false") == true
+    }.getOrDefault(false)
 
     /**
      * 禁用/启用指定用户的应用（`pm disable-user` / `pm enable` 命令，走 Shizuku shell 通道）。
@@ -274,6 +293,20 @@ object HShizuku {
             pkg to sysByPath
         }.toList()
     }.getOrElse { emptyList() }
+
+    /**
+     * 检测指定用户（分身）中的应用是否处于暂停状态（FLAG_SUSPENDED）。
+     * 走 Shizuku shell 执行 `dumpsys package <pkg>` 解析该用户的 "User N:" 状态行：
+     * 主应用 uid 直连反射 getApplicationInfoAsUser 跨用户会被系统拒绝（无 INTERACT_ACROSS_USERS → null），
+     * 而 shell（adb uid 2000 / root）有跨用户读取权限（与 listPackagesForUser 同通道）。
+     * 返回 null 表示无法检测（Shizuku 不可用 / 包不存在 / 解析失败），调用方按未暂停处理。
+     */
+    fun isSuspendedInUser(packageName: String, userId: Int): Boolean? = runCatching {
+        val out = execute("dumpsys package $packageName") ?: return null
+        val userLine = out.lineSequence()
+            .firstOrNull { it.trimStart().startsWith("User $userId:") } ?: return null
+        userLine.contains("suspended=true")
+    }.getOrNull()
 
     /**
      * 构造 UserHandle：本地 android.jar 为裁剪版，缺 UserHandle(int) 构造器与 of()，
