@@ -85,25 +85,10 @@ class FocusService : Service() {
             // 最后一段（专注）到点：后台恢复并结束
             if (phase.isFocus && remaining <= 0) {
                 DebugLog.d("Focus", "tick 专注段到点结束 now=$now remaining=$remaining phaseIndex=${phase.index}")
-                // 焦点通知模式：发布结束岛通知（不绑定 FGS，避免 stopService 时被系统取消）。
-                // 用 currentNotificationId++ + notify 换新 key 触发岛滑入；不调 startForeground，
-                // 这样 stopService 的 Cancel FGS notification 只移除 ID=100 的旧 FGS 通知，
-                // 不会移除结束岛通知（新 ID）。endMillis 必须传值（now+1000），否则 HyperOS
-                // FocusPlugin 抛 FocusParamsException: content is empty。
-                if (islandEnabled && SettingsStore.cache.notifyFinishEnabled) {
-                    currentNotificationId++
-                    val endNotification = buildEndNotification()
-                    runCatching {
-                        NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, endNotification)
-                        DebugLog.d("Focus", "结束通知已发布 id=$currentNotificationId")
-                    }.onFailure {
-                        DebugLog.e("Focus", "结束通知发布失败 id=$currentNotificationId", it)
-                    }
-                } else {
-                    DebugLog.d(
-                        "Focus", "不发布结束通知 island=$islandEnabled notifyFinish=${SettingsStore.cache.notifyFinishEnabled}"
-                    )
-                }
+                // 结束通知（结束岛）不在这里发布：所有结束路径（本 tick 到点 / 计划 END 闹钟 /
+                // 开机兜底）都汇聚到 FocusManager.restoreAndEnd，由它统一发布，保证恰好一次。
+                // 此前在这里发会漏：END 闹钟先把会话结束时，本 tick 走的是下面"会话已空"分支，
+                // 永远执行不到发布代码（实测 2026-09-10 20:30 那次即如此，全程无结束通知）。
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return false
             }
@@ -203,33 +188,6 @@ class FocusService : Service() {
         return builder.build()
     }
 
-    /** 构建专注结束岛通知（焦点通知模式专用）。
-     *  跟休息时间弹出通知实现方法一致：currentNotificationId++ + startForeground + notify 触发岛滑入。
-     *  HyperOS FocusPlugin 解析 miui.focus.param 时要求必须有 sameWidthDigitInfo（倒计时区），
-     *  否则抛 FocusParamsException: content is empty。结束通知传 endMillis=now+1s + timerSystemCurrent=now
-     *  让 timerInfo 存在（倒计时立即到 0 显示 00:00），满足 HyperOS 解析要求。 */
-    private fun buildEndNotification(): Notification {
-        val title = getString(R.string.focus_finished_title)
-        val text = getString(R.string.focus_finished_text)
-        val contentIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
-        )
-        // 复用 FocusService 渠道（与休息切换一致，FocusService 渠道已通过 HyperOS 焦点通知鉴权）
-        val builder = NotificationCompat.Builder(this, channelID)
-            .setSmallIcon(R.drawable.ic_stat_focus)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setContentIntent(contentIntent)
-            .setOngoing(false)
-            .setAutoCancel(true)
-        runCatching {
-            val now = System.currentTimeMillis()
-            // endMillis=now+1000 + timerSystemCurrent=now → timerInfo 存在，倒计时立即到 0
-            builder.addExtras(MiuiIsland.buildIslandExtras(this, title, text, now + 1000L, now))
-        }
-        return builder.build()
-    }
-
     private fun createNotificationChannel() {
         // 重要度 HIGH：HyperOS 超级岛仅对高重要度通知呈现，且首次只 alert 一次
         NotificationManagerCompat.from(this).createNotificationChannel(
@@ -261,6 +219,8 @@ class FocusService : Service() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        // 结束通知由 FocusManager.restoreAndEnd 以独立 id 发布（不属于本服务的前台通知），
+        // 所以这里 REMOVE 只移除"专注中"那条前台通知，不会影响刚发布的结束通知。
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }

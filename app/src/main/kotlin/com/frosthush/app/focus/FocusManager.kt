@@ -1,5 +1,6 @@
 package com.frosthush.app.focus
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -15,6 +16,7 @@ import com.frosthush.app.MainActivity
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
+import com.frosthush.app.util.DebugLog
 import com.frosthush.app.util.Format
 import com.frosthush.app.util.MiuiIsland
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +32,9 @@ import rikka.shizuku.Shizuku
 object FocusManager {
     private const val FINISH_CHANNEL_ID = "focus_finished"
     private const val FINISH_NOTIFICATION_ID = 101
+
+    /** 上一次结束岛通知使用的 id：发布前先 cancel 它，避免残留的同 id 通知让本次被判成"更新" */
+    private var lastFinishIslandId = 0
 
     /** 可选专注时长范围（分钟），见 FocusStore.MIN_MINUTES / MAX_MINUTES */
     val durationRange: IntRange = FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES
@@ -189,6 +194,17 @@ object FocusManager {
             if (session == null) {
                 false
             } else {
+                // 结束提醒在这里统一发布（本方法是所有结束路径的唯一汇聚点：tick 到点 / 计划 END
+                // 闹钟 / 开机与冷启动兜底 / 界面兜底）。放在这里的意义是"谁结束会话都必然发一次"——
+                // 之前只在 FocusService tick 的"到点"分支发，END 闹钟抢先结束时 tick 会走"会话已空"
+                // 分支，通知永远发不出来（2026-09-10 20:30 实证：全程无结束通知）。
+                // 只对"刚结束"的会话发（10 分钟内），避免进程重启/开机时给早已结束的会话补发迟到提醒。
+                if (SettingsStore.cache.notifyFinishEnabled &&
+                    System.currentTimeMillis() - session.endMillis <= 10 * 60_000L
+                ) {
+                    if (SettingsStore.cache.focusIslandEnabled) showFinishIsland(session)
+                    else showFinishNotification()
+                }
                 FocusStore.clearActiveSession()
                 session.packages.forEach { entry ->
                     val (pkg, userId) = FocusStore.parseEntry(entry)
@@ -202,21 +218,21 @@ object FocusManager {
                         session.toHistorySegments(end),
                     )
                 )
-                // 焦点通知模式：结束岛通知已由 FocusService（currentNotificationId++ + notify）发布，
-                // 这里不再调 showFinishNotification 避免重复发布；普通通知模式由 showFinishNotification 发布。
-                if (SettingsStore.cache.notifyFinishEnabled && !SettingsStore.cache.focusIslandEnabled) {
-                    showFinishNotification()
-                }
-                // 延迟停止 FGS：结束岛（焦点通知）已由 FocusService tick 发布（新 ID notify）。
-                // 若立即 stopService，焦点会话随即结束，HyperOS 可能在结束岛渲染完成前将其清除
-                // （实测 notify 成功、log 无异常，但用户看不到结束通知）。延迟 ~5s 让结束岛
-                // 先完整滑出展示，再由 stopService 移除旧前台通知并结束焦点会话。
+                // 延迟停止 FGS：让结束通知先完整滑出展示，再停服务移除"专注中"前台通知。
+                // 结束通知是独立 id（不属于本服务的前台通知），停服的 REMOVE 不会影响它。
                 Thread {
                     try {
                         Thread.sleep(5000)
                     } catch (_: InterruptedException) {
                     }
+                    // 诊断：停服前后各查一次活动通知，确认结束通知是否被随前台服务一起清掉
+                    logActiveNotifications("停服前")
                     app.stopService(Intent(app, FocusService::class.java))
+                    try {
+                        Thread.sleep(500)
+                    } catch (_: InterruptedException) {
+                    }
+                    logActiveNotifications("停服后")
                 }.start()
                 phase.value = null
                 bumpVersion()
@@ -278,6 +294,64 @@ object FocusManager {
         val session = FocusStore.activeSession() ?: return
         if (session.endMillis <= System.currentTimeMillis()) return
         Thread { applySuspensionByPhase(session) }.start()
+    }
+
+    /** 诊断打点：记录当前活动通知 id，定位结束通知"发了却看不到"是没发出去还是被清掉 */
+    private fun logActiveNotifications(scene: String) {
+        runCatching {
+            val ids = app.getSystemService(NotificationManager::class.java).activeNotifications
+                .joinToString(",") { it.id.toString() }
+            DebugLog.d("Focus", "$scene 活动通知id=[$ids]")
+        }.onFailure { DebugLog.e("Focus", "查询活动通知失败 $scene", it) }
+    }
+
+    /**
+     * 发布结束岛通知（焦点通知模式）。由 restoreAndEnd 统一调用，保证所有结束路径恰好发一次。
+     *
+     * 两个关键点（针对"通知栏里什么都没有"的实测故障）：
+     * - **id 每个会话唯一**：HyperOS 对同一 (包名, id) 的通知按"更新"处理，复用上一次的 id 时
+     *   既不滑入岛也不重新冒泡；这里按会话开始时刻推导 id，并在发布前 cancel 上一次的 id。
+     * - **不静默失败**：岛参数构建/发布异常一律打日志，发布后立刻回查 activeNotifications。
+     * endMillis 必须传值（now+1000），否则 HyperOS FocusPlugin 抛 FocusParamsException: content is empty。
+     */
+    private fun showFinishIsland(session: FocusStore.ActiveSession) {
+        val manager = NotificationManagerCompat.from(app)
+        runCatching {
+            manager.createNotificationChannel(
+                NotificationChannelCompat.Builder(FINISH_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
+                    .setName(app.getString(R.string.focus_notification_channel_finished)).build()
+            )
+        }
+        val title = app.getString(R.string.focus_finished_title)
+        val text = app.getString(R.string.focus_finished_text)
+        // 按会话开始时刻推导 id：不同会话必然不同（秒级唯一），避免与上一次结束通知同 id
+        val id = 1000 + ((session.startMillis / 1000L) % 1_000_000L).toInt()
+        if (lastFinishIslandId != 0 && lastFinishIslandId != id) {
+            runCatching { manager.cancel(lastFinishIslandId) }
+        }
+        runCatching {
+            val now = System.currentTimeMillis()
+            val builder = NotificationCompat.Builder(app, FINISH_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_focus)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(
+                    PendingIntent.getActivity(
+                        app, 0, Intent(app, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
+                    )
+                )
+                .setAutoCancel(true)
+            runCatching {
+                builder.addExtras(MiuiIsland.buildIslandExtras(app, title, text, now + 1000L, now))
+            }.onFailure {
+                // 不静默：岛参数构建失败会退化成普通通知（抓日志即可确认）
+                DebugLog.e("Focus", "结束通知岛参数构建失败（退化为普通通知）", it)
+            }
+            manager.notify(id, builder.build())
+            lastFinishIslandId = id
+            DebugLog.d("Focus", "结束通知已发布 id=$id")
+        }.onFailure { DebugLog.e("Focus", "结束通知发布失败 id=$id", it) }
+        logActiveNotifications("结束通知发布后")
     }
 
     private fun showFinishNotification() {

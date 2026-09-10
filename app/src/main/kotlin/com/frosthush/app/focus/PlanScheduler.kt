@@ -48,8 +48,10 @@ object PlanScheduler {
     const val EXTRA_START_MILLIS = "plan_start_millis"
     // 提醒闹钟携带的提醒提前秒数（注册时确定，避免投递时设置已变）
     const val EXTRA_REMIND_SECONDS = "plan_remind_seconds"
-    // 触发发生日的 yyyyMMdd：同计划不同发生日的闹钟 PendingIntent 因 extra 不同而互相独立，
-    // 保证重排下一次触发时不会覆盖当前发生日尚未触发的结束闹钟
+    // 触发发生日的 yyyyMMdd（仅作记录/排查用）。注意：PendingIntent 的身份只由
+    // requestCode + Intent 的 action/component 决定，**extras 不参与**，所以不同发生日的
+    // 闹钟并不因为 extra 不同而互相独立——重排下一次触发会覆盖上一次（END 目标时刻已在
+    // schedulePlan 里按"今天这次是否仍在进行"修正，见该处注释）
     private const val EXTRA_DAY = "plan_day"
 
     private const val CHANNEL_ID = "focus_plan"
@@ -94,7 +96,18 @@ object PlanScheduler {
         val start = nextStartMillis(plan, now)
         val day = dayCodeOf(start)
         val remindSeconds = SettingsStore.cache.planRemindSeconds
-        val end = start + plan.durationMinutes * 60_000L
+        // END 兜底闹钟的目标时刻：若"今天这次执行"已经开始且尚未结束，END 必须指向**本次**结束时刻。
+        // 否则（handleStart 在开始时重排下一次触发）会用同一个 requestCode 把当天尚未触发的 END
+        // 覆盖成明天的 —— PendingIntent 身份只看 requestCode+action，extras 不参与，所以不同
+        // 发生日的闹钟并不互相独立（旧注释的前提是错的）。一旦被覆盖，计划结束就只剩 tick 兜底，
+        // tick 被冻结时不会按时结束。
+        val durationMillis = plan.durationMinutes * 60_000L
+        val todayStart = todayStartMillis(plan, now)
+        val end = if (todayStart != null && todayStart <= now && todayStart + durationMillis > now) {
+            todayStart + durationMillis
+        } else {
+            start + durationMillis
+        }
         DebugLog.d(
             "Plan", "schedulePlan id=${plan.id} weekdays=${plan.weekdays} remindSeconds=$remindSeconds " +
                 "remindAt=${start - remindSeconds * 1000L} start=$start end=$end now=$now"
@@ -383,6 +396,23 @@ object PlanScheduler {
     }
 
     // ---------- 时间计算 ----------
+
+    /**
+     * 计划"今天"这一天的开始时刻；今天不是执行日时返回 null（weekdays 为空视为执行日）。
+     * 用于判断"今天这次执行"是否正在进行（配合计算 END 兜底闹钟的目标时刻）。
+     */
+    private fun todayStartMillis(plan: FocusPlan, now: Long): Long? {
+        val c = Calendar.getInstance().apply { timeInMillis = now }
+        val dow = c.get(Calendar.DAY_OF_WEEK)
+        val weekday = if (dow == Calendar.SUNDAY) 7 else dow - 1
+        if (plan.weekdays.isNotEmpty() && weekday !in plan.weekdays) return null
+        return (c.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+            set(Calendar.MINUTE, plan.startMinute % 60)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
 
     /** 计划下一次开始时间（毫秒）：按星期过滤，当天已过开始时间则顺延到下一匹配日；
      *  weekdays 为空（不重复）时取最近一次（今天未过则今天，否则明天）。 */
