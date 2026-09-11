@@ -3,7 +3,9 @@ package com.frosthush.app.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.frosthush.app.FrostHushApp.Companion.app
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,19 @@ object SettingsStore {
         // suspend（暂停，系统弹窗体验）失败时回退 disable（禁用）——被禁用应用冻结更彻底，
         // 但专注期间桌面图标会消失（专注结束后恢复）。
         val suspendFallbackMode: Int = FALLBACK_OFF,
+        // ===== 外观 / 主题（HyperOS Miuix 改造）=====
+        /** 界面风格：miuix（HyperOS）/ material（原有主题） */
+        val uiMode: String = UI_MODE_MATERIAL,
+        /** 顶栏 / 底栏模糊效果 */
+        val enableBlur: Boolean = true,
+        /** 悬浮底栏 */
+        val enableFloatingBottomBar: Boolean = false,
+        /** 悬浮底栏液态玻璃（仅 API 33+ 生效，低版本自动降级） */
+        val enableFloatingBottomBarBlur: Boolean = false,
+        /** 预测性返回手势 */
+        val enablePredictiveBack: Boolean = false,
+        /** 界面缩放（应用内密度缩放，1.0 = 不缩放） */
+        val pageScale: Float = 1.0f,
     )
 
     const val DEFAULT_FOCUS_MINUTES = 30
@@ -52,6 +67,13 @@ object SettingsStore {
     /** 冻结兜底模式：所有用户应用（suspend 失败时一律回退禁用） */
     const val FALLBACK_ALL = 2
 
+    /** 界面风格：Miuix（HyperOS 设计语言） */
+    const val UI_MODE_MIUIX = "miuix"
+    /** 界面风格：Material（原有主题，迁移期作为默认） */
+    const val UI_MODE_MATERIAL = "material"
+    /** 界面缩放合法范围 */
+    val PAGE_SCALE_RANGE = 0.8f..1.2f
+
     private val KEY_DEFAULT_MINUTES = intPreferencesKey("default_focus_minutes")
     private val KEY_DEFAULT_REST_MINUTES = intPreferencesKey("default_rest_minutes")
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
@@ -61,6 +83,12 @@ object SettingsStore {
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
     private val KEY_PLAN_REMIND_SECONDS = intPreferencesKey("plan_remind_seconds")
     private val KEY_SUSPEND_FALLBACK = intPreferencesKey("suspend_fallback_mode")
+    private val KEY_UI_MODE = stringPreferencesKey("ui_mode")
+    private val KEY_ENABLE_BLUR = booleanPreferencesKey("enable_blur")
+    private val KEY_FLOATING_BOTTOM_BAR = booleanPreferencesKey("floating_bottom_bar")
+    private val KEY_FLOATING_BOTTOM_BAR_BLUR = booleanPreferencesKey("floating_bottom_bar_blur")
+    private val KEY_PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
+    private val KEY_PAGE_SCALE = floatPreferencesKey("page_scale")
 
     /** 内存缓存：供不便于挂起的后台代码同步读取 */
     var cache: Settings = Settings()
@@ -82,6 +110,12 @@ object SettingsStore {
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
                     planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
                     suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
+                    uiMode = prefs[KEY_UI_MODE] ?: UI_MODE_MATERIAL,
+                    enableBlur = prefs[KEY_ENABLE_BLUR] ?: true,
+                    enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: false,
+                    enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false,
+                    enablePredictiveBack = prefs[KEY_PREDICTIVE_BACK] ?: false,
+                    pageScale = prefs[KEY_PAGE_SCALE] ?: 1.0f,
                 )
             }
         }
@@ -158,6 +192,57 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_SUSPEND_FALLBACK] = mode }
             cache = cache.copy(suspendFallbackMode = mode)
+        }
+    }
+
+    // ===== 外观 / 主题（HyperOS Miuix 改造）=====
+
+    val uiMode: Flow<String> = app.dataStore.data.map { it[KEY_UI_MODE] ?: UI_MODE_MATERIAL }
+    val enableBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_ENABLE_BLUR] ?: true }
+    val enableFloatingBottomBar: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR] ?: false }
+    val enableFloatingBottomBarBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false }
+    val enablePredictiveBack: Flow<Boolean> = app.dataStore.data.map { it[KEY_PREDICTIVE_BACK] ?: false }
+    val pageScale: Flow<Float> = app.dataStore.data.map { it[KEY_PAGE_SCALE] ?: 1.0f }
+
+    fun setUiMode(mode: String) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_UI_MODE] = mode }
+            cache = cache.copy(uiMode = mode)
+        }
+    }
+
+    fun setEnableBlur(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_ENABLE_BLUR] = enabled }
+            cache = cache.copy(enableBlur = enabled)
+        }
+    }
+
+    fun setEnableFloatingBottomBar(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_FLOATING_BOTTOM_BAR] = enabled }
+            cache = cache.copy(enableFloatingBottomBar = enabled)
+        }
+    }
+
+    fun setEnableFloatingBottomBarBlur(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_FLOATING_BOTTOM_BAR_BLUR] = enabled }
+            cache = cache.copy(enableFloatingBottomBarBlur = enabled)
+        }
+    }
+
+    fun setEnablePredictiveBack(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_PREDICTIVE_BACK] = enabled }
+            cache = cache.copy(enablePredictiveBack = enabled)
+        }
+    }
+
+    fun setPageScale(scale: Float) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_PAGE_SCALE] = scale }
+            cache = cache.copy(pageScale = scale)
         }
     }
 }

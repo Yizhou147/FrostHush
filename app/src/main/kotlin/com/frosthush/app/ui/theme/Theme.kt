@@ -5,10 +5,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.frosthush.app.data.SettingsStore
+import top.yukonga.miuix.kmp.theme.ColorSchemeMode
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.ThemeController
 
 /** 亮色主题：与雹的 md_theme_*（values/colors.xml）一致 */
 private val LightColors = lightColorScheme(
@@ -121,8 +126,25 @@ fun FrostHushTheme(content: @Composable () -> Unit) {
         SettingsStore.THEME_DARK -> true
         else -> isSystemInDarkTheme()
     }
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        content = content
-    )
+    val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
+    val uiMode = UiMode.fromValue(uiModeValue)
+
+    // MaterialTheme 始终提供：迁移期 material3 组件仍在各页面使用
+    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors) {
+        CompositionLocalProvider(LocalUiMode provides uiMode) {
+            when (uiMode) {
+                UiMode.Miuix -> MiuixFrostHushTheme(dark = dark, content = content)
+                UiMode.Material -> content()
+            }
+        }
+    }
+}
+
+/** miuix 分支：套一层 MiuixTheme，提供 HyperOS 设计语言的色彩与字体 token */
+@Composable
+private fun MiuixFrostHushTheme(dark: Boolean, content: @Composable () -> Unit) {
+    val controller = remember(dark) {
+        ThemeController(colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
+    }
+    MiuixTheme(controller = controller, content = content)
 }

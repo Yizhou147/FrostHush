@@ -9,14 +9,22 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.AppRoot
 import com.frosthush.app.ui.theme.FrostHushTheme
+import com.frosthush.app.ui.theme.LocalEnableBlur
+import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBar
+import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBarBlur
+import com.frosthush.app.ui.theme.LocalEnablePredictiveBack
 
 /** 单 Activity：欢迎页 / 底栏导航 / 导入页均由 Compose 管理 */
 class MainActivity : ComponentActivity() {
@@ -52,8 +60,29 @@ class MainActivity : ComponentActivity() {
                 controller.isAppearanceLightStatusBars = !dark
                 controller.isAppearanceLightNavigationBars = !dark
             }
-            FrostHushTheme {
-                AppRoot()
+            // 外观设置：界面缩放（应用内密度缩放）+ 各外观开关，统一下发给 UI 子树
+            val pageScale by SettingsStore.pageScale.collectAsState(initial = SettingsStore.cache.pageScale)
+            val enableBlur by SettingsStore.enableBlur.collectAsState(initial = SettingsStore.cache.enableBlur)
+            val floatingBar by SettingsStore.enableFloatingBottomBar
+                .collectAsState(initial = SettingsStore.cache.enableFloatingBottomBar)
+            val floatingBarBlur by SettingsStore.enableFloatingBottomBarBlur
+                .collectAsState(initial = SettingsStore.cache.enableFloatingBottomBarBlur)
+            val predictiveBack by SettingsStore.enablePredictiveBack
+                .collectAsState(initial = SettingsStore.cache.enablePredictiveBack)
+            val systemDensity = LocalDensity.current
+            val density = remember(systemDensity, pageScale) {
+                Density(systemDensity.density * pageScale, systemDensity.fontScale)
+            }
+            CompositionLocalProvider(
+                LocalDensity provides density,
+                LocalEnableBlur provides enableBlur,
+                LocalEnableFloatingBottomBar provides floatingBar,
+                LocalEnableFloatingBottomBarBlur provides floatingBarBlur,
+                LocalEnablePredictiveBack provides predictiveBack,
+            ) {
+                FrostHushTheme {
+                    AppRoot()
+                }
             }
         }
     }

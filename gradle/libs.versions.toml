@@ -1,17 +1,18 @@
 [versions]
-androidGradlePlugin = "8.12.3"
-kotlin = "2.2.21"
-composeBom = "2025.12.01"
+androidGradlePlugin = "9.4.0"
+kotlin = "2.4.10"
+composeBom = "2026.08.00"
 coreKtx = "1.17.0"
-activityCompose = "1.10.1"
+activityCompose = "1.13.0"
 materialIconsExtended = "1.7.8"
 datastore = "1.1.7"
 shizuku = "13.1.5"
 pinyin4j = "2.5.1"
 hiddenapibypass = "6.1"
 kotlinxCoroutinesAndroid = "1.10.2"
-lifecycleRuntimeCompose = "2.10.0"
+lifecycleRuntimeCompose = "2.11.0"
 libxposed = "102.0.0"
+miuix = "0.9.3"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -30,8 +31,14 @@ hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", vers
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleRuntimeCompose" }
 libxposed = { module = "io.github.libxposed:api", version.ref = "libxposed" }
+# miuix（HyperOS 设计语言的官方 Compose 实现），版本与 KernelSU 对齐
+miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "miuix" }
+miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", version.ref = "miuix" }
+miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
+miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# AGP 9 已内置 Kotlin 支持：不再应用 org.jetbrains.kotlin.android，
+# Kotlin 版本改由根 build.gradle.kts 的 buildscript classpath 指定
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -7,18 +7,20 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // AGP 9 内置 Kotlin 支持，无需再应用 kotlin-android（版本见根 build.gradle.kts）
     alias(libs.plugins.compose.compiler)
 }
 
 android {
     namespace = "com.frosthush.app"
-    compileSdk = 36
+    compileSdk = 37
+    // AGP 9.4 默认 build-tools 为 36.0.0；本机仅装了 36.1.0（ARM64 aapt2），显式钉住
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.frosthush.app"
         minSdk = 23
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 8
         versionName = "1.2.2"
         // 编译时间（精确到分钟）：仅用于诊断日志导出头部（关于页不展示）
@@ -92,6 +94,11 @@ dependencies {
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
+    // miuix（HyperOS 设计语言）：UI 组件 / 偏好项组件 / 图标 / 模糊
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.preference)
+    implementation(libs.miuix.icons)
+    implementation(libs.miuix.blur)
     // 内置 Xposed 模块（焦点通知白名单解锁）：compileOnly，不打包进 APK，仅编译期引用
     compileOnly(libs.libxposed)
 }
