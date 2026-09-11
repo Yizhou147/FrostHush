@@ -103,6 +103,10 @@ dependencies {
     implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.blur)
+    // 页面栈导航 + 预测性返回（navigation3 由 miuix-navigation3-ui 提供，与 KernelSU 同款转场）
+    implementation(libs.miuix.navigation3.ui)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigationevent.compose)
     // 内置 Xposed 模块（焦点通知白名单解锁）：compileOnly，不打包进 APK，仅编译期引用
     compileOnly(libs.libxposed)
 }

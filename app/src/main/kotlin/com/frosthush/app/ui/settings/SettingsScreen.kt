@@ -67,6 +67,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -113,6 +114,8 @@ private fun exportTimeTag(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale
 fun SettingsScreen(
     onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
     onOpenTheme: () -> Unit,
+    /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     val context = LocalContext.current
     val defaultMinutes by SettingsStore.defaultFocusMinutes
@@ -244,7 +247,7 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(padding)
-                .padding(16.dp),
+                .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp + bottomInnerPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SettingCard(

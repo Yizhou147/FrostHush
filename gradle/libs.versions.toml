@@ -13,6 +13,9 @@ kotlinxCoroutinesAndroid = "1.10.2"
 lifecycleRuntimeCompose = "2.11.0"
 libxposed = "102.0.0"
 miuix = "0.9.3"
+# navigation3 / navigationevent：与 KernelSU 同版本（页面栈转场 + 预测性返回）
+navigation3 = "1.1.7"
+navigationevent = "1.1.2"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -36,6 +39,10 @@ miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version.ref = "m
 miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
+# miuix 打包的 navigation3-ui（与 KernelSU 同款：默认横向滑动转场 + 预测性返回）
+miuix-navigation3-ui = { module = "top.yukonga.miuix.kmp:miuix-navigation3-ui-android", version.ref = "miuix" }
+androidx-navigation3-runtime = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
+androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "navigationevent" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

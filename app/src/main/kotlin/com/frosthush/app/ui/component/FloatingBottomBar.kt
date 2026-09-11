@@ -210,19 +210,15 @@ fun FloatingBottomBar(
     backdrop: Backdrop,
     tabsCount: Int,
     isBlurEnabled: Boolean = true,
-    // 颜色可由调用方按当前应用主题覆盖；不传则取 miuix 主题色
-    // （霜息在 material 界面风格下未套 MiuixTheme，需由调用方显式传入以免观感与页面背景不一致）
-    containerColorOverride: Color? = null,
-    contentColorOverride: Color? = null,
-    accentColorOverride: Color? = null,
     content: @Composable RowScope.((Int) -> Unit) -> Unit
 ) {
     val isInDark = isInDarkTheme()
     val pillShape = remember { CircleShape }
-    val accentColor = accentColorOverride ?: MiuixTheme.colorScheme.primary
-    val tabContentColor = contentColorOverride ?: MiuixTheme.colorScheme.onSurface
-    val surfaceContainer = containerColorOverride ?: MiuixTheme.colorScheme.surfaceContainer
-    val containerColor = if (isBlurEnabled) surfaceContainer.copy(0.4f) else surfaceContainer
+    val accentColor = MiuixTheme.colorScheme.primary
+    val tabContentColor = MiuixTheme.colorScheme.onSurface
+    val containerColor = MiuixTheme.colorScheme.surfaceContainer.let {
+        if (isBlurEnabled) it.copy(0.4f) else it
+    }
 
     val tabsBackdrop = rememberLayerBackdrop()
     val density = LocalDensity.current

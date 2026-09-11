@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -70,6 +71,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.frosthush.app.R
@@ -91,7 +93,12 @@ import kotlin.math.roundToInt
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
+fun PlanScreen(
+    onNewPlan: () -> Unit,
+    onEditPlan: (FocusPlan) -> Unit,
+    /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
+    bottomInnerPadding: Dp = 0.dp,
+) {
     val context = LocalContext.current
     val version by FocusManager.version.collectAsState()
     var plans by remember(version) { mutableStateOf(FocusStore.focusPlans()) }
@@ -308,7 +315,11 @@ fun PlanScreen(onNewPlan: () -> Unit, onEditPlan: (FocusPlan) -> Unit) {
                 var draggedHeightPx by remember { mutableStateOf(0f) }
                 val latestPlans by rememberUpdatedState(plans)
 
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = bottomInnerPadding),
+                ) {
                     items(plans, key = { it.id }) { plan ->
                         val isDragging = draggingId == plan.id
                         val scale by animateFloatAsState(

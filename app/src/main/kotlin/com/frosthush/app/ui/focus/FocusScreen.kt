@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -96,6 +97,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -141,6 +143,8 @@ fun FocusScreen(
     onImport: () -> Unit,
     onOpenGroups: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡（内容仍可从底栏下方穿过） */
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -358,6 +362,7 @@ fun FocusScreen(
         floatingActionButton = {
             if (session == null) {
                 ExtendedFloatingActionButton(
+                    modifier = Modifier.padding(bottom = bottomInnerPadding),
                     onClick = { showDurationDialog = true },
                     icon = { Icon(Icons.Filled.Timer, contentDescription = null) },
                     text = { Text(stringResource(R.string.focus_start)) },
@@ -463,6 +468,7 @@ fun FocusScreen(
                         selected = emptySet()
                     },
                     onImport = onImport,
+                    bottomInnerPadding = bottomInnerPadding,
                 )
             }
         }
@@ -735,9 +741,13 @@ private fun IdleContent(
     onDeleteSelected: () -> Unit,
     onExitSelection: () -> Unit,
     onImport: () -> Unit,
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     if (blacklist.isEmpty()) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.fillMaxWidth().padding(top = 48.dp, bottom = 48.dp + bottomInnerPadding),
+            contentAlignment = Alignment.Center,
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     stringResource(R.string.focus_apps_empty),
@@ -813,6 +823,7 @@ private fun IdleContent(
             // 此处不再对列表自身做尺寸动画，避免 items 间距被拉伸
             LazyColumn(
                 Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = bottomInnerPadding),
             ) {
                 items(filtered, key = { it }) { entry ->
                     val pkg = FocusStore.parseEntry(entry).first

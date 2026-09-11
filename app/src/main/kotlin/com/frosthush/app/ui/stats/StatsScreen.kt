@@ -69,6 +69,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.frosthush.app.R
@@ -95,7 +96,10 @@ private class MonthGroup(val monthStart: Long, val days: List<DayGroup>) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen() {
+fun StatsScreen(
+    /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
+    bottomInnerPadding: Dp = 0.dp,
+) {
     val version by FocusManager.version.collectAsState()
     var history by remember { mutableStateOf(FocusStore.history()) }
     LaunchedEffect(version) { history = FocusStore.history() }
@@ -158,6 +162,7 @@ fun StatsScreen() {
                         selectedDay = dayStart
                     }
                 },
+                bottomInnerPadding = bottomInnerPadding,
             )
         } else {
             val mg = monthGroups.firstOrNull { it.monthStart == key }
@@ -173,6 +178,7 @@ fun StatsScreen() {
                         expandedDays = if (day in expandedDays) expandedDays - day else expandedDays + day
                     },
                     onBack = { openMonth = null },
+                    bottomInnerPadding = bottomInnerPadding,
                 )
             }
         }
@@ -191,6 +197,7 @@ private fun StatsMain(
     sessionsFmt: String,
     onOpenMonth: (Long) -> Unit,
     onDateSelect: (Long) -> Unit,
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -199,7 +206,12 @@ private fun StatsMain(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = 16.dp + bottomInnerPadding,
+            ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (history.isEmpty()) {
@@ -471,6 +483,7 @@ private fun MonthDetailScreen(
     selectedDay: Long?,
     onToggleDay: (Long) -> Unit,
     onBack: () -> Unit,
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -492,7 +505,12 @@ private fun MonthDetailScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = 16.dp + bottomInnerPadding,
+            ),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             item {

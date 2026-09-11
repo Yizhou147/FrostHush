@@ -45,9 +45,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.frosthush.app.FrostHushApp
 import com.frosthush.app.R
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.ui.theme.UiMode
@@ -71,10 +73,21 @@ fun ThemeSettingsScreen(onBack: () -> Unit) {
 private fun liquidGlassAvailable(floatingBar: Boolean): Boolean =
     floatingBar && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
+/**
+ * 预测性返回开关是「进程级」的 ApplicationInfo 标志（隐藏 API），需立即写回，
+ * 重新启动应用后生效（与 KernelSU 行为一致）。
+ */
+private fun applyPredictiveBack(context: android.content.Context, enable: Boolean) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        FrostHushApp.setEnableOnBackInvokedCallback(context.applicationInfo, enable)
+    }
+}
+
 // ==================== miuix 版 ====================
 
 @Composable
 private fun ThemeSettingsMiuix(onBack: () -> Unit) {
+    val context = LocalContext.current
     val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
     val enableBlur by SettingsStore.enableBlur.collectAsState(initial = SettingsStore.cache.enableBlur)
@@ -156,7 +169,10 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit) {
             }
             top.yukonga.miuix.kmp.preference.SwitchPreference(
                 checked = predictiveBack,
-                onCheckedChange = { SettingsStore.setEnablePredictiveBack(it) },
+                onCheckedChange = {
+                    SettingsStore.setEnablePredictiveBack(it)
+                    applyPredictiveBack(context, it)
+                },
                 title = stringResource(R.string.settings_enable_predictive_back),
                 summary = stringResource(R.string.settings_enable_predictive_back_summary),
             )
@@ -178,6 +194,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ThemeSettingsMaterial(onBack: () -> Unit) {
+    val context = LocalContext.current
     val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
     val enableBlur by SettingsStore.enableBlur.collectAsState(initial = SettingsStore.cache.enableBlur)
@@ -273,11 +290,17 @@ private fun ThemeSettingsMaterial(onBack: () -> Unit) {
                 icon = Icons.Filled.Gesture,
                 title = stringResource(R.string.settings_enable_predictive_back),
                 summary = stringResource(R.string.settings_enable_predictive_back_summary),
-                onClick = { SettingsStore.setEnablePredictiveBack(!predictiveBack) },
+                onClick = {
+                    SettingsStore.setEnablePredictiveBack(!predictiveBack)
+                    applyPredictiveBack(context, !predictiveBack)
+                },
                 trailing = {
                     Switch(
                         checked = predictiveBack,
-                        onCheckedChange = { SettingsStore.setEnablePredictiveBack(it) },
+                        onCheckedChange = {
+                            SettingsStore.setEnablePredictiveBack(it)
+                            applyPredictiveBack(context, it)
+                        },
                     )
                 },
             )

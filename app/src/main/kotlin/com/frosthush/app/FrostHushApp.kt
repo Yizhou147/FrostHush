@@ -1,6 +1,7 @@
 package com.frosthush.app
 
 import android.app.Application
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
 import com.frosthush.app.data.AppRepository
@@ -8,15 +9,26 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.util.DebugLog
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class FrostHushApp : Application() {
     override fun onCreate() {
         super.onCreate()
         app = this
-        // 进程启动/被系统回收后重启打点：配合每条日志的 pid 判断闹钟投递是否因进程
-        // 被杀/冻结而延迟（10:40:31 两闹钟同时补投现象的排查依据）
         DebugLog.d("Lifecycle", "Application.onCreate 进程启动 now=${System.currentTimeMillis()}")
         SettingsStore.init()
+        // 预测性返回手势（对齐 KernelSU）：ApplicationInfo 的该开关是隐藏 API，
+        // 这里反射打开/关闭；开关为进程级，修改后下一次启动才生效。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching {
+                HiddenApiBypass.addHiddenApiExemptions(
+                    "Landroid/content/pm/ApplicationInfo;->setEnableOnBackInvokedCallback"
+                )
+            }
+            setEnableOnBackInvokedCallback(applicationInfo, SettingsStore.cache.enablePredictiveBack)
+        }
+        // 进程启动/被系统回收后重启打点：配合每条日志的 pid 判断闹钟投递是否因进程
+        // 被杀/冻结而延迟（10:40:31 两闹钟同时补投现象的排查依据）
         // 清理历史残留的「专注阶段提醒」渠道（focus_phase）：
         // 工作总结第 22 项（2026-08-13）已删除该渠道对应代码与字符串，
         // 但 Android 不会因应用升级自动删除已注册的渠道，系统设置里仍残留显示。
@@ -51,5 +63,18 @@ class FrostHushApp : Application() {
     companion object {
         lateinit var app: FrostHushApp
             private set
+
+        /**
+         * 开关当前进程的预测性返回手势（ApplicationInfo#setEnableOnBackInvokedCallback，隐藏 API）。
+         * 与 KernelSU 一致：反射调用失败时静默忽略，不影响其它功能。
+         */
+        fun setEnableOnBackInvokedCallback(appInfo: ApplicationInfo, enable: Boolean) {
+            runCatching {
+                val method = ApplicationInfo::class.java
+                    .getDeclaredMethod("setEnableOnBackInvokedCallback", Boolean::class.javaPrimitiveType)
+                method.isAccessible = true
+                method.invoke(appInfo, enable)
+            }
+        }
     }
 }
