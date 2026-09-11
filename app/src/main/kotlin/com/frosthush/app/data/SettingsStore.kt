@@ -38,8 +38,8 @@ object SettingsStore {
         // 但专注期间桌面图标会消失（专注结束后恢复）。
         val suspendFallbackMode: Int = FALLBACK_OFF,
         // ===== 外观 / 主题（HyperOS Miuix 改造）=====
-        /** 界面风格：miuix（HyperOS）/ material（原有主题） */
-        val uiMode: String = UI_MODE_MATERIAL,
+        /** 界面风格：miuix（HyperOS，默认）/ material（原有主题） */
+        val uiMode: String = UI_MODE_MIUIX,
         /** 顶栏 / 底栏模糊效果 */
         val enableBlur: Boolean = true,
         /** 悬浮底栏 */
@@ -197,7 +197,7 @@ object SettingsStore {
 
     // ===== 外观 / 主题（HyperOS Miuix 改造）=====
 
-    val uiMode: Flow<String> = app.dataStore.data.map { it[KEY_UI_MODE] ?: UI_MODE_MATERIAL }
+    val uiMode: Flow<String> = app.dataStore.data.map { it[KEY_UI_MODE] ?: UI_MODE_MIUIX }
     val enableBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_ENABLE_BLUR] ?: true }
     val enableFloatingBottomBar: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR] ?: false }
     val enableFloatingBottomBarBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false }
