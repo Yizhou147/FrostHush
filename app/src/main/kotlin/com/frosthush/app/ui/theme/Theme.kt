@@ -148,3 +148,17 @@ private fun MiuixFrostHushTheme(dark: Boolean, content: @Composable () -> Unit) 
     }
     MiuixTheme(controller = controller, content = content)
 }
+
+/**
+ * 当前是否深色（供悬浮底栏等组件按深浅使用不同描边/阴影参数）。
+ * 与 [FrostHushTheme] 的判定保持一致：0 跟随系统 / 1 浅色 / 2 深色。
+ */
+@Composable
+fun isInDarkTheme(): Boolean {
+    val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
+    return when (themeMode) {
+        SettingsStore.THEME_LIGHT -> false
+        SettingsStore.THEME_DARK -> true
+        else -> isSystemInDarkTheme()
+    }
+}

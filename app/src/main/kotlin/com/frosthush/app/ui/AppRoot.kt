@@ -1,6 +1,7 @@
 package com.frosthush.app.ui
 
 import android.content.res.Configuration
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -47,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,6 +66,8 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.about.AboutScreen
+import com.frosthush.app.ui.component.FloatingBottomBar
+import com.frosthush.app.ui.component.FloatingBottomBarItem
 import com.frosthush.app.ui.focus.FocusLockScreen
 import com.frosthush.app.ui.focus.FocusScreen
 import com.frosthush.app.ui.focus.ImportScreen
@@ -73,8 +78,13 @@ import com.frosthush.app.ui.settings.ConfigImportScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.settings.ThemeSettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
+import com.frosthush.app.ui.theme.LocalEnableBlur
+import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBar
+import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBarBlur
 import java.util.Calendar
 import kotlinx.coroutines.delay
+import top.yukonga.miuix.kmp.blur.layerBackdrop
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 
 /**
  * 应用根组件：
@@ -306,6 +316,19 @@ private fun MainTabs(
         TabSpec(R.string.tab_about, Icons.Filled.Info),
     )
 
+    // 外观：悬浮底栏（仅竖屏启用；横屏保持侧边导航栏）
+    val enableBlur = LocalEnableBlur.current
+    val floatingBar = LocalEnableFloatingBottomBar.current
+    val floatingBarBlur = LocalEnableFloatingBottomBarBlur.current
+    // 悬浮底栏模糊采样所依据的内容图层（背景色 + 页面内容）
+    val backdropBaseColor = MaterialTheme.colorScheme.surfaceContainer
+    val backdrop = rememberLayerBackdrop {
+        drawRect(backdropBaseColor)
+        drawContent()
+    }
+    // 液态玻璃仅在 API 33+ 生效（低版本自动退化为纯色胶囊）
+    val liquidGlass = floatingBarBlur && enableBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
     // 横屏：底栏自动变为侧边导航栏（对应雹 layout-land 的 NavigationRailView）。
     // 侧边栏背景与页面背景同色，菜单项垂直居中（对应雹的 menuGravity="center"）。
     if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
@@ -345,21 +368,48 @@ private fun MainTabs(
             containerColor = MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
-                // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
-                // 内部 NavigationBar 仅负责内容并避让操作杆。
-                Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
-                    NavigationBar(
-                        containerColor = Color.Transparent,
-                        windowInsets = WindowInsets.navigationBars,
+                if (floatingBar) {
+                    // 悬浮底栏：透明容器 + 居中的悬浮胶囊；液态玻璃由 isBlurEnabled 控制开关
+                    Box(
+                        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        tabs.forEachIndexed { index, spec ->
-                            NavigationBarItem(
-                                selected = tab == index,
-                                onClick = { onTabChange(index) },
-                                icon = { Icon(spec.icon, contentDescription = null) },
-                                label = { Text(stringResource(spec.label)) },
-                            )
+                        FloatingBottomBar(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            selectedIndex = tab,
+                            onSelected = onTabChange,
+                            backdrop = backdrop,
+                            tabsCount = tabs.size,
+                            isBlurEnabled = liquidGlass,
+                        ) { activate ->
+                            tabs.forEachIndexed { index, spec ->
+                                FloatingBottomBarItem(
+                                    selected = tab == index,
+                                    onClick = { activate(index) },
+                                ) {
+                                    Icon(spec.icon, contentDescription = null)
+                                    Text(stringResource(spec.label))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
+                    // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
+                    // 内部 NavigationBar 仅负责内容并避让操作杆。
+                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
+                        NavigationBar(
+                            containerColor = Color.Transparent,
+                            windowInsets = WindowInsets.navigationBars,
+                        ) {
+                            tabs.forEachIndexed { index, spec ->
+                                NavigationBarItem(
+                                    selected = tab == index,
+                                    onClick = { onTabChange(index) },
+                                    icon = { Icon(spec.icon, contentDescription = null) },
+                                    label = { Text(stringResource(spec.label)) },
+                                )
+                            }
                         }
                     }
                 }
@@ -375,7 +425,7 @@ private fun MainTabs(
                 onOpenConfigImport = onOpenConfigImport,
                 onOpenTheme = onOpenTheme,
                 onOpenSettings = onOpenSettings,
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize().padding(padding).layerBackdrop(backdrop),
             )
         }
     }
