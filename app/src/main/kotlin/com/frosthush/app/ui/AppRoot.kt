@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -57,7 +58,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.frosthush.app.FrostHushApp
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
@@ -375,7 +378,7 @@ private fun MainTabs(
                         contentAlignment = Alignment.Center,
                     ) {
                         FloatingBottomBar(
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp),
                             selectedIndex = tab,
                             onSelected = onTabChange,
                             backdrop = backdrop,
@@ -386,9 +389,20 @@ private fun MainTabs(
                                 FloatingBottomBarItem(
                                     selected = tab == index,
                                     onClick = { activate(index) },
+                                    // 必须给每项最小宽度：FloatingBottomBar 的外层是
+                                    // Modifier.width(IntrinsicSize.Min)，整条胶囊宽度等于
+                                    // 各子项固有最小宽度之和；不给就会缩成文字宽度挤成一团。
+                                    modifier = Modifier.defaultMinSize(minWidth = 64.dp),
                                 ) {
                                     Icon(spec.icon, contentDescription = null)
-                                    Text(stringResource(spec.label))
+                                    Text(
+                                        text = stringResource(spec.label),
+                                        fontSize = 11.sp,
+                                        lineHeight = 14.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Visible,
+                                    )
                                 }
                             }
                         }
