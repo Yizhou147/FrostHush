@@ -119,6 +119,9 @@ object FocusManager {
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)
         if (!shizukuReady()) return@withContext app.getString(R.string.focus_shizuku_unavailable)
         val start = System.currentTimeMillis()
+        // 开新会话前清掉上一场的结束提醒：残留的结束岛会占用"每应用一条焦点通知"的位置，
+        // 导致本场的岛不显示 / 倒计时不更新（2026-09-11 日志实证）
+        clearFinishIsland()
         // 先持久化会话并启动服务，再立即刷新 UI 进入全屏专注：
         // 逐个暂停应用（每次一次 Shizuku IPC）耗时较长，不能等全部挂起完成才显示锁屏
         FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, total, segments = segments))
@@ -159,6 +162,8 @@ object FocusManager {
         val duration = plan.durationMinutes
         if (duration < FocusStore.MIN_MINUTES) return app.getString(R.string.focus_duration_invalid)
         val start = System.currentTimeMillis()
+        // 清掉上一场的结束提醒，避免残留结束岛占用焦点通知位（同 startFocus）
+        clearFinishIsland()
         FocusStore.saveActiveSession(
             FocusStore.ActiveSession(
                 packages, start, duration, planId = plan.id, segments = plan.segments
@@ -325,7 +330,7 @@ object FocusManager {
         val title = app.getString(R.string.focus_finished_title)
         val text = app.getString(R.string.focus_finished_text)
         // 按会话开始时刻推导 id：不同会话必然不同（秒级唯一），避免与上一次结束通知同 id
-        val id = 1000 + ((session.startMillis / 1000L) % 1_000_000L).toInt()
+        val id = finishIslandId(session.startMillis)
         if (lastFinishIslandId != 0 && lastFinishIslandId != id) {
             runCatching { manager.cancel(lastFinishIslandId) }
         }
@@ -352,6 +357,25 @@ object FocusManager {
             DebugLog.d("Focus", "结束通知已发布 id=$id")
         }.onFailure { DebugLog.e("Focus", "结束通知发布失败 id=$id", it) }
         logActiveNotifications("结束通知发布后")
+    }
+
+    /** 结束岛通知 id：由会话开始时刻推导（秒级唯一），保证每一场专注的结束通知都是新 key */
+    private fun finishIslandId(sessionStartMillis: Long): Int =
+        1000 + ((sessionStartMillis / 1000L) % 1_000_000L).toInt()
+
+    /**
+     * 清除上一场专注的结束提醒。新会话开始时调用：
+     * HyperOS 同一时刻只保留一条焦点通知，残留的结束岛会把本场的岛顶掉（不显示/不更新，
+     * 2026-09-11 日志实证：结束通知发布后前台服务通知 id=100 从活动列表消失）。
+     * 进程内直接用记录下来的 id；进程重启过则用最后一条历史记录的 start 反推同一个 id。
+     */
+    private fun clearFinishIsland() {
+        val id = lastFinishIslandId.takeIf { it != 0 }
+            ?: FocusStore.history().lastOrNull()?.let { finishIslandId(it.start) }
+            ?: return
+        runCatching { NotificationManagerCompat.from(app).cancel(id) }
+        DebugLog.d("Focus", "清除上一场结束提醒 id=$id")
+        lastFinishIslandId = 0
     }
 
     private fun showFinishNotification() {
