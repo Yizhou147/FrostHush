@@ -98,6 +98,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import android.widget.Toast
 import com.frosthush.app.R
 import com.frosthush.app.data.AppRepository
@@ -241,6 +243,12 @@ fun FocusScreen(
             now = System.currentTimeMillis()
             delay(1000L)
         }
+    }
+
+    // 回到前台（小窗切全屏、系统解冻后恢复）立即重算一次：进程被冻结期间上面的 1 秒循环
+    // 不会执行，界面会停在冻结前那一帧（实测卡在 00:06），须在恢复瞬间纠正
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        now = System.currentTimeMillis()
     }
 
     // 开始专注后退出多选状态

@@ -25,6 +25,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.focus.FocusManager
@@ -50,38 +52,45 @@ fun FocusLockScreen(onFinished: () -> Unit) {
     var pausedCount by remember { mutableIntStateOf(0) }
     val isRest = phase?.isFocus == false
 
-    // 每秒依据最新阶段刷新剩余时间与暂停应用数；会话被清理（服务已结束）时退出锁屏
-    LaunchedEffect(Unit) {
-        while (true) {
-            val session = FocusStore.activeSession() ?: break
-            val current = FocusManager.phase.value
-            // 倒计时以会话数据为准实时计算，phase 只作为快读来源（可能为 null）：
-            // phase==null（如上一会话结束后、本会话服务首 tick 前的窗口）时回退到
-            // session.phaseAt 实时推演，避免落到「?: 0L」显示错误的 00:00。
-            val phaseInfo = current ?: session.phaseAt(System.currentTimeMillis())
-            remaining = phaseInfo.remainingAt(System.currentTimeMillis())
-            pausedCount = session.packages.size
-            // 诊断打点（抓 00:00 bug 现场）：仅异常状态记录，正常不刷日志——
-            // 会话存在但 phase 为空 / remaining 归 0 时每秒留一条，配合 FocusService 的
-            // tick 异常日志即可还原"锁屏 00:00"是 phase 停更还是 UI 层问题
-            if (current == null) {
-                // phase 为 null 现会回退到会话实时推演、不再显示 00:00；此打点仅用于观察该窗口是否高频出现
-                DebugLog.d("LockScreen", "phase 为 null，回退 session 推演 sessionEnd=${session.endMillis}")
-            } else if (remaining <= 0L) {
-                // 仅当已过本段结束 2 秒以上仍为 0 才算异常（tick 停更/phase 未推进）：
-                // 正常到点瞬间（tick 慢 <1s 未切换）remaining 也会短暂归 0，需排除误报
-                val now = System.currentTimeMillis()
-                if (now - current.segmentEnd > 2000L) {
-                    DebugLog.d(
-                        "LockScreen", "异常：remaining=0 phase=idx${current.index} " +
-                            "segEnd=${current.segmentEnd} now=$now sessionEnd=${session.endMillis}"
-                    )
-                }
+    // 单次刷新：会话已被清理（服务已结束）时返回 false
+    fun refresh(): Boolean {
+        val session = FocusStore.activeSession() ?: return false
+        val current = FocusManager.phase.value
+        // 倒计时以会话数据为准实时计算，phase 只作为快读来源（可能为 null）：
+        // phase==null（如上一会话结束后、本会话服务首 tick 前的窗口）时回退到
+        // session.phaseAt 实时推演，避免落到「?: 0L」显示错误的 00:00。
+        val phaseInfo = current ?: session.phaseAt(System.currentTimeMillis())
+        remaining = phaseInfo.remainingAt(System.currentTimeMillis())
+        pausedCount = session.packages.size
+        // 诊断打点（抓 00:00 bug 现场）：仅异常状态记录，正常不刷日志——
+        // 会话存在但 phase 为空 / remaining 归 0 时每秒留一条，配合 FocusService 的
+        // tick 异常日志即可还原"锁屏 00:00"是 phase 停更还是 UI 层问题
+        if (current == null) {
+            // phase 为 null 现会回退到会话实时推演、不再显示 00:00；此打点仅用于观察该窗口是否高频出现
+            DebugLog.d("LockScreen", "phase 为 null，回退 session 推演 sessionEnd=${session.endMillis}")
+        } else if (remaining <= 0L) {
+            // 仅当已过本段结束 2 秒以上仍为 0 才算异常（tick 停更/phase 未推进）：
+            // 正常到点瞬间（tick 慢 <1s 未切换）remaining 也会短暂归 0，需排除误报
+            val now = System.currentTimeMillis()
+            if (now - current.segmentEnd > 2000L) {
+                DebugLog.d(
+                    "LockScreen", "异常：remaining=0 phase=idx${current.index} " +
+                        "segEnd=${current.segmentEnd} now=$now sessionEnd=${session.endMillis}"
+                )
             }
-            delay(1000L)
         }
+        return true
+    }
+
+    // 每秒刷新剩余时间与暂停应用数；会话被清理（服务已结束）时退出锁屏
+    LaunchedEffect(Unit) {
+        while (refresh()) delay(1000L)
         onFinished()
     }
+
+    // 回到前台（小窗切全屏、系统解冻后恢复）立即重算一次：进程被冻结期间上面的 1 秒循环
+    // 不会执行，界面会停在冻结前那一帧（实测卡在 00:06），须在恢复瞬间纠正
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh() }
 
     // 专注期间拦截返回键，禁止退出
     BackHandler { }
