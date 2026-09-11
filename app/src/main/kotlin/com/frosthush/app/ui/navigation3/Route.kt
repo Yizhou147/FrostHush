@@ -26,4 +26,13 @@ sealed interface Route : NavKey {
 
     /** 主题设置二级页 */
     data object ThemeSettings : Route
+
+    /** 专注设置二级页 */
+    data object SettingsFocus : Route
+
+    /** 计划与可靠性二级页 */
+    data object SettingsPlan : Route
+
+    /** 数据二级页 */
+    data object SettingsData : Route
 }

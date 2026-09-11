@@ -1,7 +1,12 @@
 package com.frosthush.app.ui.settings
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,27 +20,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Brush
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.FreeBreakfast
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.Warning
@@ -45,10 +38,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -58,111 +48,46 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import android.app.AlarmManager
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.os.PowerManager
-import android.provider.Settings
-import android.widget.Toast
 import com.frosthush.app.R
-import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
-import com.frosthush.app.util.DebugLog
 import com.frosthush.app.ui.theme.UiMode
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 /**
- * 导出文件名时间戳：到秒。每次导出时实时生成——不能缓存（remember），
- * 否则设置页停留期间多次导出会得到同名文件。
- */
-private fun exportTimeTag(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-
-/**
- * 设置页 · material 版（改造前的实现原样搬移）：
- * - 默认专注时长（选择列表）
- * - 专注结束通知 / 小米超级岛开关
- * - 主题模式（跟随系统 / 浅色 / 深色）
- * - 开始前二次确认开关
- * - 数据：导出专注统计、导出/导入应用配置（SAF 文件选择）、清空统计
+ * 设置页（一级）· material 版：
+ * 界面风格 / 主题设置，以及「专注设置」「计划与可靠性」「数据」三个分组入口。
+ *
+ * 各分组内的设置项已搬入对应的二级页（FocusSettingsScreen / PlanSettingsScreen / DataSettingsScreen）。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreenMaterial(
-    onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
     onOpenTheme: () -> Unit,
+    onOpenFocusSettings: () -> Unit,
+    onOpenPlanSettings: () -> Unit,
+    onOpenDataSettings: () -> Unit,
     /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
     bottomInnerPadding: Dp = 0.dp,
 ) {
-    val context = LocalContext.current
-    val defaultMinutes by SettingsStore.defaultFocusMinutes
-        .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
-    val defaultRestMinutes by SettingsStore.defaultRestMinutes
-        .collectAsState(initial = SettingsStore.cache.defaultRestMinutes)
-    val notifyFinish by SettingsStore.notifyFinishEnabled
-        .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
-    val focusIsland by SettingsStore.focusIslandEnabled
-        .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
     val themeMode by SettingsStore.themeMode
         .collectAsState(initial = SettingsStore.cache.themeMode)
     val uiModeValue by SettingsStore.uiMode
         .collectAsState(initial = SettingsStore.cache.uiMode)
-    val confirmBeforeStart by SettingsStore.confirmBeforeStart
-        .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
-    val planRemindSeconds by SettingsStore.planRemindSeconds
-        .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
-    val suspendFallback by SettingsStore.suspendFallbackMode
-        .collectAsState(initial = SettingsStore.cache.suspendFallbackMode)
-    var showDurationDialog by remember { mutableStateOf(false) }
-    var showRestDurationDialog by remember { mutableStateOf(false) }
     var showStyleDialog by remember { mutableStateOf(false) }
-    var showClearStatsDialog by remember { mutableStateOf(false) }
-    var showReliabilityDialog by remember { mutableStateOf(false) }
-    var showRemindDialog by remember { mutableStateOf(false) }
-    // 强制冻结：范围选择对话框 + 首次开启的副作用警告
-    var showFallbackScopeDialog by remember { mutableStateOf(false) }
-    var showFallbackWarning by remember { mutableStateOf(false) }
-    var pendingFallbackMode by remember { mutableStateOf(SettingsStore.FALLBACK_OFF) }
-    // 恢复被暂停应用：检测到的仍暂停数量 + 确认对话框
-    var restoreCount by remember { mutableStateOf(0) }
-    var showRestoreConfirm by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    /** 检测是否有应用仍被暂停（Shizuku 崩溃等导致专注结束后未能解冻），有则弹确认 */
-    fun checkSuspended() {
-        scope.launch {
-            val n = withContext(Dispatchers.Default) { FocusManager.suspendedEntries().size }
-            if (n == 0) {
-                Toast.makeText(context, context.getString(R.string.settings_restore_suspended_none), Toast.LENGTH_SHORT).show()
-            } else {
-                restoreCount = n
-                showRestoreConfirm = true
-            }
-        }
-    }
 
     val themeLabel = when (themeMode) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
@@ -174,67 +99,6 @@ fun SettingsScreenMaterial(
         stringResource(R.string.settings_ui_style_miuix)
     } else {
         stringResource(R.string.settings_ui_style_material)
-    }
-
-    // 强制冻结当前范围文案
-    val fallbackSummary = when (suspendFallback) {
-        SettingsStore.FALLBACK_CLONE_ONLY -> stringResource(R.string.settings_force_freeze_summary_clone)
-        SettingsStore.FALLBACK_ALL -> stringResource(R.string.settings_force_freeze_summary_all)
-        else -> stringResource(R.string.settings_force_freeze_summary_off)
-    }
-
-    // 导出专注统计 → 系统文件选择器保存
-    val statsExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            val ok = runCatching {
-                context.contentResolver.openOutputStream(uri)?.use {
-                    it.write(FocusStore.exportStatsJson().toByteArray())
-                } != null
-            }.getOrDefault(false)
-            Toast.makeText(
-                context,
-                context.getString(if (ok) R.string.settings_export_success else R.string.settings_export_failed),
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
-    }
-
-    // 导出应用配置 → 系统文件选择器保存
-    val configExportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
-    ) { uri ->
-        if (uri != null) {
-            val ok = runCatching {
-                context.contentResolver.openOutputStream(uri)?.use {
-                    it.write(FocusStore.exportConfigJson().toByteArray())
-                } != null
-            }.getOrDefault(false)
-            Toast.makeText(
-                context,
-                context.getString(if (ok) R.string.settings_export_success else R.string.settings_export_failed),
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
-    }
-
-    // 导入应用配置 → 系统文件选择器打开 → 解析校验后进入导入预览页
-    val configImportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            val text = runCatching {
-                context.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()?.use { it.readText() } ?: ""
-            }.getOrDefault("")
-            val data = FocusStore.parseConfigJson(text)
-            if (data == null) {
-                Toast.makeText(context, context.getString(R.string.settings_import_failed), Toast.LENGTH_SHORT).show()
-            } else {
-                onOpenConfigImport(data)
-            }
-        }
     }
 
     Scaffold(
@@ -250,67 +114,6 @@ fun SettingsScreenMaterial(
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp + bottomInnerPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SettingCard(
-                icon = Icons.Filled.Timer,
-                title = stringResource(R.string.settings_default_duration),
-                summary = stringResource(R.string.settings_default_duration_summary, defaultMinutes),
-                onClick = { showDurationDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.FreeBreakfast,
-                title = stringResource(R.string.settings_default_rest_duration),
-                summary = stringResource(R.string.settings_default_rest_duration_summary, defaultRestMinutes),
-                onClick = { showRestDurationDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Alarm,
-                title = stringResource(R.string.settings_plan_remind),
-                summary = if (planRemindSeconds > 0) {
-                    stringResource(R.string.settings_plan_remind_summary_seconds, planRemindSeconds)
-                } else {
-                    stringResource(R.string.settings_plan_remind_summary_none)
-                },
-                onClick = { showRemindDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Notifications,
-                title = stringResource(R.string.settings_notify_finish),
-                summary = stringResource(R.string.settings_notify_finish_summary),
-                onClick = { SettingsStore.setNotifyFinishEnabled(!notifyFinish) },
-                trailing = {
-                    Switch(checked = notifyFinish, onCheckedChange = { SettingsStore.setNotifyFinishEnabled(it) })
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Android,
-                title = stringResource(R.string.settings_focus_island),
-                summary = stringResource(R.string.settings_focus_island_summary),
-                onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
-                trailing = {
-                    Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
-                },
-            )
             SettingCard(
                 icon = Icons.Filled.Brush,
                 title = stringResource(R.string.settings_ui_style),
@@ -338,19 +141,10 @@ fun SettingsScreenMaterial(
                 },
             )
             SettingCard(
-                icon = Icons.Filled.Security,
-                title = stringResource(R.string.settings_confirm_before_start),
-                summary = stringResource(R.string.settings_confirm_before_start_summary),
-                onClick = { SettingsStore.setConfirmBeforeStart(!confirmBeforeStart) },
-                trailing = {
-                    Switch(checked = confirmBeforeStart, onCheckedChange = { SettingsStore.setConfirmBeforeStart(it) })
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Block,
-                title = stringResource(R.string.settings_force_freeze),
-                summary = fallbackSummary,
-                onClick = { showFallbackScopeDialog = true },
+                icon = Icons.Filled.Timer,
+                title = stringResource(R.string.settings_group_focus),
+                summary = stringResource(R.string.settings_group_focus_summary),
+                onClick = onOpenFocusSettings,
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -361,9 +155,9 @@ fun SettingsScreenMaterial(
             )
             SettingCard(
                 icon = Icons.Filled.VerifiedUser,
-                title = stringResource(R.string.settings_plan_reliability),
-                summary = stringResource(R.string.settings_plan_reliability_summary),
-                onClick = { showReliabilityDialog = true },
+                title = stringResource(R.string.settings_group_plan),
+                summary = stringResource(R.string.settings_group_plan_summary),
+                onClick = onOpenPlanSettings,
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -373,114 +167,21 @@ fun SettingsScreenMaterial(
                 },
             )
             SettingCard(
-                icon = Icons.Filled.BarChart,
-                title = stringResource(R.string.settings_export_stats),
-                summary = stringResource(R.string.settings_export_stats_summary),
-                onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTag()}.json") },
+                icon = Icons.Filled.Folder,
+                title = stringResource(R.string.settings_group_data),
+                summary = stringResource(R.string.settings_group_data_summary),
+                onClick = onOpenDataSettings,
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.FileDownload,
-                title = stringResource(R.string.settings_export_config),
-                summary = stringResource(R.string.settings_export_config_summary),
-                onClick = { configExportLauncher.launch("frosthush-config-${exportTimeTag()}.json") },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.FileOpen,
-                title = stringResource(R.string.settings_import_config),
-                summary = stringResource(R.string.settings_import_config_summary),
-                onClick = { configImportLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.LockOpen,
-                title = stringResource(R.string.settings_restore_suspended),
-                summary = stringResource(R.string.settings_restore_suspended_summary),
-                onClick = { checkSuspended() },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            // 导出诊断日志入口：收集计划时间不准等 bug 的关键事件日志（内存环形日志，手动导出）
-            SettingCard(
-                icon = Icons.Filled.BugReport,
-                title = stringResource(R.string.debug_export_log),
-                summary = stringResource(R.string.debug_export_log_summary),
-                onClick = {
-                    val result = DebugLog.export(context)
-                    Toast.makeText(
-                        context,
-                        if (result != null) {
-                            context.getString(R.string.debug_exported, result)
-                        } else {
-                            context.getString(R.string.debug_export_failed)
-                        },
-                        Toast.LENGTH_LONG,
-                    ).show()
-                },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.DeleteSweep,
-                title = stringResource(R.string.settings_clear_stats),
-                summary = stringResource(R.string.settings_clear_stats_summary),
-                onClick = { showClearStatsDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
                     )
                 },
             )
         }
     }
 
-    if (showDurationDialog) {
-        DurationDialog(
-            title = stringResource(R.string.settings_default_duration),
-            selected = defaultMinutes,
-            onSelect = { SettingsStore.setDefaultFocusMinutes(it); showDurationDialog = false },
-            onCancel = { showDurationDialog = false },
-        )
-    }
-    if (showRestDurationDialog) {
-        DurationDialog(
-            title = stringResource(R.string.settings_default_rest_duration),
-            selected = defaultRestMinutes,
-            onSelect = { SettingsStore.setDefaultRestMinutes(it); showRestDurationDialog = false },
-            onCancel = { showRestDurationDialog = false },
-        )
-    }
     if (showStyleDialog) {
         ChoiceDialog(
             title = stringResource(R.string.settings_ui_style),
@@ -496,125 +197,6 @@ fun SettingsScreenMaterial(
                 showStyleDialog = false
             },
             onDismiss = { showStyleDialog = false },
-        )
-    }
-    if (showClearStatsDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearStatsDialog = false },
-            title = { Text(stringResource(R.string.settings_clear_stats)) },
-            text = { Text(stringResource(R.string.settings_clear_stats_confirm)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    FocusStore.clearHistory()
-                    FocusManager.bumpVersion()
-                    showClearStatsDialog = false
-                    Toast.makeText(context, context.getString(R.string.settings_cleared), Toast.LENGTH_SHORT).show()
-                }) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearStatsDialog = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-        )
-    }
-    if (showReliabilityDialog) {
-        PlanReliabilityDialog(onDismiss = { showReliabilityDialog = false })
-    }
-    if (showRemindDialog) {
-        RemindSecondsDialog(
-            selected = planRemindSeconds,
-            onSelect = { SettingsStore.setPlanRemindSeconds(it); showRemindDialog = false },
-            onCancel = { showRemindDialog = false },
-        )
-    }
-    if (showFallbackScopeDialog) {
-        AlertDialog(
-            onDismissRequest = { showFallbackScopeDialog = false },
-            title = { Text(stringResource(R.string.settings_force_freeze_scope_title)) },
-            text = {
-                Column {
-                    listOf(
-                        SettingsStore.FALLBACK_OFF to stringResource(R.string.settings_force_freeze_scope_off),
-                        SettingsStore.FALLBACK_CLONE_ONLY to stringResource(R.string.settings_force_freeze_scope_clone),
-                        SettingsStore.FALLBACK_ALL to stringResource(R.string.settings_force_freeze_scope_all),
-                    ).forEach { (mode, label) ->
-                        Text(
-                            label,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showFallbackScopeDialog = false
-                                    if (mode == SettingsStore.FALLBACK_OFF) {
-                                        SettingsStore.setSuspendFallbackMode(mode)
-                                    } else if (suspendFallback != SettingsStore.FALLBACK_OFF) {
-                                        // 已开启：直接切换范围
-                                        SettingsStore.setSuspendFallbackMode(mode)
-                                    } else {
-                                        // 从关闭首次开启：先弹副作用警告，确认后才生效
-                                        pendingFallbackMode = mode
-                                        showFallbackWarning = true
-                                    }
-                                }
-                                .padding(vertical = 12.dp),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showFallbackScopeDialog = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-        )
-    }
-    if (showFallbackWarning) {
-        AlertDialog(
-            onDismissRequest = { showFallbackWarning = false },
-            title = { Text(stringResource(R.string.settings_force_freeze_warning_title)) },
-            text = { Text(stringResource(R.string.settings_force_freeze_warning_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showFallbackWarning = false
-                    SettingsStore.setSuspendFallbackMode(pendingFallbackMode)
-                }) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFallbackWarning = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
-        )
-    }
-    if (showRestoreConfirm) {
-        AlertDialog(
-            onDismissRequest = { showRestoreConfirm = false },
-            title = { Text(stringResource(R.string.settings_restore_suspended)) },
-            text = { Text(stringResource(R.string.settings_restore_suspended_confirm, restoreCount)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showRestoreConfirm = false
-                    scope.launch {
-                        val restored = withContext(Dispatchers.Default) { FocusManager.restoreSuspendedApps() }
-                        Toast.makeText(
-                            context,
-                            if (restored > 0) {
-                                context.getString(R.string.focus_suspended_restored, restored)
-                            } else {
-                                context.getString(R.string.focus_suspended_restore_failed)
-                            },
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirm = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
         )
     }
 }
@@ -658,100 +240,9 @@ internal fun SettingCard(
     }
 }
 
-/** 默认时长设置对话框（默认专注/休息时长共用）：数字输入（1-240 分钟） */
-@Composable
-private fun DurationDialog(
-    title: String,
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    onCancel: () -> Unit,
-) {
-    val context = LocalContext.current
-    var input by remember { mutableStateOf(selected.toString()) }
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(3) },
-                label = { Text(title) },
-                suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val minutes = input.toIntOrNull()
-                if (minutes != null && minutes in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
-                    onSelect(minutes)
-                } else {
-                    Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
-                }
-            }) { Text(stringResource(R.string.action_confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
-}
-
-/** 计划开始前提醒秒数设置对话框：数字输入（0-3600，0 = 不提醒到点直接开始） */
-@Composable
-private fun RemindSecondsDialog(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    onCancel: () -> Unit,
-) {
-    val context = LocalContext.current
-    var input by remember { mutableStateOf(selected.toString()) }
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.settings_plan_remind)) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it.filter(Char::isDigit).take(4) },
-                    label = { Text(stringResource(R.string.settings_plan_remind)) },
-                    suffix = { Text(stringResource(R.string.settings_plan_remind_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.settings_plan_remind_dialog_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val seconds = input.toIntOrNull()
-                if (seconds != null && seconds in SettingsStore.PLAN_REMIND_RANGE) {
-                    onSelect(seconds)
-                } else {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_plan_remind_invalid),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }) { Text(stringResource(R.string.action_confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
-}
-
 /** 计划可靠性检查对话框：逐项检查省电豁免 / 精确闹钟 / 自启动 / Shizuku，
  * 未通过项提供跳转系统设置的入口；「重新检测」自增 key 触发重算。
- * internal：设置页与计划页（省电提醒横幅）复用。
+ * internal：设置页（计划与可靠性二级页）与计划页（省电提醒横幅）复用。
  */
 @Composable
 internal fun PlanReliabilityDialog(onDismiss: () -> Unit) {

@@ -56,6 +56,9 @@ private const val KEY_IMPORT = "import"
 private const val KEY_APP_GROUPS = "appGroups"
 private const val KEY_CONFIG_IMPORT = "configImport"
 private const val KEY_THEME_SETTINGS = "themeSettings"
+private const val KEY_SETTINGS_FOCUS = "settingsFocus"
+private const val KEY_SETTINGS_PLAN = "settingsPlan"
+private const val KEY_SETTINGS_DATA = "settingsData"
 private const val PREFIX_PLAN_EDIT = "planEdit:"
 
 private fun encodeRoute(route: NavKey): String = when (route) {
@@ -64,6 +67,9 @@ private fun encodeRoute(route: NavKey): String = when (route) {
     Route.AppGroups -> KEY_APP_GROUPS
     Route.ConfigImport -> KEY_CONFIG_IMPORT
     Route.ThemeSettings -> KEY_THEME_SETTINGS
+    Route.SettingsFocus -> KEY_SETTINGS_FOCUS
+    Route.SettingsPlan -> KEY_SETTINGS_PLAN
+    Route.SettingsData -> KEY_SETTINGS_DATA
     is Route.PlanEdit -> "$PREFIX_PLAN_EDIT${route.planId}"
     else -> KEY_MAIN
 }
@@ -74,6 +80,9 @@ private fun decodeRoute(value: String): Route? = when {
     value == KEY_APP_GROUPS -> Route.AppGroups
     value == KEY_CONFIG_IMPORT -> Route.ConfigImport
     value == KEY_THEME_SETTINGS -> Route.ThemeSettings
+    value == KEY_SETTINGS_FOCUS -> Route.SettingsFocus
+    value == KEY_SETTINGS_PLAN -> Route.SettingsPlan
+    value == KEY_SETTINGS_DATA -> Route.SettingsData
     value.startsWith(PREFIX_PLAN_EDIT) ->
         value.removePrefix(PREFIX_PLAN_EDIT).toLongOrNull()?.let { Route.PlanEdit(it) }
     else -> null

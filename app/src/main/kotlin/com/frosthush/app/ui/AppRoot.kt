@@ -64,6 +64,9 @@ import com.frosthush.app.ui.navigation3.rememberNavigator
 import com.frosthush.app.ui.plan.PlanEditScreen
 import com.frosthush.app.ui.plan.PlanScreen
 import com.frosthush.app.ui.settings.ConfigImportScreen
+import com.frosthush.app.ui.settings.DataSettingsScreen
+import com.frosthush.app.ui.settings.FocusSettingsScreen
+import com.frosthush.app.ui.settings.PlanSettingsScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.settings.ThemeSettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
@@ -167,14 +170,7 @@ private fun MainNavHost() {
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
             onBack = { navigator.pop() },
             entryProvider = entryProvider {
-                entry<Route.Main> {
-                    MainScreen(
-                        onOpenConfigImport = { data ->
-                            configImportData = data
-                            navigator.push(Route.ConfigImport)
-                        },
-                    )
-                }
+                entry<Route.Main> { MainScreen() }
                 entry<Route.Import> { ImportScreen(onBack = navigator::pop) }
                 entry<Route.AppGroups> { AppGroupScreen(onBack = navigator::pop) }
                 entry<Route.PlanEdit> { route ->
@@ -185,6 +181,17 @@ private fun MainNavHost() {
                     PlanEditScreen(plan = plan, onBack = navigator::pop)
                 }
                 entry<Route.ThemeSettings> { ThemeSettingsScreen(onBack = navigator::pop) }
+                entry<Route.SettingsFocus> { FocusSettingsScreen(onBack = navigator::pop) }
+                entry<Route.SettingsPlan> { PlanSettingsScreen(onBack = navigator::pop) }
+                entry<Route.SettingsData> {
+                    DataSettingsScreen(
+                        onBack = navigator::pop,
+                        onOpenConfigImport = { data ->
+                            configImportData = data
+                            navigator.push(Route.ConfigImport)
+                        },
+                    )
+                }
                 entry<Route.ConfigImport> {
                     val data = configImportData
                     if (data == null) {
@@ -267,7 +274,7 @@ private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
  *   **列表底部内边距**，因此底栏下方不会再出现一条被占位的纯色横条。
  */
 @Composable
-private fun MainScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
+private fun MainScreen() {
     val navigator = LocalNavigator.current
     val uiMode = LocalUiMode.current
     val enableBlur = LocalEnableBlur.current
@@ -317,7 +324,6 @@ private fun MainScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                         tab = MainTab.entries[page],
                         bottomInnerPadding = bottomInnerPadding,
                         mainPagerState = mainPagerState,
-                        onOpenConfigImport = onOpenConfigImport,
                     )
                 }
             }
@@ -365,7 +371,6 @@ private fun TabPage(
     tab: MainTab,
     bottomInnerPadding: Dp,
     mainPagerState: MainPagerState,
-    onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
 ) {
     val navigator = LocalNavigator.current
     when (tab) {
@@ -386,8 +391,10 @@ private fun TabPage(
         MainTab.Stats -> StatsScreen(bottomInnerPadding = bottomInnerPadding)
 
         MainTab.Settings -> SettingsScreen(
-            onOpenConfigImport = onOpenConfigImport,
             onOpenTheme = { navigator.push(Route.ThemeSettings) },
+            onOpenFocusSettings = { navigator.push(Route.SettingsFocus) },
+            onOpenPlanSettings = { navigator.push(Route.SettingsPlan) },
+            onOpenDataSettings = { navigator.push(Route.SettingsData) },
             bottomInnerPadding = bottomInnerPadding,
         )
 
