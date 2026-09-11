@@ -348,6 +348,9 @@ private fun MainScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
 
                 UiMode.Miuix -> top.yukonga.miuix.kmp.basic.Scaffold(
                     bottomBar = bottomBar,
+                    containerColor = MiuixTheme.colorScheme.surface,
+                    // 顶栏由各页面自己的 TopAppBar 处理，这里不重复叠加状态栏 inset
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 ) { innerPadding ->
                     pagerContent(innerPadding.calculateBottomPadding())
                 }
