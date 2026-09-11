@@ -456,9 +456,12 @@ private fun PlanRowMiuix(
             // 多选模式下不注册长按（长按留给拖拽排序，避免手势冲突）；非多选模式长按=进入多选
             .combinedClickable(onClick = onClick, onLongClick = if (selectionMode) null else onLongClick)
             .background(
-                // 选中态与冲突高亮都用同一蓝色（与点击进入多选时一致），冲突高亮靠闪烁区分
-                if (selected || conflictHighlight) MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                else Color.Transparent
+                // 选中态用浅灰底（不用主题蓝）；冲突高亮用错误红底，靠闪烁区分（与选中态不再同色）
+                when {
+                    conflictHighlight -> MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                    selected -> MiuixTheme.colorScheme.surfaceContainerHigh
+                    else -> Color.Transparent
+                }
             )
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

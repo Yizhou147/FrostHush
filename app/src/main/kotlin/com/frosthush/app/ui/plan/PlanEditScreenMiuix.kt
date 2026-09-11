@@ -44,10 +44,10 @@ import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.ui.AppSelectScreen
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
-import com.frosthush.app.ui.MaterialTimePickerDialog
-import com.frosthush.app.ui.SegmentMinutesDialog
-import com.frosthush.app.ui.SegmentRatioBar
-import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.MiuixTimePickerDialog
+import com.frosthush.app.ui.SegmentMinutesDialogMiuix
+import com.frosthush.app.ui.SegmentRatioBarMiuix
+import com.frosthush.app.ui.SegmentRowMiuix
 import com.frosthush.app.ui.appendSegment
 import com.frosthush.app.ui.minuteOfDayText
 import com.frosthush.app.ui.removeSegment
@@ -319,7 +319,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     segments.forEachIndexed { index, seg ->
                         val (s, e) = segmentBounds.getOrElse(index) { 0 to 0 }
-                        SegmentRow(
+                        SegmentRowMiuix(
                             segment = seg,
                             deletable = index > 0,
                             // 按具体时间分段：每行显示该段起止时间（跨天显示「次日」）；
@@ -342,7 +342,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                         enabled = segments.size < MAX_SEGMENTS,
                     )
                     if (segments.isNotEmpty()) {
-                        SegmentRatioBar(segments)
+                        SegmentRatioBarMiuix(segments)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = segmentsSummaryText(segments),
@@ -440,7 +440,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                                         .fillMaxWidth()
                                         .clickable { selectedGroupId = group.id }
                                         .background(
-                                            if (selected) MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                            if (selected) MiuixTheme.colorScheme.surfaceContainerHigh
                                             else Color.Transparent
                                         )
                                         .padding(vertical = 8.dp, horizontal = 12.dp),
@@ -529,7 +529,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
     }
 
     if (showStartPicker) {
-        MaterialTimePickerDialog(
+        MiuixTimePickerDialog(
             initialHour = startMinute / 60,
             initialMinute = startMinute % 60,
             onDismiss = { showStartPicker = false },
@@ -540,7 +540,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
         )
     }
     if (showEndPicker) {
-        MaterialTimePickerDialog(
+        MiuixTimePickerDialog(
             initialHour = endMinute / 60,
             initialMinute = endMinute % 60,
             onDismiss = { showEndPicker = false },
@@ -552,7 +552,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
     }
     // 按时间段调整分段：选择该段新的结束时间 → 时长自动反算，后续段顺延
     if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
-        MaterialTimePickerDialog(
+        MiuixTimePickerDialog(
             initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
             initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
             onDismiss = { editingEndIndex = -1 },
@@ -578,7 +578,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
     if (durationDialogIndex in segments.indices) {
         val index = durationDialogIndex
         val seg = segments[index]
-        SegmentMinutesDialog(
+        SegmentMinutesDialogMiuix(
             title = stringResource(
                 if (seg.isFocus) R.string.focus_segment_focus_duration_title
                 else R.string.focus_segment_rest_duration_title

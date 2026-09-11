@@ -79,10 +79,10 @@ import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
-import com.frosthush.app.ui.MaterialTimePickerDialog
-import com.frosthush.app.ui.SegmentMinutesDialog
-import com.frosthush.app.ui.SegmentRatioBar
-import com.frosthush.app.ui.SegmentRow
+import com.frosthush.app.ui.MiuixTimePickerDialog
+import com.frosthush.app.ui.SegmentMinutesDialogMiuix
+import com.frosthush.app.ui.SegmentRatioBarMiuix
+import com.frosthush.app.ui.SegmentRowMiuix
 import com.frosthush.app.ui.minuteOfDayText
 import com.frosthush.app.ui.removeSegment
 import com.frosthush.app.ui.segmentEndTimeText
@@ -861,7 +861,9 @@ private fun IdleContent(
                                 onLongClick = { onItemLongClick(entry) },
                             )
                             .background(
-                                if (isSelected) MiuixTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                // 选中态用浅灰底（不用主题蓝）：蓝色整行底色观感偏重，
+                                // 选中与否另外由右侧复选框表达
+                                if (isSelected) MiuixTheme.colorScheme.surfaceContainerHigh
                                 else Color.Transparent
                             )
                             .padding(vertical = 8.dp),
@@ -1046,7 +1048,7 @@ private fun FocusTimeDialog(
             ) {
                 segments.forEachIndexed { index, seg ->
                     val (s, e) = segmentBounds.getOrElse(index) { 0 to 0 }
-                    SegmentRow(
+                    SegmentRowMiuix(
                         segment = seg,
                         deletable = index > 0,
                         onClickDuration = { durationDialogIndex = index },
@@ -1068,7 +1070,7 @@ private fun FocusTimeDialog(
                 )
                 if (segments.size > 1) {
                     Spacer(Modifier.height(4.dp))
-                    SegmentRatioBar(segments)
+                    SegmentRatioBarMiuix(segments)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -1142,7 +1144,7 @@ private fun FocusTimeDialog(
     if (durationDialogIndex in segments.indices) {
         val index = durationDialogIndex
         val seg = segments[index]
-        SegmentMinutesDialog(
+        SegmentMinutesDialogMiuix(
             title = stringResource(
                 if (seg.isFocus) R.string.focus_segment_focus_duration_title
                 else R.string.focus_segment_rest_duration_title
@@ -1159,7 +1161,7 @@ private fun FocusTimeDialog(
     // 按时间段调整分段：选择该段新的结束时刻 → 时长自动反算，后续段顺延
     // 单段最大 240 分钟（普通专注总时长上限）；新总时长超 240 在点开始时统一校验
     if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
-        MaterialTimePickerDialog(
+        MiuixTimePickerDialog(
             initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
             initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
             onDismiss = { editingEndIndex = -1 },

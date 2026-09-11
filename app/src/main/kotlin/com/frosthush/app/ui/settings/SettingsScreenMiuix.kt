@@ -13,9 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -25,7 +22,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
 import com.frosthush.app.data.SettingsStore
-import com.frosthush.app.ui.theme.UiMode
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -37,7 +33,6 @@ import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Timer
-import top.yukonga.miuix.kmp.icon.extended.Tune
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
@@ -60,20 +55,11 @@ fun SettingsScreenMiuix(
 ) {
     val themeMode by SettingsStore.themeMode
         .collectAsState(initial = SettingsStore.cache.themeMode)
-    val uiModeValue by SettingsStore.uiMode
-        .collectAsState(initial = SettingsStore.cache.uiMode)
-    var showStyleDialog by remember { mutableStateOf(false) }
 
     val themeLabel = when (themeMode) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
-    }
-    // 界面风格当前值文案（miuix / material）
-    val styleLabel = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) {
-        stringResource(R.string.settings_ui_style_miuix)
-    } else {
-        stringResource(R.string.settings_ui_style_material)
     }
 
     val scrollBehavior = MiuixScrollBehavior()
@@ -96,14 +82,8 @@ fun SettingsScreenMiuix(
                 .padding(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 12.dp + bottomInnerPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // 界面：界面风格、主题
+            // 界面：仅保留「主题设置」（界面风格选项已在主题设置二级页内）
             Card {
-                ArrowPreference(
-                    title = stringResource(R.string.settings_ui_style),
-                    summary = stringResource(R.string.settings_ui_style_summary, styleLabel),
-                    startAction = { SettingIcon(MiuixIcons.Tune) },
-                    onClick = { showStyleDialog = true },
-                )
                 ArrowPreference(
                     title = stringResource(R.string.settings_theme_page_title),
                     summary = stringResource(R.string.settings_theme_summary, themeLabel),
@@ -133,27 +113,12 @@ fun SettingsScreenMiuix(
                 )
             }
         }
-
-        MiuixChoiceDialog(
-            show = showStyleDialog,
-            title = stringResource(R.string.settings_ui_style),
-            options = listOf(
-                stringResource(R.string.settings_ui_style_miuix),
-                stringResource(R.string.settings_ui_style_material),
-            ),
-            selectedIndex = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) 0 else 1,
-            onSelect = {
-                SettingsStore.setUiMode(if (it == 0) SettingsStore.UI_MODE_MIUIX else SettingsStore.UI_MODE_MATERIAL)
-                showStyleDialog = false
-            },
-            onDismiss = { showStyleDialog = false },
-        )
     }
 }
 
-/** 设置项图标（统一 primary 色；危险项可传入 error 色） */
+/** 设置项图标（跟随正文色，HyperOS 用黑色图标而非主题蓝；危险项可传入 error 色） */
 @Composable
-internal fun SettingIcon(icon: ImageVector, tint: Color = MiuixTheme.colorScheme.primary) {
+internal fun SettingIcon(icon: ImageVector, tint: Color = MiuixTheme.colorScheme.onSurfaceContainer) {
     Icon(icon, contentDescription = null, tint = tint)
 }
 

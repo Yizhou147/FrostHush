@@ -340,7 +340,7 @@ private fun ModuleCard(
         title = title,
         summary = summary,
         startAction = {
-            Icon(icon, contentDescription = null, tint = MiuixTheme.colorScheme.primary)
+            Icon(icon, contentDescription = null, tint = MiuixTheme.colorScheme.onSurfaceContainer)
         },
         onClick = onClick,
     )

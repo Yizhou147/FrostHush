@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CheckCircle
@@ -64,7 +63,6 @@ import com.frosthush.app.R
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
-import com.frosthush.app.ui.theme.UiMode
 import rikka.shizuku.Shizuku
 
 /**
@@ -85,20 +83,11 @@ fun SettingsScreenMaterial(
 ) {
     val themeMode by SettingsStore.themeMode
         .collectAsState(initial = SettingsStore.cache.themeMode)
-    val uiModeValue by SettingsStore.uiMode
-        .collectAsState(initial = SettingsStore.cache.uiMode)
-    var showStyleDialog by remember { mutableStateOf(false) }
 
     val themeLabel = when (themeMode) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
-    }
-    // 界面风格当前值文案（miuix / material）
-    val styleLabel = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) {
-        stringResource(R.string.settings_ui_style_miuix)
-    } else {
-        stringResource(R.string.settings_ui_style_material)
     }
 
     Scaffold(
@@ -114,19 +103,7 @@ fun SettingsScreenMaterial(
                 .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp + bottomInnerPadding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SettingCard(
-                icon = Icons.Filled.Brush,
-                title = stringResource(R.string.settings_ui_style),
-                summary = stringResource(R.string.settings_ui_style_summary, styleLabel),
-                onClick = { showStyleDialog = true },
-                trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-            )
+            // 界面：仅保留「主题设置」（界面风格选项已在主题设置二级页内）
             SettingCard(
                 icon = Icons.Filled.DarkMode,
                 title = stringResource(R.string.settings_theme_page_title),
@@ -180,24 +157,6 @@ fun SettingsScreenMaterial(
                 },
             )
         }
-    }
-
-    if (showStyleDialog) {
-        ChoiceDialog(
-            title = stringResource(R.string.settings_ui_style),
-            options = listOf(
-                stringResource(R.string.settings_ui_style_miuix),
-                stringResource(R.string.settings_ui_style_material),
-            ),
-            selectedIndex = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) 0 else 1,
-            onSelect = {
-                SettingsStore.setUiMode(
-                    if (it == 0) SettingsStore.UI_MODE_MIUIX else SettingsStore.UI_MODE_MATERIAL
-                )
-                showStyleDialog = false
-            },
-            onDismiss = { showStyleDialog = false },
-        )
     }
 }
 

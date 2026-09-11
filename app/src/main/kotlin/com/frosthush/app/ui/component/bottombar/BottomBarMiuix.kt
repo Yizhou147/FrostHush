@@ -2,12 +2,15 @@
 package com.frosthush.app.ui.component.bottombar
 
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,7 +48,7 @@ fun BottomBarMiuix(
     if (!enableFloatingBottomBar) {
         BlurredBar(backdrop = blurBackdrop) {
             NavigationBar(
-                modifier = modifier,
+                modifier = modifier.fillMaxWidth(),
                 color = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
             ) {
                 MainTab.entries.forEachIndexed { index, tab ->
@@ -62,35 +65,39 @@ fun BottomBarMiuix(
     } else {
         val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             .let { inset -> if (inset != 0.dp) 8.dp + inset else 28.dp }
-        FloatingBottomBar(
-            modifier = modifier
-                .pointerInput(Unit) {
-                    detectTapGestures { }
-                }
-                .padding(start = 16.dp, end = 16.dp, bottom = bottomPadding),
-            selectedIndex = mainState.selectedPage,
-            onSelected = { mainState.animateToPage(it) },
-            backdrop = backdrop,
-            tabsCount = MainTab.entries.size,
-            isBlurEnabled = enableFloatingBottomBarBlur,
-        ) { activateTab ->
-            MainTab.entries.forEachIndexed { index, tab ->
-                FloatingBottomBarItem(
-                    selected = mainState.selectedPage == index,
-                    onClick = { activateTab(index) },
-                    // FloatingBottomBar 外层是 Modifier.width(IntrinsicSize.Min)，整条胶囊宽度等于
-                    // 各子项固有最小宽度之和；不给最小宽度会缩成文字宽度挤成一团。
-                    modifier = Modifier.defaultMinSize(minWidth = 64.dp),
-                ) {
-                    Icon(imageVector = tab.icon, contentDescription = null)
-                    Text(
-                        text = stringResource(tab.label),
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Visible,
-                    )
+        // 全宽容器 + 居中：胶囊宽度由内容（IntrinsicSize.Min）决定，
+        // 若直接交给 Scaffold 的 bottomBar 槽测量会贴左对齐（改界面缩放后更明显）
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            FloatingBottomBar(
+                modifier = Modifier
+                    .pointerInput(Unit) {
+                        detectTapGestures { }
+                    }
+                    .padding(start = 16.dp, end = 16.dp, bottom = bottomPadding),
+                selectedIndex = mainState.selectedPage,
+                onSelected = { mainState.animateToPage(it) },
+                backdrop = backdrop,
+                tabsCount = MainTab.entries.size,
+                isBlurEnabled = enableFloatingBottomBarBlur,
+            ) { activateTab ->
+                MainTab.entries.forEachIndexed { index, tab ->
+                    FloatingBottomBarItem(
+                        selected = mainState.selectedPage == index,
+                        onClick = { activateTab(index) },
+                        // FloatingBottomBar 外层是 Modifier.width(IntrinsicSize.Min)，整条胶囊宽度等于
+                        // 各子项固有最小宽度之和；不给最小宽度会缩成文字宽度挤成一团。
+                        modifier = Modifier.defaultMinSize(minWidth = 64.dp),
+                    ) {
+                        Icon(imageVector = tab.icon, contentDescription = null)
+                        Text(
+                            text = stringResource(tab.label),
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Visible,
+                        )
+                    }
                 }
             }
         }
