@@ -384,6 +384,11 @@ private fun MainTabs(
                             backdrop = backdrop,
                             tabsCount = tabs.size,
                             isBlurEnabled = liquidGlass,
+                            // 胶囊取色跟随应用主题（浅色模式浅底、深色模式深底），
+                            // 不依赖 miuix 默认色板，避免与页面背景不一致
+                            containerColorOverride = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColorOverride = MaterialTheme.colorScheme.onSurfaceVariant,
+                            accentColorOverride = MaterialTheme.colorScheme.primary,
                         ) { activate ->
                             tabs.forEachIndexed { index, spec ->
                                 FloatingBottomBarItem(

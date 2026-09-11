@@ -95,6 +95,15 @@ fun AboutScreen() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // 编译时间：正式版隐藏（仍写入诊断日志头部），其余构建显示，便于区分测试包
+            if (!BuildConfig.IS_OFFICIAL_BUILD) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    stringResource(R.string.about_build_time, BuildConfig.BUILD_TIME),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.height(16.dp))
             Text(
                 stringResource(R.string.app_description),

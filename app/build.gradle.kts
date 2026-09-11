@@ -23,9 +23,13 @@ android {
         targetSdk = 37
         versionCode = 8
         versionName = "1.2.2"
-        // 编译时间（精确到分钟）：仅用于诊断日志导出头部（关于页不展示）
+        // 编译时间（精确到分钟）：诊断日志导出头部 + 非正式版关于页展示
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
+        // 是否「正式版」：仅打正式发布包时带 -PisOfficialBuild=true。
+        // 正式版关于页不显示编译时间，其余构建（含本地测试用 release 包）仍显示。
+        val isOfficialBuild = (project.findProperty("isOfficialBuild") as String?)?.toBoolean() ?: false
+        buildConfigField("boolean", "IS_OFFICIAL_BUILD", isOfficialBuild.toString())
     }
 
     buildTypes {

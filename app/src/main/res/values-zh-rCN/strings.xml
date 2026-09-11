@@ -235,6 +235,7 @@
 
     <!-- 关于 -->
     <string name="about_version">版本 %s</string>
+    <string name="about_build_time">编译时间：%1$s</string>
 
     <string name="about_hail_title">雹（Hail）</string>
     <string name="about_hail_url">github.com/aistra0528/Hail</string>
