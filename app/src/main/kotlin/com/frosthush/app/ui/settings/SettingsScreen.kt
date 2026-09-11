@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Cancel
@@ -84,6 +85,7 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.util.DebugLog
+import com.frosthush.app.ui.theme.UiMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -108,7 +110,10 @@ private fun exportTimeTag(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
+fun SettingsScreen(
+    onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
+    onOpenTheme: () -> Unit,
+) {
     val context = LocalContext.current
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
@@ -120,6 +125,8 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
     val themeMode by SettingsStore.themeMode
         .collectAsState(initial = SettingsStore.cache.themeMode)
+    val uiModeValue by SettingsStore.uiMode
+        .collectAsState(initial = SettingsStore.cache.uiMode)
     val confirmBeforeStart by SettingsStore.confirmBeforeStart
         .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
     val planRemindSeconds by SettingsStore.planRemindSeconds
@@ -128,7 +135,7 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         .collectAsState(initial = SettingsStore.cache.suspendFallbackMode)
     var showDurationDialog by remember { mutableStateOf(false) }
     var showRestDurationDialog by remember { mutableStateOf(false) }
-    var showThemeDialog by remember { mutableStateOf(false) }
+    var showStyleDialog by remember { mutableStateOf(false) }
     var showClearStatsDialog by remember { mutableStateOf(false) }
     var showReliabilityDialog by remember { mutableStateOf(false) }
     var showRemindDialog by remember { mutableStateOf(false) }
@@ -158,6 +165,12 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
         SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
         SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
         else -> stringResource(R.string.settings_theme_system)
+    }
+    // 界面风格当前值文案（miuix / material）
+    val styleLabel = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) {
+        stringResource(R.string.settings_ui_style_miuix)
+    } else {
+        stringResource(R.string.settings_ui_style_material)
     }
 
     // 强制冻结当前范围文案
@@ -296,10 +309,23 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
                 },
             )
             SettingCard(
+                icon = Icons.Filled.Brush,
+                title = stringResource(R.string.settings_ui_style),
+                summary = stringResource(R.string.settings_ui_style_summary, styleLabel),
+                onClick = { showStyleDialog = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            SettingCard(
                 icon = Icons.Filled.DarkMode,
-                title = stringResource(R.string.settings_theme),
+                title = stringResource(R.string.settings_theme_page_title),
                 summary = stringResource(R.string.settings_theme_summary, themeLabel),
-                onClick = { showThemeDialog = true },
+                onClick = onOpenTheme,
                 trailing = {
                     Icon(
                         Icons.Filled.ChevronRight,
@@ -452,11 +478,21 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
             onCancel = { showRestDurationDialog = false },
         )
     }
-    if (showThemeDialog) {
-        ThemeDialog(
-            selected = themeMode,
-            onSelect = { SettingsStore.setThemeMode(it) },
-            onDismiss = { showThemeDialog = false },
+    if (showStyleDialog) {
+        ChoiceDialog(
+            title = stringResource(R.string.settings_ui_style),
+            options = listOf(
+                stringResource(R.string.settings_ui_style_miuix),
+                stringResource(R.string.settings_ui_style_material),
+            ),
+            selectedIndex = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) 0 else 1,
+            onSelect = {
+                SettingsStore.setUiMode(
+                    if (it == 0) SettingsStore.UI_MODE_MIUIX else SettingsStore.UI_MODE_MATERIAL
+                )
+                showStyleDialog = false
+            },
+            onDismiss = { showStyleDialog = false },
         )
     }
     if (showClearStatsDialog) {
@@ -578,37 +614,6 @@ fun SettingsScreen(onOpenConfigImport: (FocusStore.ConfigData) -> Unit) {
             },
         )
     }
-}
-
-/** 主题模式选择对话框 */
-@Composable
-private fun ThemeDialog(selected: Int, onSelect: (Int) -> Unit, onDismiss: () -> Unit) {
-    val options = listOf(
-        SettingsStore.THEME_SYSTEM to stringResource(R.string.settings_theme_system),
-        SettingsStore.THEME_LIGHT to stringResource(R.string.settings_theme_light),
-        SettingsStore.THEME_DARK to stringResource(R.string.settings_theme_dark),
-    )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_theme)) },
-        text = {
-            Column {
-                options.forEach { (mode, label) ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onSelect(mode) }.padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
-        },
-    )
 }
 
 /** 设置条目卡片（internal 供关于页复用，等高 64dp 统一规整） */

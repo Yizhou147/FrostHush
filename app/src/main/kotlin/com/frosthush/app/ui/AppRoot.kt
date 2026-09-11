@@ -71,6 +71,7 @@ import com.frosthush.app.ui.plan.PlanEditScreen
 import com.frosthush.app.ui.plan.PlanScreen
 import com.frosthush.app.ui.settings.ConfigImportScreen
 import com.frosthush.app.ui.settings.SettingsScreen
+import com.frosthush.app.ui.settings.ThemeSettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
 import java.util.Calendar
 import kotlinx.coroutines.delay
@@ -214,10 +215,13 @@ private fun MainScaffold() {
     // 配置导入预览页覆盖层：data 为解析后的导入配置
     var configImportOpened by remember { mutableStateOf(false) }
     var configImportData by remember { mutableStateOf<FocusStore.ConfigData?>(null) }
+    // 主题设置二级页覆盖层
+    var themeOpened by rememberSaveable { mutableStateOf(false) }
 
     // 覆盖层时拦截系统返回键：逐层退回主界面而非直接退出应用
-    BackHandler(enabled = importing || showGroups || planEditOpened || configImportOpened) {
+    BackHandler(enabled = importing || showGroups || planEditOpened || configImportOpened || themeOpened) {
         when {
+            themeOpened -> themeOpened = false
             configImportOpened -> configImportOpened = false
             planEditOpened -> planEditOpened = false
             showGroups -> showGroups = false
@@ -243,6 +247,7 @@ private fun MainScaffold() {
             // 应用集 / 计划编辑 / 配置导入覆盖层与主界面之间淡入淡出过渡
             AnimatedContent(
                 targetState = when {
+                    themeOpened -> 4
                     configImportOpened -> 3
                     planEditOpened -> 2
                     showGroups -> 1
@@ -257,6 +262,7 @@ private fun MainScaffold() {
                     3 -> configImportData?.let {
                         ConfigImportScreen(data = it, onBack = { configImportOpened = false })
                     }
+                    4 -> ThemeSettingsScreen(onBack = { themeOpened = false })
                     else -> MainTabs(
                         tab = tab,
                         onTabChange = { tab = it },
@@ -269,6 +275,7 @@ private fun MainScaffold() {
                             configImportData = data
                             configImportOpened = true
                         },
+                        onOpenTheme = { themeOpened = true },
                         onOpenSettings = { tab = 3 },
                     )
                 }
@@ -288,6 +295,7 @@ private fun MainTabs(
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
     onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
+    onOpenTheme: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val tabs = listOf(
@@ -326,6 +334,7 @@ private fun MainTabs(
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
                 onOpenConfigImport = onOpenConfigImport,
+                onOpenTheme = onOpenTheme,
                 onOpenSettings = onOpenSettings,
                 modifier = Modifier.weight(1f),
             )
@@ -364,6 +373,7 @@ private fun MainTabs(
                 onNewPlan = onNewPlan,
                 onEditPlan = onEditPlan,
                 onOpenConfigImport = onOpenConfigImport,
+                onOpenTheme = onOpenTheme,
                 onOpenSettings = onOpenSettings,
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
@@ -380,6 +390,7 @@ private fun TabContent(
     onNewPlan: () -> Unit,
     onEditPlan: (FocusPlan) -> Unit,
     onOpenConfigImport: (FocusStore.ConfigData) -> Unit,
+    onOpenTheme: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -394,7 +405,7 @@ private fun TabContent(
             0 -> FocusScreen(onOpenStats = onOpenStats, onImport = onImport, onOpenGroups = onOpenGroups, onOpenSettings = onOpenSettings)
             1 -> PlanScreen(onNewPlan = onNewPlan, onEditPlan = onEditPlan)
             2 -> StatsScreen()
-            3 -> SettingsScreen(onOpenConfigImport = onOpenConfigImport)
+            3 -> SettingsScreen(onOpenConfigImport = onOpenConfigImport, onOpenTheme = onOpenTheme)
             4 -> AboutScreen()
         }
     }
