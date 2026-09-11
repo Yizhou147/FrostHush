@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -365,70 +367,28 @@ private fun MainTabs(
                 modifier = Modifier.weight(1f),
             )
         }
-    } else {
+    } else if (!floatingBar) {
+        // 常规底栏：保持原有实现不变
         Scaffold(
             // 顶部状态栏由各页面自己的 TopAppBar 处理；底部由 bottomBar 兜底覆盖
             containerColor = MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = {
-                if (floatingBar) {
-                    // 悬浮底栏：透明容器 + 居中的悬浮胶囊；液态玻璃由 isBlurEnabled 控制开关
-                    Box(
-                        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars),
-                        contentAlignment = Alignment.Center,
+                // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
+                // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
+                // 内部 NavigationBar 仅负责内容并避让操作杆。
+                Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
+                    NavigationBar(
+                        containerColor = Color.Transparent,
+                        windowInsets = WindowInsets.navigationBars,
                     ) {
-                        FloatingBottomBar(
-                            modifier = Modifier.padding(horizontal = 12.dp),
-                            selectedIndex = tab,
-                            onSelected = onTabChange,
-                            backdrop = backdrop,
-                            tabsCount = tabs.size,
-                            isBlurEnabled = liquidGlass,
-                            // 胶囊取色跟随应用主题（浅色模式浅底、深色模式深底），
-                            // 不依赖 miuix 默认色板，避免与页面背景不一致
-                            containerColorOverride = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColorOverride = MaterialTheme.colorScheme.onSurfaceVariant,
-                            accentColorOverride = MaterialTheme.colorScheme.primary,
-                        ) { activate ->
-                            tabs.forEachIndexed { index, spec ->
-                                FloatingBottomBarItem(
-                                    selected = tab == index,
-                                    onClick = { activate(index) },
-                                    // 必须给每项最小宽度：FloatingBottomBar 的外层是
-                                    // Modifier.width(IntrinsicSize.Min)，整条胶囊宽度等于
-                                    // 各子项固有最小宽度之和；不给就会缩成文字宽度挤成一团。
-                                    modifier = Modifier.defaultMinSize(minWidth = 64.dp),
-                                ) {
-                                    Icon(spec.icon, contentDescription = null)
-                                    Text(
-                                        text = stringResource(spec.label),
-                                        fontSize = 11.sp,
-                                        lineHeight = 14.sp,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Visible,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // 底栏背景强制延伸到窗口底部（含小窗底部操作杆区域），不依赖系统
-                    // navigationBars insets 是否报告：外层 Box 背景铺满 bottomBar 区域，
-                    // 内部 NavigationBar 仅负责内容并避让操作杆。
-                    Box(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer)) {
-                        NavigationBar(
-                            containerColor = Color.Transparent,
-                            windowInsets = WindowInsets.navigationBars,
-                        ) {
-                            tabs.forEachIndexed { index, spec ->
-                                NavigationBarItem(
-                                    selected = tab == index,
-                                    onClick = { onTabChange(index) },
-                                    icon = { Icon(spec.icon, contentDescription = null) },
-                                    label = { Text(stringResource(spec.label)) },
-                                )
-                            }
+                        tabs.forEachIndexed { index, spec ->
+                            NavigationBarItem(
+                                selected = tab == index,
+                                onClick = { onTabChange(index) },
+                                icon = { Icon(spec.icon, contentDescription = null) },
+                                label = { Text(stringResource(spec.label)) },
+                            )
                         }
                     }
                 }
@@ -444,8 +404,76 @@ private fun MainTabs(
                 onOpenConfigImport = onOpenConfigImport,
                 onOpenTheme = onOpenTheme,
                 onOpenSettings = onOpenSettings,
-                modifier = Modifier.fillMaxSize().padding(padding).layerBackdrop(backdrop),
+                modifier = Modifier.fillMaxSize().padding(padding),
             )
+        }
+    } else {
+        // 悬浮底栏（对齐 KernelSU 结构）：内容整屏先注册进 backdrop 图层，底栏再浮在图层之上。
+        // 关键：图层必须覆盖底栏所在区域——miuix 的 LayerBackdrop.drawBackdrop 在「采样点落在
+        // 图层范围外」时直接 return 不绘制，表现为胶囊发黑（未开液态玻璃时走背景色所以正常）。
+        val navBottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val barBottomPadding = if (navBottomPadding != 0.dp) 8.dp + navBottomPadding else 28.dp
+        Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+                Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    // 仅占位把内容顶上去（避免被胶囊遮挡），真正的底栏浮在上层
+                    bottomBar = { Spacer(Modifier.height(64.dp + barBottomPadding)) },
+                ) { padding ->
+                    TabContent(
+                        tab = tab,
+                        onOpenStats = onOpenStats,
+                        onImport = onImport,
+                        onOpenGroups = onOpenGroups,
+                        onNewPlan = onNewPlan,
+                        onEditPlan = onEditPlan,
+                        onOpenConfigImport = onOpenConfigImport,
+                        onOpenTheme = onOpenTheme,
+                        onOpenSettings = onOpenSettings,
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                    )
+                }
+            }
+            Box(
+                Modifier.fillMaxWidth().align(Alignment.BottomCenter),
+                contentAlignment = Alignment.Center,
+            ) {
+                FloatingBottomBar(
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = barBottomPadding),
+                    selectedIndex = tab,
+                    onSelected = onTabChange,
+                    backdrop = backdrop,
+                    tabsCount = tabs.size,
+                    isBlurEnabled = liquidGlass,
+                    // 胶囊取色跟随应用主题（浅色模式浅底、深色模式深底），
+                    // 不依赖 miuix 默认色板，避免与页面背景不一致
+                    containerColorOverride = MaterialTheme.colorScheme.surfaceContainer,
+                    contentColorOverride = MaterialTheme.colorScheme.onSurfaceVariant,
+                    accentColorOverride = MaterialTheme.colorScheme.primary,
+                ) { activate ->
+                    tabs.forEachIndexed { index, spec ->
+                        FloatingBottomBarItem(
+                            selected = tab == index,
+                            onClick = { activate(index) },
+                            // 必须给每项最小宽度：FloatingBottomBar 的外层是
+                            // Modifier.width(IntrinsicSize.Min)，整条胶囊宽度等于
+                            // 各子项固有最小宽度之和；不给就会缩成文字宽度挤成一团。
+                            modifier = Modifier.defaultMinSize(minWidth = 64.dp),
+                        ) {
+                            Icon(spec.icon, contentDescription = null)
+                            Text(
+                                text = stringResource(spec.label),
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Visible,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
