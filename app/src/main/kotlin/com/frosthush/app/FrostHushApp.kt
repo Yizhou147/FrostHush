@@ -29,10 +29,16 @@ class FrostHushApp : Application() {
                     val enabled = SettingsStore.autoCheckUpdate.first()
                     val last = SettingsStore.lastUpdateCheckMillis.first()
                     val mirrorId = SettingsStore.updateMirror.first()
+                    val customMirror = SettingsStore.customMirror.first()
                     if (enabled && System.currentTimeMillis() - last > AUTO_CHECK_INTERVAL_MS) {
                         val mirror = UpdateChecker.UpdateMirror.fromId(mirrorId)
-                        UpdateChecker.lastResult = UpdateChecker.check(BuildConfig.VERSION_NAME, mirror)
-                        SettingsStore.setLastUpdateCheckMillis(System.currentTimeMillis())
+                        val result = UpdateChecker.check(BuildConfig.VERSION_NAME, mirror, customMirror)
+                        UpdateChecker.lastResult = result
+                        // 仅成功时写节流时间戳：失败也写入会让一次网络不通压制之后 24h 的自动检查，
+                        // 且 Failed 只存内存、进程被杀即丢，用户既看不到失败也拿不到后续更新
+                        if (result !is UpdateChecker.CheckResult.Failed) {
+                            SettingsStore.setLastUpdateCheckMillis(System.currentTimeMillis())
+                        }
                     }
                 }
             }

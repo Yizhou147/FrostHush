@@ -1,6 +1,7 @@
 package com.frosthush.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -13,8 +14,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * 设置存储（DataStore）。
@@ -111,34 +114,41 @@ object SettingsStore {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** 应用启动时初始化：收集 DataStore 到内存缓存 */
+    /** 应用启动时初始化：先同步读一次 DataStore 填充缓存，再启动持续收集保持一致。
+     *  必须同步 seed：onCreate 紧接着就同步读缓存（预测性返回开关）、AppRoot 首帧也读
+     *  （welcomeDone / uiMode），若只靠异步 collect，首帧拿到的是 data class 默认值——
+     *  预测性返回每次冷启动被重置、已完成引导的用户冷启动闪现欢迎页、界面风格第一帧
+     *  Material 紧接闪变 Miuix。首次磁盘读仅几毫秒，阻塞可接受。 */
     fun init() {
+        runCatching {
+            runBlocking { cache = fromPrefs(app.dataStore.data.first()) }
+        }
         scope.launch {
-            app.dataStore.data.collect { prefs ->
-                cache = Settings(
-                    defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
-                    defaultRestMinutes = prefs[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES,
-                    notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
-                    focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: false,
-                    themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
-                    welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
-                    planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
-                    suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
-                    uiMode = prefs[KEY_UI_MODE] ?: UI_MODE_MATERIAL,
-                    enableBlur = prefs[KEY_ENABLE_BLUR] ?: true,
-                    enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: true,
-                    enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: true,
-                    enableDynamicBackground = prefs[KEY_DYNAMIC_BACKGROUND] ?: true,
-                    updateMirror = prefs[KEY_UPDATE_MIRROR] ?: "gh-proxy",
-                    customMirror = prefs[KEY_CUSTOM_MIRROR] ?: "",
-                    autoCheckUpdate = prefs[KEY_AUTO_CHECK_UPDATE] ?: false,
-                    lastUpdateCheckMillis = prefs[KEY_LAST_UPDATE_CHECK] ?: 0L,
-                    enablePredictiveBack = prefs[KEY_PREDICTIVE_BACK] ?: false,
-                    pageScale = prefs[KEY_PAGE_SCALE] ?: 1.0f,
-                )
-            }
+            app.dataStore.data.collect { prefs -> cache = fromPrefs(prefs) }
         }
     }
+
+    private fun fromPrefs(prefs: Preferences): Settings = Settings(
+        defaultFocusMinutes = prefs[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES,
+        defaultRestMinutes = prefs[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES,
+        notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
+        focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: false,
+        themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
+        welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
+        planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
+        suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
+        uiMode = prefs[KEY_UI_MODE] ?: UI_MODE_MIUIX,
+        enableBlur = prefs[KEY_ENABLE_BLUR] ?: true,
+        enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: true,
+        enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: true,
+        enableDynamicBackground = prefs[KEY_DYNAMIC_BACKGROUND] ?: true,
+        updateMirror = prefs[KEY_UPDATE_MIRROR] ?: "gh-proxy",
+        customMirror = prefs[KEY_CUSTOM_MIRROR] ?: "",
+        autoCheckUpdate = prefs[KEY_AUTO_CHECK_UPDATE] ?: false,
+        lastUpdateCheckMillis = prefs[KEY_LAST_UPDATE_CHECK] ?: 0L,
+        enablePredictiveBack = prefs[KEY_PREDICTIVE_BACK] ?: false,
+        pageScale = prefs[KEY_PAGE_SCALE] ?: 1.0f,
+    )
 
     val defaultFocusMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_MINUTES] ?: DEFAULT_FOCUS_MINUTES }
     val defaultRestMinutes: Flow<Int> = app.dataStore.data.map { it[KEY_DEFAULT_REST_MINUTES] ?: DEFAULT_REST_MINUTES }

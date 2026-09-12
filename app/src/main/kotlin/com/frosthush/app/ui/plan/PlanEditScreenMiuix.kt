@@ -132,7 +132,9 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
     BackHandler { onBack() }
 
     fun doSave() {
+        // 尾部休息段修剪：分段必须以专注结束（专注段结束即会话结束），末尾追加的休息段无意义
         val segs = segments.takeIf { it.isNotEmpty() }?.toList()
+            ?.dropLastWhile { !it.isFocus }?.takeIf { it.isNotEmpty() }
         // 分段计划：结束时间自动 = 开始 + 各段总和（跨天自然环绕）
         val finalEnd = segs?.let { (startMinute + it.sumOf { s -> s.minutes }) % 1440 } ?: endMinute
         val updated = FocusPlan(
@@ -284,7 +286,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
-                                Text(timeText(startMinute), style = MiuixTheme.textStyles.title4)
+                                Text(timeTextEditMiuix(startMinute), style = MiuixTheme.textStyles.title4)
                             }
                         }
                         Button(
@@ -298,7 +300,7 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                                     style = MiuixTheme.textStyles.footnote1,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 )
-                                Text(timeText(displayEnd), style = MiuixTheme.textStyles.title4)
+                                Text(timeTextEditMiuix(displayEnd), style = MiuixTheme.textStyles.title4)
                             }
                         }
                     }
@@ -623,4 +625,4 @@ private fun WeekdayChipMiuix(label: String, selected: Boolean, onClick: () -> Un
     }
 }
 
-private fun timeText(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
+private fun timeTextEditMiuix(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)

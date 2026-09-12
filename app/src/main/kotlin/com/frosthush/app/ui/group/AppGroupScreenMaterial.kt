@@ -16,7 +16,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,6 +85,8 @@ import com.frosthush.app.ui.AppSelectScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 应用集管理页 · material 版（与改造前的实现一致）：
@@ -129,11 +130,11 @@ fun AppGroupScreenMaterial(onBack: () -> Unit) {
         confirmDelete = false
     }
 
-    /** 拖拽排序：更新本地顺序并持久化（默认集不特殊置顶） */
+    /** 拖拽排序：拖动期间只更新内存顺序，松手/取消时由 onDragFinished 统一持久化
+     *  （每次换位同步写文件在 FUSE 存储上可达上百毫秒且阻塞主线程，体感为断触） */
     fun onReorder(fromIndex: Int, toIndex: Int) {
         if (fromIndex != toIndex) {
             groups = groups.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
-            FocusStore.saveAppGroups(groups)
         }
     }
 
@@ -149,8 +150,9 @@ fun AppGroupScreenMaterial(onBack: () -> Unit) {
             GroupEditScreen(
                 group = editTarget,
                 onBack = {
+                    // 只退页面不清 editTarget：清空会让退场动画中的旧编辑页标题闪变"新建"，
+                    // 下次打开（新建/编辑）都会重新赋值，残留无副作用
                     editMode = false
-                    editTarget = null
                 },
                 onSaved = {
                     editMode = false
@@ -170,6 +172,7 @@ fun AppGroupScreenMaterial(onBack: () -> Unit) {
                 selectionMode = selectionMode,
                 selected = selected,
                 onReorder = ::onReorder,
+                onDragFinished = { FocusStore.saveAppGroups(groups) },
                 onSelectionModeChange = {
                     selectionMode = !selectionMode
                     if (!selectionMode) selected = emptySet()
@@ -235,6 +238,7 @@ private fun GroupListContent(
     selectionMode: Boolean,
     selected: Set<Long>,
     onReorder: (Int, Int) -> Unit,
+    onDragFinished: () -> Unit,
     onSelectionModeChange: () -> Unit,
     onNew: () -> Unit,
     onEdit: (AppGroup) -> Unit,
@@ -328,85 +332,49 @@ private fun GroupListContent(
                 // 排序交互：非多选模式长按行 → 进入多选；多选模式下长按某行 → 开始拖拽（该行放大并跟随手指，
                 // 其余行通过 animateItem 平滑让位），拖动跨越半行即交换顺序并持久化
                 val listState = rememberLazyListState()
-                var draggingId by remember { mutableStateOf<Long?>(null) }
-                var dragOffsetY by remember { mutableStateOf(0f) }
-                var draggedHeightPx by remember { mutableStateOf(0f) }
                 val latestGroups by rememberUpdatedState(groups)
                 val latestOnReorder by rememberUpdatedState(onReorder)
 
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                // Reorderable：随手指接近屏幕边缘自动滚动、内部 requestScrollToItem 处理 LazyColumn
+// 的索引锚定视口滑动（自实现方案「拖到顶部不跟手/拖出界限断触」的根因）
+val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+    latestOnReorder(from.index, to.index)
+}
+LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(groups, key = { it.id }) { group ->
-                        val isDragging = draggingId == group.id
-                        val scale by animateFloatAsState(
-                            targetValue = if (isDragging) 1.04f else 1f,
-                            animationSpec = spring(stiffness = Spring.StiffnessLow),
-                            label = "groupDragScale",
-                        )
-                        Column(
-                            modifier = (if (isDragging) Modifier else Modifier.animateItem())
-                                // 被拖项禁用让位动画（仅跟手），避免 placement 动画与跟手位移叠加导致跳动；
-                                // 其余项保留 animateItem 平滑让位
-                                .graphicsLayer {
-                                    // 被拖项跟随手指；其余项保持原位由 animateItem 平滑让位
-                                    translationY = if (isDragging) dragOffsetY else 0f
-                                }
-                                .zIndex(if (isDragging) 1f else 0f)
-                                .scale(scale)
-                                .onGloballyPositioned {
-                                    if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                }
-                                .pointerInput(group.id, selectionMode) {
-                                    if (!selectionMode) return@pointerInput
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggingId = group.id
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragEnd = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, amount ->
-                                            change.consume()
-                                            if (draggingId != group.id) return@detectDragGesturesAfterLongPress
-                                            dragOffsetY += amount.y
-                                            val list = latestGroups
-                                            val currentIndex = list.indexOfFirst { it.id == group.id }
-                                            if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                            val h = draggedHeightPx.takeIf { it > 0f }
-                                                ?: 72.dp.toPx()
-                                            val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                .coerceIn(0, list.size - 1)
-                                            if (targetIndex != currentIndex) {
-                                                latestOnReorder(currentIndex, targetIndex)
-                                                // 交换后补偿偏移，保证手指下的行不跳变
-                                                dragOffsetY -= (targetIndex - currentIndex) * h
-                                            }
-                                        },
-                                    )
-                                },
-                        ) {
-                            GroupRow(
-                                group = group,
-                                isDefault = group.id == defaultId,
-                                selectionMode = selectionMode,
-                                selected = group.id in selected,
-                                onClick = {
-                                    if (selectionMode) onToggleSelect(group.id)
-                                    else onEdit(group)
-                                },
-                                onLongClick = {
-                                    if (!selectionMode) {
-                                        onSelectionModeChange()
-                                        onToggleSelect(group.id)
-                                    }
-                                },
+                        ReorderableItem(reorderableState, key = group.id) { isDragging ->
+                            val scale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.04f else 1f,
+                                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                                label = "groupDragScale",
                             )
-                            HorizontalDivider()
+                            Column(
+                            modifier = Modifier
+                                .scale(scale)
+                                .longPressDraggableHandle(
+                                    enabled = selectionMode,
+                                    onDragStopped = { onDragFinished() },
+                                ),
+                            ) {
+                                GroupRow(
+                                    group = group,
+                                    isDefault = group.id == defaultId,
+                                    selectionMode = selectionMode,
+                                    selected = group.id in selected,
+                                    onClick = {
+                                        if (selectionMode) onToggleSelect(group.id)
+                                        else onEdit(group)
+                                    },
+                                    onLongClick = {
+                                        if (!selectionMode) {
+                                            onSelectionModeChange()
+                                            onToggleSelect(group.id)
+                                        }
+                                    },
+                                )
+                                HorizontalDivider()
+                        
+                            }
                         }
                     }
                 }

@@ -613,8 +613,8 @@ private fun DayHeaderMiuix(
         )
         Box(
             Modifier
-                .size(6.dp)
                 .padding(start = 6.dp)
+                .size(6.dp)
                 .clip(CircleShape)
                 .background(
                     if (selected) MiuixTheme.colorScheme.primary
@@ -740,7 +740,7 @@ private fun SessionRowMiuix(record: HistoryRecord) {
                             ),
                             style = MiuixTheme.textStyles.body2,
                             color = if (seg.type == FocusStore.SEGMENT_FOCUS) MiuixTheme.colorScheme.onSurface
-                            else MiuixTheme.colorScheme.tertiaryContainer,
+                            else MiuixTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.weight(1f),
                         )
                         Text(

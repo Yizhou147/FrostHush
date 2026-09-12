@@ -84,6 +84,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
@@ -149,13 +150,17 @@ fun WelcomeScreenMiuix(onFinished: () -> Unit) {
         )
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(backgroundBrush)
-            .statusBarsPadding()
-            .navigationBarsPadding(),
-    ) {
+    // miuix OverlayDialog 依赖 Scaffold 内提供的 popup host 渲染，放在无 Scaffold 的组合里
+    // 静默不显示且无报错。欢迎页是纯自绘布局，包一层透明 Scaffold（容器不画背景，渐变仍由
+    // 内容 Column 自绘），授权引导弹窗随之落在 Scaffold 内容内。
+    Scaffold(containerColor = Color.Transparent) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(backgroundBrush)
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+        ) {
         // 顶栏：图标 + 应用名 + 跳过
         Row(
             Modifier
@@ -408,6 +413,7 @@ fun WelcomeScreenMiuix(onFinished: () -> Unit) {
             )
         }
     }
+    } // Scaffold 内容结束（OverlayDialog 须落在其内才可经 popup host 渲染）
 }
 
 // ==================== 各页内容 ====================

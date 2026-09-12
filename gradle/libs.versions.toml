@@ -2,6 +2,7 @@
 androidGradlePlugin = "9.4.0"
 kotlin = "2.4.10"
 composeBom = "2026.08.00"
+reorderable = "3.1.0"
 coreKtx = "1.17.0"
 activityCompose = "1.13.0"
 materialIconsExtended = "1.7.8"
@@ -27,6 +28,8 @@ androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview
 androidx-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
+# 长按拖拽排序（Calvin-LL/Reorderable）：随边缘自动滚动 + requestScrollToItem 处理视口锚定
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 shizuku-aidl = { module = "dev.rikka.shizuku:aidl", version.ref = "shizuku" }
 pinyin4j = { module = "com.belerweb:pinyin4j", version.ref = "pinyin4j" }

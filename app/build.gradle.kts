@@ -107,6 +107,12 @@ dependencies {
     implementation(libs.miuix.navigation3.ui)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigationevent.compose)
+    // 长按拖拽排序：Reorderable 3.1.0。org.jetbrains.compose 三组会与 androidx.compose 冲突，排除
+    implementation(libs.reorderable) {
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.animation")
+        exclude(group = "org.jetbrains.compose.foundation")
+    }
     // 内置 Xposed 模块（焦点通知白名单解锁）：compileOnly，不打包进 APK，仅编译期引用
     compileOnly(libs.libxposed)
 }

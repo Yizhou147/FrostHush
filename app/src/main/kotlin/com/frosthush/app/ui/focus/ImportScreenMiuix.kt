@@ -111,14 +111,14 @@ fun ImportScreenMiuix(onBack: () -> Unit) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             when (mode) {
-                0 -> ManualImportTab(repo = repo, allApps = allApps, onAdd = { pkgs -> addToBlacklist(pkgs); onBack() })
-                else -> ClipboardImportTab(context = context, repo = repo, onAdd = { pkgs -> addToBlacklist(pkgs); onBack() })
+                0 -> ManualImportTabMiuix(repo = repo, allApps = allApps, onAdd = { pkgs -> addToBlacklistMiuix(pkgs); onBack() })
+                else -> ClipboardImportTabMiuix(context = context, repo = repo, onAdd = { pkgs -> addToBlacklistMiuix(pkgs); onBack() })
             }
         }
     }
 }
 
-private fun addToBlacklist(packages: Set<String>) {
+private fun addToBlacklistMiuix(packages: Set<String>) {
     // 过滤掉本应用，避免误把自己加入暂停黑名单（条目可能是 包名 或 包名@userId）
     val filtered = packages.filter { FocusStore.parseEntry(it).first != BuildConfig.APPLICATION_ID }.toSet()
     if (filtered.isEmpty()) return
@@ -128,7 +128,7 @@ private fun addToBlacklist(packages: Set<String>) {
 
 /** 手动导入：搜索 + 分类筛选 + 应用列表（已导入的显示已勾选并禁用，不能重复导入） */
 @Composable
-private fun ManualImportTab(
+private fun ManualImportTabMiuix(
     repo: AppRepository,
     allApps: List<AppRepository.AppInfo>,
     onAdd: (Set<String>) -> Unit,
@@ -250,7 +250,7 @@ private fun ManualImportTab(
                     // key 用条目（主应用=包名，分身=包名@userId），同一包名的主/分身不会冲突
                     items(filtered, key = { it.entry }) { app ->
                         val alreadyImported = app.entry in blacklist
-                        AppCheckRow(
+                        AppCheckRowMiuix(
                             packageName = app.packageName,
                             name = app.displayName,
                             checked = alreadyImported || app.entry in selected,
@@ -276,7 +276,7 @@ private fun ManualImportTab(
 
 /** 剪贴板导入：解析包名列表，默认全选 */
 @Composable
-private fun ClipboardImportTab(
+private fun ClipboardImportTabMiuix(
     context: Context,
     repo: AppRepository,
     onAdd: (Set<String>) -> Unit,
@@ -351,7 +351,7 @@ private fun ClipboardImportTab(
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(packages, key = { it }) { pkg ->
                         val alreadyImported = pkg in blacklist
-                        AppCheckRow(
+                        AppCheckRowMiuix(
                             packageName = pkg,
                             name = nameMap[pkg] ?: pkg,
                             checked = alreadyImported || pkg in selected,
@@ -376,7 +376,7 @@ private fun ClipboardImportTab(
 
 /** 应用列表项：左侧应用图标 + 标题/包名 + 右侧勾选框（已导入的禁用） */
 @Composable
-private fun AppCheckRow(
+private fun AppCheckRowMiuix(
     packageName: String,
     name: String,
     checked: Boolean,

@@ -17,7 +17,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -134,6 +133,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 专注页（首页）· material 版（与改造前的实现逐字一致）：
@@ -944,6 +945,7 @@ private fun FocusTimeDialog(
     onStart: (List<FocusStore.Segment>) -> Unit,
 ) {
     val context = LocalContext.current
+    // 对话框为条件组合：每次打开都是新组合，状态天然重置
     var segments by remember {
         mutableStateOf(
             mutableListOf(
@@ -1240,9 +1242,6 @@ private fun PresetSaveDialog(segments: List<FocusStore.Segment>, onDismiss: () -
 private fun PresetManageDialog(onDismiss: () -> Unit) {
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     val listState = rememberLazyListState()
-    var draggingId by remember { mutableStateOf<Long?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var draggedHeightPx by remember { mutableStateOf(0f) }
     val latestPresets by rememberUpdatedState(presets)
 
     AlertDialog(
@@ -1263,83 +1262,52 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 4.dp),
                     )
-                    LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
+                    // Reorderable：随手指接近屏幕边缘自动滚动、内部 requestScrollToItem 处理 LazyColumn
+// 的索引锚定视口滑动（自实现方案「拖到顶部不跟手/拖出界限断触」的根因）
+val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+    val newList = latestPresets.toMutableList().apply { add(to.index, removeAt(from.index)) }
+    presets = newList
+    FocusStore.presets.clear()
+    FocusStore.presets.addAll(newList)
+}
+LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
                         items(presets, key = { it.id }) { preset ->
-                            val isDragging = draggingId == preset.id
-                            val scale by animateFloatAsState(
-                                targetValue = if (isDragging) 1.04f else 1f,
-                                animationSpec = spring(stiffness = Spring.StiffnessLow),
-                                label = "presetDragScale",
-                            )
-                            Column(
-                                modifier = (if (isDragging) Modifier else Modifier.animateItem())
-                                    // 被拖项禁用让位动画（仅跟手），其余项 animateItem 平滑让位
-                                    .graphicsLayer {
-                                        translationY = if (isDragging) dragOffsetY else 0f
-                                    }
-                                    .zIndex(if (isDragging) 1f else 0f)
+                            ReorderableItem(reorderableState, key = preset.id) { isDragging ->
+                                val scale by animateFloatAsState(
+                                    targetValue = if (isDragging) 1.04f else 1f,
+                                    animationSpec = spring(stiffness = Spring.StiffnessLow),
+                                    label = "presetDragScale",
+                                )
+                                Column(
+                                modifier = Modifier
                                     .scale(scale)
-                                    .onGloballyPositioned {
-                                        if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                    }
-                                    .pointerInput(preset.id) {
-                                        detectDragGesturesAfterLongPress(
-                                            onDragStart = {
-                                                draggingId = preset.id
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragCancel = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDragEnd = {
-                                                draggingId = null
-                                                dragOffsetY = 0f
-                                            },
-                                            onDrag = { change, amount ->
-                                                change.consume()
-                                                if (draggingId != preset.id) return@detectDragGesturesAfterLongPress
-                                                dragOffsetY += amount.y
-                                                val list = latestPresets
-                                                val currentIndex = list.indexOfFirst { it.id == preset.id }
-                                                if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                                val h = draggedHeightPx.takeIf { it > 0f }
-                                                    ?: 48.dp.toPx()
-                                                val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                    .coerceIn(0, list.size - 1)
-                                                if (targetIndex != currentIndex) {
-                                                    val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
-                                                    presets = newList
-                                                    FocusStore.presets.clear()
-                                                    FocusStore.presets.addAll(newList)
-                                                    FocusStore.savePresets()
-                                                    dragOffsetY -= (targetIndex - currentIndex) * h
-                                                }
-                                            },
-                                        )
-                                    },
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    .longPressDraggableHandle(
+                                        onDragStopped = { FocusStore.savePresets() },
+                                    ),
                                 ) {
-                                    Text(
-                                        // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
-                                        text = preset.name.ifBlank { preset.sequenceText },
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    IconButton(onClick = {
-                                        FocusStore.presets.removeAll { it.id == preset.id }
-                                        FocusStore.savePresets()
-                                        presets = FocusStore.presets.toList()
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Delete,
-                                            contentDescription = stringResource(R.string.action_delete),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                                            text = preset.name.ifBlank { preset.sequenceText },
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodyLarge,
                                         )
+                                        IconButton(onClick = {
+                                            FocusStore.presets.removeAll { it.id == preset.id }
+                                            FocusStore.savePresets()
+                                            presets = FocusStore.presets.toList()
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Delete,
+                                                contentDescription = stringResource(R.string.action_delete),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
+                            
                                 }
                             }
                         }

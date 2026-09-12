@@ -79,6 +79,7 @@
     <string name="focus_shizuku_unavailable">Shizuku 不可用，请先完成授权</string>
     <string name="focus_no_apps">请先选择要暂停的应用</string>
     <string name="focus_duration_invalid">时长无效</string>
+    <string name="focus_session_exists">已有专注进行中</string>
     <string name="focus_restore_prompt">检测到重启前未完成的专注会话，连接 Shizuku 以恢复暂停应用。</string>
     <string name="focus_connect_shizuku">连接 Shizuku</string>
     <string name="focus_suspended_restore_title">有 %1$d 个应用仍处于暂停状态</string>

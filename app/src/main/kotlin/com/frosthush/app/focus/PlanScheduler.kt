@@ -102,12 +102,12 @@ object PlanScheduler {
         // 发生日的闹钟并不互相独立（旧注释的前提是错的）。一旦被覆盖，计划结束就只剩 tick 兜底，
         // tick 被冻结时不会按时结束。
         val durationMillis = plan.durationMinutes * 60_000L
-        val todayStart = todayStartMillis(plan, now)
-        val end = if (todayStart != null && todayStart <= now && todayStart + durationMillis > now) {
-            todayStart + durationMillis
-        } else {
-            start + durationMillis
-        }
+        // END 兜底闹钟的目标时刻：优先取"正在进行中的这次执行"的结束时刻（否则用下一次 start
+        // 推算，会把尚未触发的 END 用同一个 requestCode 覆盖成下一次的 —— PendingIntent 身份
+        // 只看 requestCode+action，extras 不参与）。进行中判断要查今天和昨天两天：跨午夜计划
+        // （如 23:00-02:00）在次日凌晨进程重启时只查"今天"会误判为未开始，END 被排到 24 小时后
+        // （超长计划同理）。
+        val end = inProgressEndMillis(plan, now, durationMillis) ?: (start + durationMillis)
         DebugLog.d(
             "Plan", "schedulePlan id=${plan.id} weekdays=${plan.weekdays} remindSeconds=$remindSeconds " +
                 "remindAt=${start - remindSeconds * 1000L} start=$start end=$end now=$now"
@@ -398,20 +398,30 @@ object PlanScheduler {
     // ---------- 时间计算 ----------
 
     /**
-     * 计划"今天"这一天的开始时刻；今天不是执行日时返回 null（weekdays 为空视为执行日）。
-     * 用于判断"今天这次执行"是否正在进行（配合计算 END 兜底闹钟的目标时刻）。
+     * 当前是否有"这次执行"正在进行中，有则返回其结束时刻（start + duration），无则 null。
+     * 检查今天与昨天两天（weekdays 为空视为任意日都可执行）：
+     * - 今天：今天这次已开始且未结束（跨午夜前的主体场景）；
+     * - 昨天：跨午夜计划（23:00-02:00）在次日凌晨、或超长计划跨天后进程重启的场景——
+     *   只查"今天"会把进行中的执行误判为未开始，END 兜底闹钟被排到 24 小时后。
      */
-    private fun todayStartMillis(plan: FocusPlan, now: Long): Long? {
-        val c = Calendar.getInstance().apply { timeInMillis = now }
-        val dow = c.get(Calendar.DAY_OF_WEEK)
-        val weekday = if (dow == Calendar.SUNDAY) 7 else dow - 1
-        if (plan.weekdays.isNotEmpty() && weekday !in plan.weekdays) return null
-        return (c.clone() as Calendar).apply {
-            set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
-            set(Calendar.MINUTE, plan.startMinute % 60)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    private fun inProgressEndMillis(plan: FocusPlan, now: Long, durationMillis: Long): Long? {
+        for (daysAgo in 0..1) {
+            val c = Calendar.getInstance().apply {
+                timeInMillis = now
+                add(Calendar.DAY_OF_YEAR, -daysAgo)
+            }
+            val dow = c.get(Calendar.DAY_OF_WEEK)
+            val weekday = if (dow == Calendar.SUNDAY) 7 else dow - 1
+            if (plan.weekdays.isNotEmpty() && weekday !in plan.weekdays) continue
+            val start = (c.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+                set(Calendar.MINUTE, plan.startMinute % 60)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            if (start <= now && start + durationMillis > now) return start + durationMillis
+        }
+        return null
     }
 
     /** 计划下一次开始时间（毫秒）：按星期过滤，当天已过开始时间则顺延到下一匹配日；

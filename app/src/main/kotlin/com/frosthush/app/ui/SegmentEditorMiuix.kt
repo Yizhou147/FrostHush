@@ -243,8 +243,10 @@ fun MiuixTimePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int, Int) -> Unit,
 ) {
-    var hour by remember { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
-    var minute by remember { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
+    // remember(show)：每次打开以最新 initial 重置（常驻组合下 remember{} 会冻结首次组合的初值，
+    // 复用同一对话框调不同段的时间时会显示上一次的值——同 SegmentMinutesDialogMiuix 的做法）
+    var hour by remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
+    var minute by remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
     OverlayDialog(
         show = show,
         title = stringResource(R.string.plan_time_title),

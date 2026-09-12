@@ -79,6 +79,7 @@
     <string name="focus_shizuku_unavailable">Shizuku is unavailable, please grant permission first</string>
     <string name="focus_no_apps">Please select apps to suspend first</string>
     <string name="focus_duration_invalid">Invalid duration</string>
+    <string name="focus_session_exists">A focus session is already running</string>
     <string name="focus_restore_prompt">An unfinished focus session was detected. Connect Shizuku to resume suspending apps.</string>
     <string name="focus_connect_shizuku">Connect Shizuku</string>
     <string name="focus_suspended_restore_title">%1$d app(s) are still suspended</string>

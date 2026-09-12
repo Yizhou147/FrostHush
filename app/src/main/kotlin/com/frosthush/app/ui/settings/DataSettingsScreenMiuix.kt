@@ -46,7 +46,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 导出文件名时间戳：到秒。每次导出时实时生成——不能缓存（remember），
  * 否则设置页停留期间多次导出会得到同名文件。
  */
-private fun exportTimeTag(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+private fun exportTimeTagMiuix(): String = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
 
 /**
  * 数据二级页 · miuix 版（HyperOS 设计语言）：
@@ -147,13 +147,13 @@ fun DataSettingsMiuix(
                     title = stringResource(R.string.settings_export_stats),
                     summary = stringResource(R.string.settings_export_stats_summary),
                     startAction = { SettingIcon(MiuixIcons.FileDownloads) },
-                    onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTag()}.json") },
+                    onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTagMiuix()}.json") },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_export_config),
                     summary = stringResource(R.string.settings_export_config_summary),
                     startAction = { SettingIcon(MiuixIcons.UploadCloud) },
-                    onClick = { configExportLauncher.launch("frosthush-config-${exportTimeTag()}.json") },
+                    onClick = { configExportLauncher.launch("frosthush-config-${exportTimeTagMiuix()}.json") },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_import_config),

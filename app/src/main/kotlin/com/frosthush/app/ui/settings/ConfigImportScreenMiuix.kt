@@ -183,7 +183,7 @@ fun ConfigImportScreenMiuix(data: ConfigData, onBack: () -> Unit) {
         label = "configImportPage",
     ) { p ->
         when (p) {
-            0 -> ConfigImportHome(
+            0 -> ConfigImportHomeMiuix(
                 data = data,
                 groupsIn = groupsIn, groupsTotal = groups.size,
                 plansIn = plansIn, plansTotal = plans.size,
@@ -201,16 +201,16 @@ fun ConfigImportScreenMiuix(data: ConfigData, onBack: () -> Unit) {
                 },
                 onBack = onBack,
             )
-            1 -> GroupsImportPage(groups, onBack = { page = 0 })
-            2 -> PlansImportPage(plans, onBack = { page = 0 })
-            else -> PresetsImportPage(presets, onBack = { page = 0 })
+            1 -> GroupsImportPageMiuix(groups, onBack = { page = 0 })
+            2 -> PlansImportPageMiuix(plans, onBack = { page = 0 })
+            else -> PresetsImportPageMiuix(presets, onBack = { page = 0 })
         }
     }
 }
 
 /** 第一页：摘要 + 三个模块卡片 + 开始导入 / 整体覆盖导入 */
 @Composable
-private fun ConfigImportHome(
+private fun ConfigImportHomeMiuix(
     data: ConfigData,
     groupsIn: Int, groupsTotal: Int,
     plansIn: Int, plansTotal: Int,
@@ -258,19 +258,19 @@ private fun ConfigImportHome(
                     modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
                 )
                 Card {
-                    ModuleCard(
+                    ModuleCardMiuix(
                         icon = MiuixIcons.Folder,
                         title = stringResource(R.string.group_title),
                         summary = stringResource(R.string.config_import_module_summary, groupsTotal, groupsIn),
                         onClick = onOpenGroups,
                     )
-                    ModuleCard(
+                    ModuleCardMiuix(
                         icon = MiuixIcons.Months,
                         title = stringResource(R.string.plan_title),
                         summary = stringResource(R.string.config_import_module_summary, plansTotal, plansIn),
                         onClick = onOpenPlans,
                     )
-                    ModuleCard(
+                    ModuleCardMiuix(
                         icon = MiuixIcons.Timer,
                         title = stringResource(R.string.config_import_presets),
                         summary = stringResource(R.string.config_import_module_summary, presetsTotal, presetsIn),
@@ -330,7 +330,7 @@ private fun ConfigImportHome(
 
 /** 模块卡片：图标 + 标题 + 摘要 + 末位箭头（对齐 miuix 跳转项） */
 @Composable
-private fun ModuleCard(
+private fun ModuleCardMiuix(
     icon: ImageVector,
     title: String,
     summary: String,
@@ -348,8 +348,8 @@ private fun ModuleCard(
 
 /** 应用集子页：每行名称输入框（可编辑）+ 导入开关 + 应用数/原默认集/未安装提示 */
 @Composable
-private fun GroupsImportPage(groups: List<GroupImportState>, onBack: () -> Unit) {
-    SubPageScaffold(title = stringResource(R.string.group_title), onBack = onBack) {
+private fun GroupsImportPageMiuix(groups: List<GroupImportState>, onBack: () -> Unit) {
+    SubPageScaffoldMiuix(title = stringResource(R.string.group_title), onBack = onBack) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -405,8 +405,8 @@ private fun GroupsImportPage(groups: List<GroupImportState>, onBack: () -> Unit)
 
 /** 计划子页：状态徽标 + 名称输入框 + 导入开关；冲突项就地二选一 */
 @Composable
-private fun PlansImportPage(plans: List<PlanImportState>, onBack: () -> Unit) {
-    SubPageScaffold(title = stringResource(R.string.plan_title), onBack = onBack) {
+private fun PlansImportPageMiuix(plans: List<PlanImportState>, onBack: () -> Unit) {
+    SubPageScaffoldMiuix(title = stringResource(R.string.plan_title), onBack = onBack) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -429,7 +429,7 @@ private fun PlansImportPage(plans: List<PlanImportState>, onBack: () -> Unit) {
                                 PlanImportAction.ADD, PlanImportAction.RENAME ->
                                     Switch(checked = p.importEnabled, onCheckedChange = { p.importEnabled = it })
                                 PlanImportAction.SKIP ->
-                                    StatusBadge(stringResource(R.string.config_import_plan_skip), MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                    StatusBadgeMiuix(stringResource(R.string.config_import_plan_skip), MiuixTheme.colorScheme.onSurfaceVariantSummary)
                                 PlanImportAction.CONFLICT -> Unit
                             }
                         }
@@ -438,13 +438,13 @@ private fun PlansImportPage(plans: List<PlanImportState>, onBack: () -> Unit) {
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = "${timeRange(p.plan)} · ${weekdaySummary(p.plan.weekdays)}",
+                                text = "${timeRangeMiuix(p.plan)} · ${weekdaySummaryMiuix(p.plan.weekdays)}",
                                 style = MiuixTheme.textStyles.footnote1,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 modifier = Modifier.weight(1f),
                             )
                             if (p.action == PlanImportAction.RENAME) {
-                                StatusBadge(stringResource(R.string.config_import_plan_rename), MiuixTheme.colorScheme.primary)
+                                StatusBadgeMiuix(stringResource(R.string.config_import_plan_rename), MiuixTheme.colorScheme.primary)
                             }
                         }
                         if (p.action == PlanImportAction.CONFLICT) {
@@ -477,8 +477,8 @@ private fun PlansImportPage(plans: List<PlanImportState>, onBack: () -> Unit) {
 
 /** 预设子页：每行名称输入框 + 段序列/分钟数 + 导入开关 */
 @Composable
-private fun PresetsImportPage(presets: List<PresetImportState>, onBack: () -> Unit) {
-    SubPageScaffold(title = stringResource(R.string.config_import_presets), onBack = onBack) {
+private fun PresetsImportPageMiuix(presets: List<PresetImportState>, onBack: () -> Unit) {
+    SubPageScaffoldMiuix(title = stringResource(R.string.config_import_presets), onBack = onBack) {
         LazyColumn(
             Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -516,7 +516,7 @@ private fun PresetsImportPage(presets: List<PresetImportState>, onBack: () -> Un
 
 /** 子页通用脚手架：TopAppBar + 返回 */
 @Composable
-private fun SubPageScaffold(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun SubPageScaffoldMiuix(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     val scrollBehavior = MiuixScrollBehavior()
     Scaffold(
         containerColor = MiuixTheme.colorScheme.surface,
@@ -545,7 +545,7 @@ private fun SubPageScaffold(title: String, onBack: () -> Unit, content: @Composa
 }
 
 @Composable
-private fun StatusBadge(text: String, color: Color) {
+private fun StatusBadgeMiuix(text: String, color: Color) {
     Text(
         text = text,
         style = MiuixTheme.textStyles.footnote2.copy(fontWeight = FontWeight.Medium),
@@ -555,21 +555,21 @@ private fun StatusBadge(text: String, color: Color) {
 
 /** 时间段文案：跨天显示「次日」，开始==结束显示「全天」（对齐计划页） */
 @Composable
-private fun timeRange(plan: FocusPlan): String = when {
+private fun timeRangeMiuix(plan: FocusPlan): String = when {
     plan.endMinute > plan.startMinute -> stringResource(
-        R.string.plan_time_range, timeText(plan.startMinute), timeText(plan.endMinute)
+        R.string.plan_time_range, timeTextMiuix(plan.startMinute), timeTextMiuix(plan.endMinute)
     )
     plan.endMinute < plan.startMinute -> stringResource(
-        R.string.plan_time_range_cross, timeText(plan.startMinute), timeText(plan.endMinute)
+        R.string.plan_time_range_cross, timeTextMiuix(plan.startMinute), timeTextMiuix(plan.endMinute)
     )
     else -> stringResource(R.string.plan_full_day)
 }
 
-private fun timeText(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
+private fun timeTextMiuix(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
 
 /** 星期摘要：仅一次 / 每天 / 工作日 / 周末 / 周几列表 */
 @Composable
-private fun weekdaySummary(weekdays: Set<Int>): String {
+private fun weekdaySummaryMiuix(weekdays: Set<Int>): String {
     if (weekdays.isEmpty()) return stringResource(R.string.plan_once_only)
     val labels = listOf(
         stringResource(R.string.plan_weekday_mon),

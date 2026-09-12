@@ -83,6 +83,13 @@ import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.unit.dp
 
 /**
  * 应用根组件：
@@ -168,9 +175,11 @@ fun AppRoot() {
         ) {
             FocusLockScreen(onFinished = { focusLocked = false })
         }
-        if (showPlanReminder && reminderPlanId > 0) {
-            PlanReminderDialog(planId = reminderPlanId, onDismiss = { showPlanReminder = false })
-        }
+        PlanReminderDialog(
+            show = showPlanReminder && reminderPlanId > 0,
+            planId = reminderPlanId,
+            onDismiss = { showPlanReminder = false },
+        )
     }
 }
 
@@ -231,7 +240,89 @@ entry<Route.ConfigImport> {
  * 到点后专注由闹钟自动开始（锁屏覆盖），对话框自动关闭。
  */
 @Composable
-private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
+private fun PlanReminderDialog(show: Boolean, planId: Long, onDismiss: () -> Unit) {
+    when (LocalUiMode.current) {
+        UiMode.Miuix -> PlanReminderDialogMiuix(show, planId, onDismiss)
+        UiMode.Material -> if (show) PlanReminderDialogMaterial(planId, onDismiss)
+    }
+}
+
+/**
+ * 计划提醒对话框 · miuix 版（OverlayDialog，常驻组合保留退场动画）。
+ * AppRoot 顶层没有 Scaffold，而 OverlayDialog 依赖 Scaffold 的 popup host 渲染——
+ * 包一层透明 Scaffold（同欢迎页做法：不画背景、对话框未显示时也不拦截触摸）。
+ */
+@Composable
+private fun PlanReminderDialogMiuix(show: Boolean, planId: Long, onDismiss: () -> Unit) {
+    top.yukonga.miuix.kmp.basic.Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent) {
+        val context = LocalContext.current
+        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId }
+        val alreadyStarted = FocusStore.activeSession()?.planId == planId
+        // 计划已被删除 / 专注已由该计划开始 → 自动关闭
+        LaunchedEffect(show, plan?.id, alreadyStarted) {
+            if (show && (plan == null || alreadyStarted)) onDismiss()
+        }
+        OverlayDialog(
+            show = show && plan != null && !alreadyStarted,
+            title = if (plan != null) stringResource(R.string.plan_remind_dialog_title, plan.name) else "",
+            onDismissRequest = onDismiss,
+        ) {
+            if (plan != null) {
+                val startMillis = remember(plan.id, plan.startMinute) {
+                    Calendar.getInstance().apply {
+                        set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
+                        set(Calendar.MINUTE, plan.startMinute % 60)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                }
+                var remaining by remember(plan.id, plan.startMinute) {
+                    mutableStateOf(((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt())
+                }
+                LaunchedEffect(plan.id, plan.startMinute) {
+                    while (remaining > 0) {
+                        delay(1000)
+                        remaining = ((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt()
+                    }
+                    onDismiss() // 到点：专注由闹钟自动开始，关闭对话框
+                }
+                top.yukonga.miuix.kmp.basic.Text(
+                    text = if (remaining > 0) {
+                        pluralStringResource(R.plurals.plan_remind_dialog_text_seconds, remaining, remaining)
+                    } else {
+                        stringResource(R.string.plan_remind_dialog_starting)
+                    },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    top.yukonga.miuix.kmp.basic.TextButton(
+                        text = stringResource(R.string.plan_remind_dialog_cancel),
+                        onClick = {
+                            onDismiss()
+                            Thread { PlanScheduler.onCancelToday(context, planId) }.start()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    top.yukonga.miuix.kmp.basic.TextButton(
+                        text = stringResource(R.string.plan_remind_dialog_start_now),
+                        onClick = {
+                            onDismiss()
+                            Thread { PlanScheduler.onStartNow(context, planId) }.start()
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanReminderDialogMaterial(planId: Long, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val plan = FocusStore.focusPlans().firstOrNull { it.id == planId }
     // 计划已被删除 / 专注已由该计划开始 → 无需弹

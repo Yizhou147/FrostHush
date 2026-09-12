@@ -20,7 +20,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -137,6 +136,8 @@ import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 专注页（首页）· miuix 版（HyperOS 设计语言）：
@@ -401,13 +402,13 @@ fun FocusScreenMiuix(
                 .padding(horizontal = 16.dp)
         ) {
             if (history.isNotEmpty()) {
-                TotalDurationBar(totalMinutes = FocusManager.totalMinutes(), onClick = onOpenStats)
+                TotalDurationBarMiuix(totalMinutes = FocusManager.totalMinutes(), onClick = onOpenStats)
                 Spacer(Modifier.height(12.dp))
             }
 
             if (session != null) {
                 // ---------- 专注进行中 ----------
-                ActiveFocusContent(
+                ActiveFocusContentMiuix(
                     remaining = remaining,
                     isResting = isResting,
                     pausedCount = session!!.packages.size,
@@ -423,11 +424,11 @@ fun FocusScreenMiuix(
                 )
             } else {
                 // ---------- 空闲 ----------
-                AppGroupChips(version)
+                AppGroupChipsMiuix(version)
                 Spacer(Modifier.height(12.dp))
                 // 专注结束后仍有应用被暂停（Shizuku 崩溃等）：提示手动恢复
                 if (suspendedCount > 0) {
-                    SuspendedRestoreBanner(
+                    SuspendedRestoreBannerMiuix(
                         count = suspendedCount,
                         onRestore = {
                             scope.launch {
@@ -447,7 +448,7 @@ fun FocusScreenMiuix(
                     Spacer(Modifier.height(12.dp))
                 }
                 if (!shizukuReady) {
-                    ShizukuBanner(
+                    ShizukuBannerMiuix(
                         text = stringResource(R.string.focus_shizuku_unavailable),
                         actionText = when (shizukuState) {
                             ShizukuManager.State.NOT_CONNECTED -> stringResource(R.string.action_start_shizuku)
@@ -468,7 +469,6 @@ fun FocusScreenMiuix(
                     selectionMode = selectionMode,
                     selected = selected,
                     // 应用集切换动画的 key：切换应用集（version 自增）时列表淡入淡出
-                    groupSwitchKey = remember(version) { FocusStore.selectedGroup()?.id?.toString() ?: "" },
                     onItemClick = { pkg ->
                         if (selectionMode) {
                             selected = if (pkg in selected) selected - pkg else selected + pkg
@@ -499,7 +499,7 @@ fun FocusScreenMiuix(
         }
 
         // ---------- 对话框（OverlayDialog 需置于 Scaffold 内容内由 popup host 渲染） ----------
-        FocusTimeDialog(
+        FocusTimeDialogMiuix(
             show = showDurationDialog,
             initial = defaultMinutes,
                 onDismiss = { showDurationDialog = false },
@@ -620,7 +620,7 @@ fun FocusScreenMiuix(
 /** 顶部累计专注时长条（miuix 卡片，点击进统计页）。HyperOS 规范：卡片用中性 surfaceContainer，主色只做小面积点缀 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TotalDurationBar(totalMinutes: Int, onClick: () -> Unit) {
+private fun TotalDurationBarMiuix(totalMinutes: Int, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -653,7 +653,7 @@ private fun TotalDurationBar(totalMinutes: Int, onClick: () -> Unit) {
 
 /** 应用集切换 chips：第一个固定「默认」，其余为各应用集名；当前选中集高亮。切换后生效集合变化，version 自增驱动下方列表刷新 */
 @Composable
-private fun AppGroupChips(version: Int) {
+private fun AppGroupChipsMiuix(version: Int) {
     // 显式以 version 为 key 重算，保证切换集合后选中态立即刷新
     val groups = remember(version) { FocusStore.appGroups() }
     val selectedId = remember(version) { FocusStore.selectedGroup()?.id }
@@ -711,7 +711,7 @@ private fun AppGroupChip(label: String, selected: Boolean, onClick: () -> Unit) 
 /** 专注进行中：当前阶段（专注/休息）+ 剩余时间 + 已暂停应用数（不可打断，无退出入口）。
  *  休息阶段提供「跳过休息」按钮（应用内入口，立即恢复下一段专注）。 */
 @Composable
-private fun ActiveFocusContent(
+private fun ActiveFocusContentMiuix(
     remaining: Long,
     isResting: Boolean,
     pausedCount: Int,
@@ -753,7 +753,7 @@ private fun ActiveFocusContent(
         }
         if (!shizukuReady) {
             Spacer(Modifier.height(32.dp))
-            ShizukuBanner(
+            ShizukuBannerMiuix(
                 text = stringResource(R.string.focus_restore_prompt),
                 actionText = stringResource(R.string.focus_connect_shizuku),
                 onAction = onConnectShizuku,
@@ -782,7 +782,6 @@ private fun IdleListMiuix(
     onImport: () -> Unit,
     bottomInnerPadding: Dp = 0.dp,
     // 应用集切换淡入淡出的 key（切换应用集时列表 AnimatedContent 过渡）
-    groupSwitchKey: String = "",
 ) {
     if (blacklist.isEmpty()) {
         Box(
@@ -918,7 +917,7 @@ private fun IdleListMiuix(
 /** Shizuku 未就绪提示条 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit) {
+private fun ShizukuBannerMiuix(text: String, actionText: String, onAction: () -> Unit) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
@@ -954,7 +953,7 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
 /** 仍被暂停应用的恢复提示条：专注结束后因 Shizuku 崩溃等未能解冻时显示，点击一键恢复 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
+private fun SuspendedRestoreBannerMiuix(count: Int, onRestore: () -> Unit) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
@@ -994,14 +993,16 @@ private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
  *  按具体时刻调整，该段时长自动反算（与计划编辑页交互一致）。
  *  点「添加休息/添加专注」可扩展为分段专注（专注→休息→专注…），不加休息即普通连续专注。 */
 @Composable
-private fun FocusTimeDialog(
+private fun FocusTimeDialogMiuix(
     show: Boolean,
     initial: Int,
     onDismiss: () -> Unit,
     onStart: (List<FocusStore.Segment>) -> Unit,
 ) {
     val context = LocalContext.current
-    var segments by remember {
+    // remember(show)：对话框每次打开重置（改为常驻组合后 remember{} 会跨开合保留状态，
+    // 恢复 if(show) 时代的"每次打开都是新对话框"行为）
+    var segments by remember(show) {
         mutableStateOf(
             mutableListOf(
                 FocusStore.Segment(FocusStore.SEGMENT_FOCUS, initial.coerceIn(FocusStore.MIN_MINUTES, FocusStore.MAX_MINUTES))
@@ -1012,12 +1013,12 @@ private fun FocusTimeDialog(
     var showSavePreset by remember { mutableStateOf(false) }
     var showManagePresets by remember { mutableStateOf(false) }
     // 正在弹时长输入对话框的段索引；-1 = 无
-    var durationDialogIndex by remember { mutableIntStateOf(-1) }
+    var durationDialogIndex by remember(show) { mutableIntStateOf(-1) }
     // 正在按时间段调整的段索引（点该段结束时间打开 TimePicker，时长自动反算）；-1 = 无
-    var editingEndIndex by remember { mutableIntStateOf(-1) }
+    var editingEndIndex by remember(show) { mutableIntStateOf(-1) }
     // 对话框打开时取一次系统当前时刻的 minuteOfDay（0..1439）作为时间线基准；
     // 不在对话框内每秒刷新，避免用户调整时长时数字跳变。
-    val startMinuteOfDay by remember {
+    val startMinuteOfDay by remember(show) {
         mutableIntStateOf(
             java.util.Calendar.getInstance().let {
                 it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE)
@@ -1112,7 +1113,7 @@ private fun FocusTimeDialog(
                     )
                 } else {
                     // 预设为完整分段列表：点击即替换整个时间安排（旧单段预设回退单段专注）
-                    FocusPresetChips(
+                    FocusPresetChipsMiuix(
                         segments = segments,
                         presets = presets,
                         onSelect = { preset ->
@@ -1155,13 +1156,13 @@ private fun FocusTimeDialog(
             }
         }
     }
-    PresetSaveDialog(
+    PresetSaveDialogMiuix(
         show = showSavePreset,
         // 保存整个分段列表（含休息）；名称必填
         segments = segments,
         onDismiss = { showSavePreset = false },
     )
-    PresetManageDialog(
+    PresetManageDialogMiuix(
         show = showManagePresets,
         onDismiss = { showManagePresets = false },
     )
@@ -1213,7 +1214,7 @@ private fun FocusTimeDialog(
  *  点击应用整个分段列表；与当前分段完全一致时高亮 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FocusPresetChips(
+private fun FocusPresetChipsMiuix(
     segments: List<FocusStore.Segment>,
     presets: List<FocusStore.FocusPreset>,
     onSelect: (FocusStore.FocusPreset) -> Unit,
@@ -1226,8 +1227,12 @@ private fun FocusPresetChips(
         presets.forEach { preset ->
             Button(
                 onClick = { onSelect(preset) },
-                colors = if (preset.segmentList == segments) ButtonDefaults.buttonColorsPrimary()
-                else ButtonDefaults.buttonColors(),
+                // 选中态用 miuix 下拉选中语义色（tertiaryContainer 浅蓝底 + onTertiaryContainer 深字），
+                // 不用饱和蓝 buttonColorsPrimary（规范：primary 不作选中底色）
+                colors = if (preset.segmentList == segments) ButtonDefaults.buttonColors(
+                    color = MiuixTheme.colorScheme.tertiaryContainer,
+                    contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
+                ) else ButtonDefaults.buttonColors(),
                 insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             ) {
                 Text(
@@ -1242,7 +1247,7 @@ private fun FocusPresetChips(
 
 /** 保存为预设：保存当前完整分段列表（含休息），名称必填（不支持自动命名） */
 @Composable
-private fun PresetSaveDialog(show: Boolean, segments: List<FocusStore.Segment>, onDismiss: () -> Unit) {
+private fun PresetSaveDialogMiuix(show: Boolean, segments: List<FocusStore.Segment>, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     val total = segments.sumOf { it.minutes }
@@ -1313,12 +1318,9 @@ private fun PresetSaveDialog(show: Boolean, segments: List<FocusStore.Segment>, 
 
 /** 管理预设：长按拖动排序（与应用集/计划列表同款：行放大跟手，其余行 animateItem 平滑让位）+ 删除 */
 @Composable
-private fun PresetManageDialog(show: Boolean, onDismiss: () -> Unit) {
+private fun PresetManageDialogMiuix(show: Boolean, onDismiss: () -> Unit) {
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     val listState = rememberLazyListState()
-    var draggingId by remember { mutableStateOf<Long?>(null) }
-    var dragOffsetY by remember { mutableStateOf(0f) }
-    var draggedHeightPx by remember { mutableStateOf(0f) }
     val latestPresets by rememberUpdatedState(presets)
 
     OverlayDialog(
@@ -1340,83 +1342,52 @@ private fun PresetManageDialog(show: Boolean, onDismiss: () -> Unit) {
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
-                LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
+                // Reorderable：随手指接近屏幕边缘自动滚动、内部 requestScrollToItem 处理 LazyColumn
+// 的索引锚定视口滑动（自实现方案「拖到顶部不跟手/拖出界限断触」的根因）
+val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+    val newList = latestPresets.toMutableList().apply { add(to.index, removeAt(from.index)) }
+    presets = newList
+    FocusStore.presets.clear()
+    FocusStore.presets.addAll(newList)
+}
+LazyColumn(state = listState, modifier = Modifier.heightIn(max = 320.dp)) {
                     items(presets, key = { it.id }) { preset ->
-                        val isDragging = draggingId == preset.id
-                        val scale by animateFloatAsState(
-                            targetValue = if (isDragging) 1.04f else 1f,
-                            animationSpec = spring(stiffness = Spring.StiffnessLow),
-                            label = "presetDragScale",
-                        )
-                        Column(
-                            modifier = (if (isDragging) Modifier else Modifier.animateItem())
-                                // 被拖项禁用让位动画（仅跟手），其余项 animateItem 平滑让位
-                                .graphicsLayer {
-                                    translationY = if (isDragging) dragOffsetY else 0f
-                                }
-                                .zIndex(if (isDragging) 1f else 0f)
+                        ReorderableItem(reorderableState, key = preset.id) { isDragging ->
+                            val scale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.04f else 1f,
+                                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                                label = "presetDragScale",
+                            )
+                            Column(
+                            modifier = Modifier
                                 .scale(scale)
-                                .onGloballyPositioned {
-                                    if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                }
-                                .pointerInput(preset.id) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggingId = preset.id
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragEnd = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, amount ->
-                                            change.consume()
-                                            if (draggingId != preset.id) return@detectDragGesturesAfterLongPress
-                                            dragOffsetY += amount.y
-                                            val list = latestPresets
-                                            val currentIndex = list.indexOfFirst { it.id == preset.id }
-                                            if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                            val h = draggedHeightPx.takeIf { it > 0f }
-                                                ?: 48.dp.toPx()
-                                            val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                .coerceIn(0, list.size - 1)
-                                            if (targetIndex != currentIndex) {
-                                                val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
-                                                presets = newList
-                                                FocusStore.presets.clear()
-                                                FocusStore.presets.addAll(newList)
-                                                FocusStore.savePresets()
-                                                dragOffsetY -= (targetIndex - currentIndex) * h
-                                            }
-                                        },
-                                    )
-                                },
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                .longPressDraggableHandle(
+                                    onDragStopped = { FocusStore.savePresets() },
+                                ),
                             ) {
-                                Text(
-                                    // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
-                                    text = preset.name.ifBlank { preset.sequenceText },
-                                    modifier = Modifier.weight(1f),
-                                    style = MiuixTheme.textStyles.body1,
-                                )
-                                IconButton(onClick = {
-                                    FocusStore.presets.removeAll { it.id == preset.id }
-                                    FocusStore.savePresets()
-                                    presets = FocusStore.presets.toList()
-                                }) {
-                                    Icon(
-                                        imageVector = MiuixIcons.Delete,
-                                        contentDescription = stringResource(R.string.action_delete),
-                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                                        text = preset.name.ifBlank { preset.sequenceText },
+                                        modifier = Modifier.weight(1f),
+                                        style = MiuixTheme.textStyles.body1,
                                     )
+                                    IconButton(onClick = {
+                                        FocusStore.presets.removeAll { it.id == preset.id }
+                                        FocusStore.savePresets()
+                                        presets = FocusStore.presets.toList()
+                                    }) {
+                                        Icon(
+                                            imageVector = MiuixIcons.Delete,
+                                            contentDescription = stringResource(R.string.action_delete),
+                                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        )
+                                    }
                                 }
+                        
                             }
                         }
                     }

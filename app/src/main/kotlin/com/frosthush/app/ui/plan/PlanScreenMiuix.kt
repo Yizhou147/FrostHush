@@ -13,7 +13,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -87,6 +90,8 @@ import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Report
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
  * 专注计划页 · miuix 版（HyperOS 设计语言）：
@@ -111,7 +116,23 @@ fun PlanScreenMiuix(
     var selected by remember { mutableStateOf(setOf<Long>()) }
     // 省电未豁免提醒横幅 + 计划可靠性检查对话框
     var showReliability by remember { mutableStateOf(false) }
-    val batteryExempted by remember { mutableStateOf(checkBatteryOptimization(context)) }
+    var batteryExempted by remember { mutableStateOf(checkBatteryOptimization(context)) }
+
+    // 跳系统设置授权省电豁免后返回：重检使横幅自动消失。
+    // 必须观察 Activity 的生命周期——NavDisplay 的 entry 生命周期恒为 RESUMED，
+    // 从系统设置返回前台时不会重发 ON_RESUME，挂在 LocalLifecycleOwner 上不生效。
+    val activityOwner = remember(context) {
+        var ctx: android.content.Context = context
+        while (ctx is android.content.ContextWrapper && ctx !is androidx.lifecycle.LifecycleOwner) ctx = ctx.baseContext
+        ctx as? androidx.lifecycle.LifecycleOwner
+    }
+    DisposableEffect(activityOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) batteryExempted = checkBatteryOptimization(context)
+        }
+        activityOwner?.lifecycle?.addObserver(observer)
+        onDispose { activityOwner?.lifecycle?.removeObserver(observer) }
+    }
     // 启用计划时段冲突检测 + 高亮闪烁
     val conflicts = remember(version) { PlanScheduler.findPlanConflicts() }
     var highlightConflictIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -326,100 +347,63 @@ fun PlanScreenMiuix(
             } else {
                 // 排序交互：非多选模式长按行 → 进入多选；多选模式下长按某行 → 开始拖拽（该行放大并跟随手指，
                 // 其余行通过 animateItem 平滑让位），拖动跨越半行即交换顺序并持久化
-                var draggingId by remember { mutableStateOf<Long?>(null) }
-                var dragOffsetY by remember { mutableStateOf(0f) }
-                var draggedHeightPx by remember { mutableStateOf(0f) }
                 val latestPlans by rememberUpdatedState(plans)
 
-                LazyColumn(
+                // Reorderable：随手指接近屏幕边缘自动滚动、内部 requestScrollToItem 处理 LazyColumn
+// 的索引锚定视口滑动（自实现方案「拖到顶部不跟手/拖出界限断触」的根因）
+val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
+    plans = plans.toMutableList().apply { add(to.index, removeAt(from.index)) }
+}
+LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = bottomInnerPadding),
                 ) {
                     items(plans, key = { it.id }) { plan ->
-                        val isDragging = draggingId == plan.id
-                        val scale by animateFloatAsState(
-                            targetValue = if (isDragging) 1.04f else 1f,
-                            animationSpec = spring(stiffness = Spring.StiffnessLow),
-                            label = "planDragScale",
-                        )
-                        Column(
-                            modifier = (if (isDragging) Modifier else Modifier.animateItem())
-                                // 被拖项禁用让位动画（仅跟手），避免 placement 动画与跟手位移叠加导致跳动；
-                                // 其余项保留 animateItem 平滑让位
-                                .graphicsLayer {
-                                    // 被拖项跟随手指；其余项保持原位由 animateItem 平滑让位
-                                    translationY = if (isDragging) dragOffsetY else 0f
-                                }
-                                .zIndex(if (isDragging) 1f else 0f)
-                                .scale(scale)
-                                .onGloballyPositioned {
-                                    if (isDragging) draggedHeightPx = it.size.height.toFloat()
-                                }
-                                .pointerInput(plan.id, selectionMode) {
-                                    if (!selectionMode) return@pointerInput
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggingId = plan.id
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDragEnd = {
-                                            draggingId = null
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, amount ->
-                                            change.consume()
-                                            if (draggingId != plan.id) return@detectDragGesturesAfterLongPress
-                                            dragOffsetY += amount.y
-                                            val list = latestPlans
-                                            val currentIndex = list.indexOfFirst { it.id == plan.id }
-                                            if (currentIndex < 0) return@detectDragGesturesAfterLongPress
-                                            val h = draggedHeightPx.takeIf { it > 0f }
-                                                ?: 84.dp.toPx()
-                                            val targetIndex = (currentIndex + (dragOffsetY / h).roundToInt())
-                                                .coerceIn(0, list.size - 1)
-                                            if (targetIndex != currentIndex) {
-                                                val newList = list.toMutableList().apply { add(targetIndex, removeAt(currentIndex)) }
-                                                plans = newList
-                                                FocusStore.saveFocusPlans(newList)
-                                                dragOffsetY -= (targetIndex - currentIndex) * h
-                                            }
-                                        },
-                                    )
-                                },
-                        ) {
-                            PlanRowMiuix(
-                                plan = plan,
-                                bindingText = bindingText(context, plan, groupNames),
-                                selectionMode = selectionMode,
-                                selected = plan.id in selected,
-                                conflictHighlight = plan.id in highlightConflictIds && highlightOn,
-                                onClick = {
-                                    if (selectionMode) {
-                                        selected = if (plan.id in selected) selected - plan.id else selected + plan.id
-                                    } else {
-                                        onEditPlan(plan)
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!selectionMode) {
-                                        selectionMode = true
-                                        selected = setOf(plan.id)
-                                    }
-                                },
-                                onToggle = { enabled ->
-                                    val updated = plan.copy(enabled = enabled)
-                                    FocusStore.updateFocusPlan(updated)
-                                    if (enabled) PlanScheduler.schedulePlan(context, updated)
-                                    else PlanScheduler.cancelPlan(context, plan.id)
-                                    FocusManager.bumpVersion()
-                                },
+                        ReorderableItem(reorderableState, key = plan.id) { isDragging ->
+                            val scale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.04f else 1f,
+                                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                                label = "planDragScale",
                             )
-                            HorizontalDivider()
+                            Column(
+                            modifier = Modifier
+                                .scale(scale)
+                                .longPressDraggableHandle(
+                                    enabled = selectionMode,
+                                    onDragStopped = { FocusStore.saveFocusPlans(latestPlans) },
+                                ),
+                            ) {
+                                PlanRowMiuix(
+                                    plan = plan,
+                                    bindingTextMiuix = bindingTextMiuix(context, plan, groupNames),
+                                    selectionMode = selectionMode,
+                                    selected = plan.id in selected,
+                                    conflictHighlight = plan.id in highlightConflictIds && highlightOn,
+                                    onClick = {
+                                        if (selectionMode) {
+                                            selected = if (plan.id in selected) selected - plan.id else selected + plan.id
+                                        } else {
+                                            onEditPlan(plan)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!selectionMode) {
+                                            selectionMode = true
+                                            selected = setOf(plan.id)
+                                        }
+                                    },
+                                    onToggle = { enabled ->
+                                        val updated = plan.copy(enabled = enabled)
+                                        FocusStore.updateFocusPlan(updated)
+                                        if (enabled) PlanScheduler.schedulePlan(context, updated)
+                                        else PlanScheduler.cancelPlan(context, plan.id)
+                                        FocusManager.bumpVersion()
+                                    },
+                                )
+                                HorizontalDivider()
+                        
+                            }
                         }
                     }
                 }
@@ -427,14 +411,17 @@ fun PlanScreenMiuix(
         }
     }
 
-    if (showReliability) {
-        PlanReliabilityDialog(show = showReliability, onDismiss = { showReliability = false })
-    }
+    // 常驻组合 + show 标志：关闭时保留 OverlayDialog 的退场动画（if 包裹会一帧内直接移除）；
+    // 关闭时重检一次省电豁免（对话框内「重新检测」全绿后，横幅应随之消失）
+    PlanReliabilityDialog(show = showReliability, onDismiss = {
+        showReliability = false
+        batteryExempted = checkBatteryOptimization(context)
+    })
 }
 
 /** 计划绑定的展示文案：应用集名（带「应用集：」前缀）/ 直选数 / 默认集 */
 @Composable
-private fun bindingText(context: android.content.Context, plan: FocusPlan, groupNames: Map<Long, String>): String = when {
+private fun bindingTextMiuix(context: android.content.Context, plan: FocusPlan, groupNames: Map<Long, String>): String = when {
     plan.appGroupId != null -> context.getString(
         R.string.plan_binding_group_label,
         groupNames[plan.appGroupId] ?: context.getString(R.string.plan_group_deleted),
@@ -448,7 +435,7 @@ private fun bindingText(context: android.content.Context, plan: FocusPlan, group
 @Composable
 private fun PlanRowMiuix(
     plan: FocusPlan,
-    bindingText: String,
+    bindingTextMiuix: String,
     selectionMode: Boolean,
     selected: Boolean,
     conflictHighlight: Boolean = false,
@@ -481,7 +468,7 @@ private fun PlanRowMiuix(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = timeRangeText(plan),
+                text = timeRangeTextMiuix(plan),
                 style = MiuixTheme.textStyles.body2,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
@@ -499,7 +486,7 @@ private fun PlanRowMiuix(
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
-                    text = bindingText,
+                    text = bindingTextMiuix,
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 1,
@@ -522,17 +509,17 @@ private fun PlanRowMiuix(
 
 /** 时间段文案：跨天显示「22:00 - 次日06:00」，开始==结束显示「全天」 */
 @Composable
-private fun timeRangeText(plan: FocusPlan): String = when {
+private fun timeRangeTextMiuix(plan: FocusPlan): String = when {
     plan.endMinute > plan.startMinute -> stringResource(
-        R.string.plan_time_range, timeText(plan.startMinute), timeText(plan.endMinute)
+        R.string.plan_time_range, timeTextMiuix(plan.startMinute), timeTextMiuix(plan.endMinute)
     )
     plan.endMinute < plan.startMinute -> stringResource(
-        R.string.plan_time_range_cross, timeText(plan.startMinute), timeText(plan.endMinute)
+        R.string.plan_time_range_cross, timeTextMiuix(plan.startMinute), timeTextMiuix(plan.endMinute)
     )
     else -> stringResource(R.string.plan_full_day)
 }
 
-private fun timeText(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
+private fun timeTextMiuix(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
 
 /** 星期徽标：一二三四五六日，执行日高亮；weekdays 为空（不重复）时显示「仅一次」 */
 @Composable

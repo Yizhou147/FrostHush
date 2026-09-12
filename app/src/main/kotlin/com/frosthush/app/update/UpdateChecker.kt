@@ -77,7 +77,7 @@ object UpdateChecker {
             val prefix = mirror.resolvePrefix(customMirror) ?: continue
             val url = prefix + "https://api.github.com/repos/$REPO/releases/latest"
             val (json, err) = fetchApiJson(url)
-            if (json != null) return judge(json, currentVersionName, mirror)
+            if (json != null) return judge(json, currentVersionName, mirror, prefix)
             if (err != null) errors.appendLine("[${mirror.name}] $err")
         }
 
@@ -94,7 +94,8 @@ object UpdateChecker {
                             name = "",
                             body = "",
                             htmlUrl = "https://github.com/$REPO/releases/tag/$tag",
-                            apkDownloadUrl = mirror.prefix +
+                            // 下载直链同样用解析后的前缀（CUSTOM 镜像的前缀在设置里，mirror.prefix 为空）
+                            apkDownloadUrl = prefix +
                                 "https://github.com/$REPO/releases/download/$tag/FrostHush-$latest.apk",
                             via = mirror,
                         )
@@ -107,7 +108,12 @@ object UpdateChecker {
         return CheckResult.Failed(errors.toString().ifBlank { "all endpoints unreachable" })
     }
 
-    private fun judge(json: JSONObject, currentVersionName: String, mirror: UpdateMirror): CheckResult {
+    private fun judge(
+        json: JSONObject,
+        currentVersionName: String,
+        mirror: UpdateMirror,
+        prefix: String,
+    ): CheckResult {
         val tag = json.optString("tag_name").removePrefix("v")
         val assets = json.optJSONArray("assets")
         var apkUrl: String? = null
@@ -117,8 +123,8 @@ object UpdateChecker {
                 val name = asset.optString("name")
                 val url = asset.optString("browser_download_url")
                 if (name.startsWith("FrostHush-") && name.endsWith(".apk")) {
-                    // 资产直链加镜像前缀，国内浏览器可直接下载
-                    apkUrl = mirror.prefix + url
+                    // 资产直链加镜像前缀，国内浏览器可直接下载（CUSTOM 用解析后的前缀）
+                    apkUrl = prefix + url
                     break
                 }
             }
