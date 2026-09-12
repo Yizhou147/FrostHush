@@ -2,16 +2,23 @@ package com.frosthush.app.ui.focus
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.horizontalScroll
@@ -30,11 +37,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +64,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -64,6 +76,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -77,6 +90,7 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.ui.WarningDefaults
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
 import com.frosthush.app.ui.MiuixTimePickerDialog
@@ -278,85 +292,100 @@ fun FocusScreenMiuix(
         containerColor = MiuixTheme.colorScheme.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
-                // 搜索展开：标题清空，仅保留返回箭头 + 无边框输入框（对齐雹 SearchView）；
-                // 无搜索图标/关闭小叉，空输入时用 label 作占位
-                title = if (showSearch) "" else stringResource(R.string.tab_focus),
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    if (showSearch) {
+            // 搜索展开时顶栏交叉淡入淡出为「返回箭头 + 无边框输入框」（对齐 material 版/雹 SearchView：
+            // 搜索框出现在顶栏标题位置，无搜索图标/关闭小叉，空输入时浅灰占位）
+            AnimatedContent(
+                targetState = showSearch,
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                label = "focusSearchBar",
+            ) { searching ->
+                if (searching) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MiuixTheme.colorScheme.surface)
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .height(64.dp)
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         IconButton(onClick = { showSearch = false }) {
                             Icon(
                                 MiuixIcons.Back,
                                 contentDescription = stringResource(R.string.action_cancel),
                             )
                         }
-                    }
-                },
-                actions = {
-                    // 搜索展开时隐藏搜索按键（雹的 SearchView 展开后无搜索图标/小叉）
-                    if (!showSearch) {
-                        IconButton(onClick = { showSearch = true }) {
-                            Icon(
-                                MiuixIcons.Basic.Search,
-                                contentDescription = stringResource(R.string.focus_action_search),
+                        Box(Modifier.weight(1f)) {
+                            BasicTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                singleLine = true,
+                                textStyle = MiuixTheme.textStyles.body1.copy(color = MiuixTheme.colorScheme.onSurface),
+                                cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocusRequester),
                             )
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.focus_search_hint),
+                                    style = MiuixTheme.textStyles.body1,
+                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                )
+                            }
                         }
+                        Spacer(Modifier.width(16.dp))
                     }
-                    IconButton(onClick = {
-                        selectionMode = !selectionMode
-                        if (!selectionMode) selected = emptySet()
-                    }) {
-                        Icon(
-                            MiuixIcons.SelectAll,
-                            contentDescription = stringResource(R.string.focus_action_select),
-                        )
-                    }
-                    IconButton(onClick = onOpenGroups) {
-                        Icon(
-                            MiuixIcons.Folder,
-                            contentDescription = stringResource(R.string.group_title),
-                        )
-                    }
-                    IconButton(onClick = onImport) {
-                        Icon(
-                            MiuixIcons.Add,
-                            contentDescription = stringResource(R.string.focus_import),
-                        )
-                    }
-                },
-                bottomContent = {
-                    if (showSearch) {
-                        TextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .padding(bottom = 8.dp)
-                                .focusRequester(searchFocusRequester),
-                            label = stringResource(R.string.focus_search_hint),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            leadingIcon = {
+                } else {
+                    TopAppBar(
+                        title = stringResource(R.string.tab_focus),
+                        scrollBehavior = scrollBehavior,
+                        actions = {
+                            IconButton(onClick = { showSearch = true }) {
                                 Icon(
                                     MiuixIcons.Basic.Search,
-                                    contentDescription = null,
-                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    contentDescription = stringResource(R.string.focus_action_search),
                                 )
-                            },
-                        )
-                    }
-                },
-            )
+                            }
+                            IconButton(onClick = {
+                                selectionMode = !selectionMode
+                                if (!selectionMode) selected = emptySet()
+                            }) {
+                                Icon(
+                                    MiuixIcons.SelectAll,
+                                    contentDescription = stringResource(R.string.focus_action_select),
+                                )
+                            }
+                            IconButton(onClick = onOpenGroups) {
+                                Icon(
+                                    MiuixIcons.Folder,
+                                    contentDescription = stringResource(R.string.group_title),
+                                )
+                            }
+                            IconButton(onClick = onImport) {
+                                Icon(
+                                    MiuixIcons.Add,
+                                    contentDescription = stringResource(R.string.focus_import),
+                                )
+                            }
+                        },
+                    )
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (session == null) {
+            // FAB 淡入/下滑退出（专注开始后按钮消失不再瞬跳）
+            AnimatedVisibility(
+                visible = session == null,
+                enter = fadeIn(tween(200)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                exit = fadeOut(tween(200)) + slideOutVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+            ) {
                 Button(
                     onClick = { showDurationDialog = true },
                     modifier = Modifier.padding(bottom = bottomInnerPadding),
-                    colors = ButtonDefaults.buttonColorsPrimary(),
+                    // HyperOS 观感：主操作用中性胶囊（同应用集 chip 未选中态），避免大块主色
+                    colors = ButtonDefaults.buttonColors(),
                     insideMargin = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
                 ) {
                     Icon(MiuixIcons.Timer, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -433,13 +462,15 @@ fun FocusScreenMiuix(
                     )
                     Spacer(Modifier.height(12.dp))
                 }
-                IdleContent(
+                IdleListMiuix(
                     blacklist = blacklist,
                     appNames = appNames.value,
                     query = query,
                     onQueryChange = { query = it },
                     selectionMode = selectionMode,
                     selected = selected,
+                    // 应用集切换动画的 key：切换应用集（version 自增）时列表淡入淡出
+                    groupSwitchKey = remember(version) { FocusStore.selectedGroup()?.id?.toString() ?: "" },
                     onItemClick = { pkg ->
                         if (selectionMode) {
                             selected = if (pkg in selected) selected - pkg else selected + pkg
@@ -470,9 +501,9 @@ fun FocusScreenMiuix(
         }
 
         // ---------- 对话框（OverlayDialog 需置于 Scaffold 内容内由 popup host 渲染） ----------
-        if (showDurationDialog) {
-            FocusTimeDialog(
-                initial = defaultMinutes,
+        FocusTimeDialog(
+            show = showDurationDialog,
+            initial = defaultMinutes,
                 onDismiss = { showDurationDialog = false },
                 onStart = { segments ->
                     pendingSegments = segments
@@ -496,15 +527,13 @@ fun FocusScreenMiuix(
                     }
                 },
             )
-        }
-        if (showConflictDialog) {
-            // 普通专注会覆盖启用计划今天开始时刻：列出受影响计划，确定后标记当日失效，
-            // 再走二次确认警告（如开关开启）；取消=不开始专注。
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.focus_start),
-                onDismissRequest = { showConflictDialog = false },
-            ) {
+        // 普通专注会覆盖启用计划今天开始时刻：列出受影响计划，确定后标记当日失效，
+        // 再走二次确认警告（如开关开启）；取消=不开始专注。
+        OverlayDialog(
+            show = showConflictDialog,
+            title = stringResource(R.string.focus_start),
+            onDismissRequest = { showConflictDialog = false },
+        ) {
                 Column {
                     Text(
                         text = stringResource(R.string.focus_conflict_text),
@@ -551,93 +580,86 @@ fun FocusScreenMiuix(
                     }
                 }
             }
-        }
-        if (showWarningDialog) {
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.focus_start),
-                summary = stringResource(R.string.focus_confirm_warning),
-                onDismissRequest = { showWarningDialog = false },
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(
-                        text = stringResource(R.string.action_cancel),
-                        onClick = { showWarningDialog = false },
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = stringResource(R.string.action_start),
-                        onClick = {
-                            showWarningDialog = false
-                            scope.launch {
-                                val err = FocusManager.startFocus(pendingSegments)
-                                if (err != null) handleStartError(err)
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+        OverlayDialog(
+            show = showWarningDialog,
+            title = stringResource(R.string.focus_start),
+            summary = stringResource(R.string.focus_confirm_warning),
+            onDismissRequest = { showWarningDialog = false },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = { showWarningDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.action_start),
+                    onClick = {
+                        showWarningDialog = false
+                        scope.launch {
+                            val err = FocusManager.startFocus(pendingSegments)
+                            if (err != null) handleStartError(err)
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
-        if (showFocusErrorDialog) {
-            // 全部应用未能冻结：弹窗告知原因与解决方法（替代笼统的「操作失败」）
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.focus_fail_title),
-                summary = stringResource(R.string.focus_fail_body),
-                onDismissRequest = { showFocusErrorDialog = false },
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(
-                        text = stringResource(R.string.focus_fail_ok),
-                        onClick = { showFocusErrorDialog = false },
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = stringResource(R.string.focus_fail_goto_settings),
-                        onClick = {
-                            showFocusErrorDialog = false
-                            onOpenSettings()
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+        // 全部应用未能冻结：弹窗告知原因与解决方法（替代笼统的「操作失败」）
+        OverlayDialog(
+            show = showFocusErrorDialog,
+            title = stringResource(R.string.focus_fail_title),
+            summary = stringResource(R.string.focus_fail_body),
+            onDismissRequest = { showFocusErrorDialog = false },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    text = stringResource(R.string.focus_fail_ok),
+                    onClick = { showFocusErrorDialog = false },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.focus_fail_goto_settings),
+                    onClick = {
+                        showFocusErrorDialog = false
+                        onOpenSettings()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
 }
 
-/** 顶部累计专注时长条（miuix 卡片，点击进统计页） */
+/** 顶部累计专注时长条（miuix 卡片，点击进统计页）。HyperOS 规范：卡片用中性 surfaceContainer，主色只做小面积点缀 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TotalDurationBar(totalMinutes: Int, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.primaryContainer,
-            contentColor = MiuixTheme.colorScheme.onPrimaryContainer,
-        ),
+        colors = CardDefaults.defaultColors(),
     ) {
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                MiuixIcons.Timer,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+            MiuixIcons.Timer,
+            contentDescription = null,
+            tint = MiuixTheme.colorScheme.onSurfaceContainer,
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                text = stringResource(R.string.focus_total_duration, FocusManager.minutesText(totalMinutes)),
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f),
+            text = stringResource(R.string.focus_total_duration, FocusManager.minutesText(totalMinutes)),
+            style = MiuixTheme.textStyles.body1,
+            color = MiuixTheme.colorScheme.onSurfaceContainer,
+            modifier = Modifier.weight(1f).basicMarquee(),
             )
             Icon(
                 MiuixIcons.ChevronForward,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
             )
         }
     }
@@ -677,12 +699,19 @@ private fun AppGroupChips(version: Int) {
     }
 }
 
-/** 应用集 chip：选中时主色按钮 + 粗体，未选中为次要按钮 */
+/** 应用集 chip：选中时用 miuix 下拉选中的容器语义色（tertiaryContainer 浅蓝 + 深色文字），未选中为中性灰胶囊 */
 @Composable
 private fun AppGroupChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Button(
         onClick = onClick,
-        colors = if (selected) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+        colors = if (selected) {
+            ButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.tertiaryContainer,
+                contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
+            )
+        } else {
+            ButtonDefaults.buttonColors()
+        },
         insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Text(
@@ -747,10 +776,11 @@ private fun ActiveFocusContent(
     }
 }
 
-/** 空闲状态：已选应用列表（顶栏搜索/多选/导入 + 长按多选批量删除） */
+/** 空闲状态：已选应用列表（顶栏搜索/多选/导入 + 长按多选批量删除）。
+ *  列表行样式与 AppSelectScreenMiuix（应用集编辑选应用）一致：卡片包裹、行内 16dp 边距、无选中底色 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun IdleContent(
+private fun IdleListMiuix(
     blacklist: List<String>,
     appNames: Map<String, String>,
     query: String,
@@ -765,6 +795,8 @@ private fun IdleContent(
     onExitSelection: () -> Unit,
     onImport: () -> Unit,
     bottomInnerPadding: Dp = 0.dp,
+    // 应用集切换淡入淡出的 key（切换应用集时列表 AnimatedContent 过渡）
+    groupSwitchKey: String = "",
 ) {
     if (blacklist.isEmpty()) {
         Box(
@@ -801,9 +833,9 @@ private fun IdleContent(
             enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
             exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
         ) {
-            // 多选操作栏：退出 / 计数 / 全选 / 清空 / 删除
+            // 多选操作栏：退出 / 计数 / 全选 / 清空 / 删除（相邻按钮留 8dp 间距，胶囊不贴合）
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onExitSelection) {
@@ -821,10 +853,12 @@ private fun IdleContent(
                     text = stringResource(R.string.focus_select_all),
                     onClick = { onSelectAll(filtered.toSet()) },
                 )
+                Spacer(Modifier.width(8.dp))
                 TextButton(
                     text = stringResource(R.string.focus_clear_selection),
                     onClick = onClearSelection,
                 )
+                Spacer(Modifier.width(8.dp))
                 IconButton(onClick = onDeleteSelected, enabled = selected.isNotEmpty()) {
                     Icon(
                         MiuixIcons.Delete,
@@ -834,62 +868,61 @@ private fun IdleContent(
                 }
             }
         }
-        if (filtered.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    text = stringResource(R.string.import_nothing),
-                    style = MiuixTheme.textStyles.body2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            // 列表高度由操作栏的 expandVertically 平滑让出（布局尺寸渐变），
-            // 此处不再对列表自身做尺寸动画，避免 items 间距被拉伸
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = bottomInnerPadding),
-            ) {
-                items(filtered, key = { it }) { entry ->
-                    val pkg = FocusStore.parseEntry(entry).first
-                    val isSelected = entry in selected
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = { onItemClick(entry) },
-                                onLongClick = { onItemLongClick(entry) },
-                            )
-                            .background(
-                                // 选中态用浅灰底（不用主题蓝）：蓝色整行底色观感偏重，
-                                // 选中与否另外由右侧复选框表达
-                                if (isSelected) MiuixTheme.colorScheme.surfaceContainerHigh
-                                else Color.Transparent
-                            )
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AppIcon(pkg, 40.dp)
-                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                            Text(appNames[entry] ?: entry, style = MiuixTheme.textStyles.body1)
-                            Text(
-                                text = pkg,
-                                style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                            )
-                        }
-                        // 与雹一致：列表项右侧无删除图标，删除通过长按多选 + 顶栏/操作栏完成
-                        // 复选框固定 40dp：避免多选后每个列表项变高、下方列表间距被拉宽
-                        if (selectionMode) {
-                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                                Checkbox(
-                                    state = if (isSelected) ToggleableState.On else ToggleableState.Off,
-                                    onClick = { onItemClick(entry) },
-                                )
+        Column(Modifier.fillMaxSize()) {
+            if (filtered.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.import_nothing),
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            } else {
+                // 行样式与 AppSelectScreenMiuix（应用集编辑选应用）一致：Card 包裹 + 行内 16dp 边距，
+                // 选中与否只由右侧勾选框表达（无整行底色）；保留长按进入多选
+                Card(Modifier.fillMaxWidth()) {
+                    LazyColumn(Modifier.fillMaxSize()) {
+                        itemsIndexed(filtered, key = { _, it -> it }) { index, entry ->
+                            val pkg = FocusStore.parseEntry(entry).first
+                            val isSelected = entry in selected
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = { onItemClick(entry) },
+                                        onLongClick = { onItemLongClick(entry) },
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                AppIcon(pkg, 36.dp)
+                                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text(appNames[entry] ?: entry, style = MiuixTheme.textStyles.body1)
+                                    Text(
+                                        text = pkg,
+                                        style = MiuixTheme.textStyles.footnote1,
+                                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                    )
+                                }
+                                // 与雹一致：列表项右侧无删除图标，删除通过长按多选 + 顶栏/操作栏完成
+                                // 勾选框槽位常驻 40dp：进出选择模式行高不变（否则应用间距会突兀变大）；
+                                // 选中与否只由勾选框表达（无整行底色）
+                                Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                                    if (selectionMode) {
+                                        Checkbox(
+                                            state = if (isSelected) ToggleableState.On else ToggleableState.Off,
+                                            onClick = { onItemClick(entry) },
+                                        )
+                                    }
+                                }
+                            }
+                            // 行间浅色分隔线（对齐统计页等列表的 HorizontalDivider 样式）
+                            if (index != filtered.lastIndex) {
+                                HorizontalDivider()
                             }
                         }
                     }
-                    HorizontalDivider()
                 }
             }
         }
@@ -897,13 +930,14 @@ private fun IdleContent(
 }
 
 /** Shizuku 未就绪提示条 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.errorContainer,
-            contentColor = MiuixTheme.colorScheme.onErrorContainer,
+            color = WarningDefaults.containerColor(),
+            contentColor = WarningDefaults.contentColor(),
         ),
     ) {
         Row(
@@ -913,15 +947,17 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
             Icon(
                 MiuixIcons.Info,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onErrorContainer,
+                tint = WarningDefaults.contentColor(),
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = text,
                 style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f),
+                color = WarningDefaults.contentColor(),
+                // 单行 + 溢出跑马灯滚动（KernelSU 同款 basicMarquee），不再截断为省略号
+                maxLines = 1,
+                modifier = Modifier.weight(1f).basicMarquee(),
             )
             Spacer(Modifier.width(8.dp))
             TextButton(text = actionText, onClick = onAction)
@@ -930,13 +966,14 @@ private fun ShizukuBanner(text: String, actionText: String, onAction: () -> Unit
 }
 
 /** 仍被暂停应用的恢复提示条：专注结束后因 Shizuku 崩溃等未能解冻时显示，点击一键恢复 */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
     Card(
         Modifier.fillMaxWidth(),
         colors = CardDefaults.defaultColors(
-            color = MiuixTheme.colorScheme.errorContainer,
-            contentColor = MiuixTheme.colorScheme.onErrorContainer,
+            color = WarningDefaults.containerColor(),
+            contentColor = WarningDefaults.contentColor(),
         ),
     ) {
         Row(
@@ -946,15 +983,16 @@ private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
             Icon(
                 MiuixIcons.Info,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.onErrorContainer,
+                tint = WarningDefaults.contentColor(),
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = stringResource(R.string.focus_suspended_restore_title, count),
                 style = MiuixTheme.textStyles.footnote1,
-                color = MiuixTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.weight(1f),
+                color = WarningDefaults.contentColor(),
+                maxLines = 1,
+                modifier = Modifier.weight(1f).basicMarquee(),
             )
             Spacer(Modifier.width(8.dp))
             TextButton(
@@ -971,6 +1009,7 @@ private fun SuspendedRestoreBanner(count: Int, onRestore: () -> Unit) {
  *  点「添加休息/添加专注」可扩展为分段专注（专注→休息→专注…），不加休息即普通连续专注。 */
 @Composable
 private fun FocusTimeDialog(
+    show: Boolean,
     initial: Int,
     onDismiss: () -> Unit,
     onStart: (List<FocusStore.Segment>) -> Unit,
@@ -1033,7 +1072,7 @@ private fun FocusTimeDialog(
     }
 
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.focus_select_duration),
         onDismissRequest = onDismiss,
     ) {
@@ -1096,7 +1135,7 @@ private fun FocusTimeDialog(
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                Row {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         text = stringResource(R.string.action_save_preset),
                         onClick = { showSavePreset = true },
@@ -1130,22 +1169,22 @@ private fun FocusTimeDialog(
             }
         }
     }
-    if (showSavePreset) {
+    PresetSaveDialog(
+        show = showSavePreset,
         // 保存整个分段列表（含休息）；名称必填
-        PresetSaveDialog(
-            segments = segments,
-            onDismiss = { showSavePreset = false },
-        )
-    }
-    if (showManagePresets) {
-        PresetManageDialog(onDismiss = { showManagePresets = false })
-    }
+        segments = segments,
+        onDismiss = { showSavePreset = false },
+    )
+    PresetManageDialog(
+        show = showManagePresets,
+        onDismiss = { showManagePresets = false },
+    )
     // 段时长输入对话框（嵌套在时间选择对话框之上；点时长胶囊触发）
-    if (durationDialogIndex in segments.indices) {
-        val index = durationDialogIndex
-        val seg = segments[index]
-        SegmentMinutesDialogMiuix(
-            title = stringResource(
+    val index = durationDialogIndex
+    val seg = segments.getOrNull(index) ?: FocusStore.Segment(FocusStore.SEGMENT_FOCUS, 0)
+    SegmentMinutesDialogMiuix(
+        show = index in segments.indices,
+        title = stringResource(
                 if (seg.isFocus) R.string.focus_segment_focus_duration_title
                 else R.string.focus_segment_rest_duration_title
             ),
@@ -1157,13 +1196,12 @@ private fun FocusTimeDialog(
             },
             onCancel = { durationDialogIndex = -1 },
         )
-    }
     // 按时间段调整分段：选择该段新的结束时刻 → 时长自动反算，后续段顺延
     // 单段最大 240 分钟（普通专注总时长上限）；新总时长超 240 在点开始时统一校验
-    if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
-        MiuixTimePickerDialog(
-            initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
-            initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
+    MiuixTimePickerDialog(
+        show = editingEndIndex >= 0 && editingEndIndex < segmentBounds.size,
+        initialHour = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) / 60,
+            initialMinute = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) % 60,
             onDismiss = { editingEndIndex = -1 },
             onConfirm = { h, m ->
                 val chosen = h * 60 + m // 当天时刻 0..1439
@@ -1183,7 +1221,6 @@ private fun FocusTimeDialog(
                 editingEndIndex = -1
             },
         )
-    }
 }
 
 /** 预设快捷选择 chips：显示「名称 段序列」（如「午休 30」「番茄 25+5+25」）；
@@ -1219,12 +1256,12 @@ private fun FocusPresetChips(
 
 /** 保存为预设：保存当前完整分段列表（含休息），名称必填（不支持自动命名） */
 @Composable
-private fun PresetSaveDialog(segments: List<FocusStore.Segment>, onDismiss: () -> Unit) {
+private fun PresetSaveDialog(show: Boolean, segments: List<FocusStore.Segment>, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     val total = segments.sumOf { it.minutes }
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.action_save_preset),
         onDismissRequest = onDismiss,
     ) {
@@ -1290,7 +1327,7 @@ private fun PresetSaveDialog(segments: List<FocusStore.Segment>, onDismiss: () -
 
 /** 管理预设：长按拖动排序（与应用集/计划列表同款：行放大跟手，其余行 animateItem 平滑让位）+ 删除 */
 @Composable
-private fun PresetManageDialog(onDismiss: () -> Unit) {
+private fun PresetManageDialog(show: Boolean, onDismiss: () -> Unit) {
     var presets by remember { mutableStateOf(FocusStore.presets.toList()) }
     val listState = rememberLazyListState()
     var draggingId by remember { mutableStateOf<Long?>(null) }
@@ -1299,7 +1336,7 @@ private fun PresetManageDialog(onDismiss: () -> Unit) {
     val latestPresets by rememberUpdatedState(presets)
 
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.action_manage_presets),
         onDismissRequest = onDismiss,
     ) {

@@ -1,10 +1,12 @@
 package com.frosthush.app.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -69,6 +71,7 @@ import com.frosthush.app.ui.settings.FocusSettingsScreen
 import com.frosthush.app.ui.settings.PlanSettingsScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.settings.ThemeSettingsScreen
+import com.frosthush.app.ui.settings.UpdateSettingsScreen
 import com.frosthush.app.ui.stats.StatsScreen
 import com.frosthush.app.ui.theme.LocalEnableBlur
 import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBar
@@ -90,6 +93,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun AppRoot() {
     var welcomeDone by remember { mutableStateOf(SettingsStore.cache.welcomeDone) }
+    // 「重新查看引导」：从主题设置页重开欢迎页（结束后回到主界面）
+    var replayWelcome by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         SettingsStore.welcomeDone.collect { welcomeDone = it }
     }
@@ -129,13 +134,29 @@ fun AppRoot() {
         UiMode.Material -> MaterialTheme.colorScheme.background
     }
     Box(Modifier.fillMaxSize().background(rootColor)) {
-        if (!welcomeDone) {
-            WelcomeScreen(onFinished = {
-                SettingsStore.setWelcomeDone(true)
-                welcomeDone = true
-            })
-        } else {
-            MainNavHost()
+        AnimatedContent(
+            targetState = !welcomeDone || replayWelcome,
+            transitionSpec = {
+                if (targetState) {
+                    // 进入欢迎页：快速淡入（方案B，弱化主界面透出感）
+                    fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+                } else {
+                    // 结束欢迎页：慢速淡出交还主界面
+                    fadeIn(tween(400, easing = FastOutSlowInEasing))
+                        .togetherWith(fadeOut(tween(450, easing = FastOutSlowInEasing)))
+                }
+            },
+            label = "welcomeOverlay",
+        ) { showWelcome ->
+            if (showWelcome) {
+                WelcomeScreen(onFinished = {
+                    SettingsStore.setWelcomeDone(true)
+                    welcomeDone = true
+                    replayWelcome = false
+                })
+            } else {
+                MainNavHost(onReplayWelcome = { replayWelcome = true })
+            }
         }
         // 专注进行中：全屏锁定倒计时覆盖一切（进入淡入 + 缩放落定，结束快速淡出）
         AnimatedVisibility(
@@ -159,7 +180,7 @@ fun AppRoot() {
  * 转场动画由 navigation3 默认实现提供（横向滑动 + 视差），预测性返回手势自动接入。
  */
 @Composable
-private fun MainNavHost() {
+private fun MainNavHost(onReplayWelcome: () -> Unit) {
     val navigator = rememberNavigator(Route.Main)
     // 配置导入预览数据：一次性载荷（不可序列化），与路由同生命周期
     var configImportData by remember { mutableStateOf<FocusStore.ConfigData?>(null) }
@@ -180,7 +201,12 @@ private fun MainNavHost() {
                     }
                     PlanEditScreen(plan = plan, onBack = navigator::pop)
                 }
-                entry<Route.ThemeSettings> { ThemeSettingsScreen(onBack = navigator::pop) }
+                entry<Route.ThemeSettings> {
+                    ThemeSettingsScreen(
+                        onBack = navigator::pop,
+                        onReplayWelcome = onReplayWelcome,
+                    )
+                }
                 entry<Route.SettingsFocus> { FocusSettingsScreen(onBack = navigator::pop) }
                 entry<Route.SettingsPlan> { PlanSettingsScreen(onBack = navigator::pop) }
                 entry<Route.SettingsData> {
@@ -192,7 +218,8 @@ private fun MainNavHost() {
                         },
                     )
                 }
-                entry<Route.ConfigImport> {
+                                entry<Route.UpdateSettings> { UpdateSettingsScreen(onBack = navigator::pop) }
+entry<Route.ConfigImport> {
                     val data = configImportData
                     if (data == null) {
                         // 进程被重建导致载荷丢失：直接退回主界面
@@ -269,7 +296,8 @@ private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
  * 主界面：底栏 / 侧边栏 + 5 个 tab 的横向 Pager（对齐 KernelSU）。
  *
  * - 竖屏：Scaffold 的 bottomBar 承载 [BottomBar]（Miuix / Material 分派）；
- * - 横屏：左侧 [SideRail]（对应雹 layout-land 的 NavigationRailView）；
+ * - 横屏：material 主题用左侧 [SideRail]（对应雹 layout-land 的 NavigationRailView）；
+ *   miuix 主题横竖屏统一用底部导航栏；
  * - Pager 铺满整屏（内容可从底栏下方穿过），各页面只把底栏高度作为
  *   **列表底部内边距**，因此底栏下方不会再出现一条被占位的纯色横条。
  */
@@ -395,6 +423,7 @@ private fun TabPage(
             onOpenFocusSettings = { navigator.push(Route.SettingsFocus) },
             onOpenPlanSettings = { navigator.push(Route.SettingsPlan) },
             onOpenDataSettings = { navigator.push(Route.SettingsData) },
+            onOpenUpdateSettings = { navigator.push(Route.UpdateSettings) },
             bottomInnerPadding = bottomInnerPadding,
         )
 

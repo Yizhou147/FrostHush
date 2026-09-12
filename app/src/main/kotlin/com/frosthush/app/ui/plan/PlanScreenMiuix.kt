@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +61,7 @@ import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.FocusStore.FocusPlan
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.ui.WarningDefaults
 import com.frosthush.app.ui.settings.PlanReliabilityDialog
 import com.frosthush.app.ui.settings.checkBatteryOptimization
 import kotlinx.coroutines.delay
@@ -92,6 +94,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * - 列表项：计划名、时间段（跨天显示次日）、星期徽标（执行日高亮）、绑定信息、启用 Switch
  * - 多选操作栏、省电/冲突提醒横幅、长按进入多选、多选下长按拖拽排序等逻辑与 material 版逐字一致
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlanScreenMiuix(
     onNewPlan: () -> Unit,
@@ -226,8 +229,8 @@ fun PlanScreenMiuix(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     colors = CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                        contentColor = MiuixTheme.colorScheme.onErrorContainer,
+                        color = WarningDefaults.containerColor(),
+                        contentColor = WarningDefaults.contentColor(),
                     ),
                     onClick = { showReliability = true },
                 ) {
@@ -245,8 +248,9 @@ fun PlanScreenMiuix(
                         Text(
                             text = stringResource(R.string.plan_banner_battery_title),
                             style = MiuixTheme.textStyles.footnote1,
-                            color = MiuixTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.weight(1f),
+                            color = WarningDefaults.contentColor(),
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f).basicMarquee(),
                         )
                         Text(
                             text = stringResource(R.string.plan_banner_battery_action),
@@ -263,8 +267,8 @@ fun PlanScreenMiuix(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     colors = CardDefaults.defaultColors(
-                        color = MiuixTheme.colorScheme.errorContainer,
-                        contentColor = MiuixTheme.colorScheme.onErrorContainer,
+                        color = WarningDefaults.containerColor(),
+                        contentColor = WarningDefaults.contentColor(),
                     ),
                 ) {
                     Row(
@@ -274,7 +278,7 @@ fun PlanScreenMiuix(
                         Icon(
                             MiuixIcons.Info,
                             contentDescription = null,
-                            tint = MiuixTheme.colorScheme.onErrorContainer,
+                            tint = WarningDefaults.contentColor(),
                             modifier = Modifier.size(20.dp),
                         )
                         Spacer(Modifier.width(8.dp))
@@ -282,13 +286,15 @@ fun PlanScreenMiuix(
                             Text(
                                 text = stringResource(R.string.plan_conflict_banner_title),
                                 style = MiuixTheme.textStyles.footnote1,
-                                color = MiuixTheme.colorScheme.onErrorContainer,
+                                color = WarningDefaults.contentColor(),
+                                maxLines = 1,
+                                modifier = Modifier.fillMaxWidth().basicMarquee(),
                             )
                             conflicts.forEach { c ->
                                 Text(
                                     text = stringResource(R.string.plan_conflict_pair, c.planA.name, c.planB.name),
                                     style = MiuixTheme.textStyles.footnote1,
-                                    color = MiuixTheme.colorScheme.onErrorContainer,
+                                    color = WarningDefaults.contentColor(),
                                 )
                             }
                         }
@@ -421,7 +427,7 @@ fun PlanScreenMiuix(
     }
 
     if (showReliability) {
-        PlanReliabilityDialog(onDismiss = { showReliability = false })
+        PlanReliabilityDialog(show = showReliability, onDismiss = { showReliability = false })
     }
 }
 

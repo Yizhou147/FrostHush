@@ -33,6 +33,7 @@ import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Info
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.icon.extended.Timer
+import top.yukonga.miuix.kmp.icon.extended.Update
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.RadioButtonPreference
@@ -50,6 +51,7 @@ fun SettingsScreenMiuix(
     onOpenFocusSettings: () -> Unit,
     onOpenPlanSettings: () -> Unit,
     onOpenDataSettings: () -> Unit,
+    onOpenUpdateSettings: () -> Unit,
     /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
     bottomInnerPadding: Dp = 0.dp,
 ) {
@@ -110,6 +112,12 @@ fun SettingsScreenMiuix(
                     summary = stringResource(R.string.settings_group_data_summary),
                     startAction = { SettingIcon(MiuixIcons.Folder) },
                     onClick = onOpenDataSettings,
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.about_check_update),
+                    summary = stringResource(R.string.settings_update_entry_summary),
+                    startAction = { SettingIcon(MiuixIcons.Update) },
+                    onClick = onOpenUpdateSettings,
                 )
             }
         }

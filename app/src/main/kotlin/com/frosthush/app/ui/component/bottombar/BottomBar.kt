@@ -155,10 +155,11 @@ val LocalMainPagerState = staticCompositionLocalOf<MainPagerState> {
     error("LocalMainPagerState not provided")
 }
 
-/** 横屏用侧边导航栏（对应雹 layout-land 的 NavigationRailView），竖屏用底栏 */
+/** 横屏用侧边导航栏（仅 material 主题；miuix 主题横竖屏统一用底部导航栏） */
 @Composable
 fun useNavigationRail(): Boolean =
-    LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    LocalUiMode.current == UiMode.Material &&
+        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
 /**
  * 底栏分派：Miuix（HyperOS 设计语言）/ Material（项目原有主题）。竖屏专用；横屏请用 [SideRail]。

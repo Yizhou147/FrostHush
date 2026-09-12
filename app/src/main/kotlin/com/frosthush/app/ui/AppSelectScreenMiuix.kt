@@ -155,7 +155,11 @@ fun AppSelectScreenMiuix(
                 },
                 modifier = Modifier.padding(vertical = 8.dp),
             )
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = stringResource(R.string.focus_selected_count, selected.size),
                     style = MiuixTheme.textStyles.body2,

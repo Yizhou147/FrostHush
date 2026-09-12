@@ -163,7 +163,7 @@ fun PlanSettingsMaterial(onBack: () -> Unit) {
     }
 
     if (showReliabilityDialog) {
-        PlanReliabilityDialog(onDismiss = { showReliabilityDialog = false })
+        PlanReliabilityDialog(show = true, onDismiss = { showReliabilityDialog = false })
     }
     if (showFallbackScopeDialog) {
         AlertDialog(

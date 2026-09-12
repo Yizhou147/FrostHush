@@ -35,4 +35,7 @@ sealed interface Route : NavKey {
 
     /** 数据二级页 */
     data object SettingsData : Route
+
+    /** 检查更新二级页 */
+    data object UpdateSettings : Route
 }

@@ -412,7 +412,7 @@ fun PlanScreenMaterial(
     }
 
     if (showReliability) {
-        PlanReliabilityDialog(onDismiss = { showReliability = false })
+        PlanReliabilityDialog(show = true, onDismiss = { showReliability = false })
     }
 }
 

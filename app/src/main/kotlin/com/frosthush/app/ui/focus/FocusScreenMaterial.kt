@@ -1,11 +1,17 @@
 package com.frosthush.app.ui.focus
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
@@ -360,7 +366,11 @@ fun FocusScreenMaterial(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (session == null) {
+            AnimatedVisibility(
+                visible = session == null,
+                enter = fadeIn(tween(200)) + slideInVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+                exit = fadeOut(tween(200)) + slideOutVertically(tween(250, easing = FastOutSlowInEasing)) { it / 2 },
+            ) {
                 ExtendedFloatingActionButton(
                     modifier = Modifier.padding(bottom = bottomInnerPadding),
                     onClick = { showDurationDialog = true },

@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.frosthush.app.FrostHushApp.Companion.app
@@ -46,6 +47,16 @@ object SettingsStore {
         val enableFloatingBottomBar: Boolean = false,
         /** 悬浮底栏液态玻璃（仅 API 33+ 生效，低版本自动降级） */
         val enableFloatingBottomBarBlur: Boolean = false,
+        /** 关于页动态流动背景（AGSL 着色器，仅 Android 15+ 实际生效） */
+        val enableDynamicBackground: Boolean = true,
+        /** 检查更新镜像站（UpdateChecker.UpdateMirror.id） */
+        val updateMirror: String = "gh-proxy",
+        /** 自定义镜像站前缀（updateMirror == "custom" 时使用，如 https://your-mirror.example/） */
+        val customMirror: String = "",
+        /** 启动时自动检查更新（24 小时节流） */
+        val autoCheckUpdate: Boolean = false,
+        /** 上次检查更新时间戳（节流用） */
+        val lastUpdateCheckMillis: Long = 0L,
         /** 预测性返回手势 */
         val enablePredictiveBack: Boolean = false,
         /** 界面缩放（应用内密度缩放，1.0 = 不缩放） */
@@ -87,6 +98,11 @@ object SettingsStore {
     private val KEY_ENABLE_BLUR = booleanPreferencesKey("enable_blur")
     private val KEY_FLOATING_BOTTOM_BAR = booleanPreferencesKey("floating_bottom_bar")
     private val KEY_FLOATING_BOTTOM_BAR_BLUR = booleanPreferencesKey("floating_bottom_bar_blur")
+    private val KEY_DYNAMIC_BACKGROUND = booleanPreferencesKey("dynamic_background")
+    private val KEY_UPDATE_MIRROR = stringPreferencesKey("update_mirror")
+    private val KEY_CUSTOM_MIRROR = stringPreferencesKey("custom_mirror")
+    private val KEY_AUTO_CHECK_UPDATE = booleanPreferencesKey("auto_check_update")
+    private val KEY_LAST_UPDATE_CHECK = longPreferencesKey("last_update_check_millis")
     private val KEY_PREDICTIVE_BACK = booleanPreferencesKey("predictive_back")
     private val KEY_PAGE_SCALE = floatPreferencesKey("page_scale")
 
@@ -114,6 +130,11 @@ object SettingsStore {
                     enableBlur = prefs[KEY_ENABLE_BLUR] ?: true,
                     enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: false,
                     enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false,
+                    enableDynamicBackground = prefs[KEY_DYNAMIC_BACKGROUND] ?: true,
+                    updateMirror = prefs[KEY_UPDATE_MIRROR] ?: "gh-proxy",
+                    customMirror = prefs[KEY_CUSTOM_MIRROR] ?: "",
+                    autoCheckUpdate = prefs[KEY_AUTO_CHECK_UPDATE] ?: false,
+                    lastUpdateCheckMillis = prefs[KEY_LAST_UPDATE_CHECK] ?: 0L,
                     enablePredictiveBack = prefs[KEY_PREDICTIVE_BACK] ?: false,
                     pageScale = prefs[KEY_PAGE_SCALE] ?: 1.0f,
                 )
@@ -201,6 +222,11 @@ object SettingsStore {
     val enableBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_ENABLE_BLUR] ?: true }
     val enableFloatingBottomBar: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR] ?: false }
     val enableFloatingBottomBarBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false }
+    val enableDynamicBackground: Flow<Boolean> = app.dataStore.data.map { it[KEY_DYNAMIC_BACKGROUND] ?: true }
+    val updateMirror: Flow<String> = app.dataStore.data.map { it[KEY_UPDATE_MIRROR] ?: "gh-proxy" }
+    val customMirror: Flow<String> = app.dataStore.data.map { it[KEY_CUSTOM_MIRROR] ?: "" }
+    val autoCheckUpdate: Flow<Boolean> = app.dataStore.data.map { it[KEY_AUTO_CHECK_UPDATE] ?: false }
+    val lastUpdateCheckMillis: Flow<Long> = app.dataStore.data.map { it[KEY_LAST_UPDATE_CHECK] ?: 0L }
     val enablePredictiveBack: Flow<Boolean> = app.dataStore.data.map { it[KEY_PREDICTIVE_BACK] ?: false }
     val pageScale: Flow<Float> = app.dataStore.data.map { it[KEY_PAGE_SCALE] ?: 1.0f }
 
@@ -229,6 +255,41 @@ object SettingsStore {
         scope.launch {
             app.dataStore.edit { it[KEY_FLOATING_BOTTOM_BAR_BLUR] = enabled }
             cache = cache.copy(enableFloatingBottomBarBlur = enabled)
+        }
+    }
+
+    fun setEnableDynamicBackground(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_DYNAMIC_BACKGROUND] = enabled }
+            cache = cache.copy(enableDynamicBackground = enabled)
+        }
+    }
+
+    fun setUpdateMirror(id: String) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_UPDATE_MIRROR] = id }
+            cache = cache.copy(updateMirror = id)
+        }
+    }
+
+    fun setCustomMirror(prefix: String) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_CUSTOM_MIRROR] = prefix }
+            cache = cache.copy(customMirror = prefix)
+        }
+    }
+
+    fun setAutoCheckUpdate(enabled: Boolean) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_AUTO_CHECK_UPDATE] = enabled }
+            cache = cache.copy(autoCheckUpdate = enabled)
+        }
+    }
+
+    fun setLastUpdateCheckMillis(millis: Long) {
+        scope.launch {
+            app.dataStore.edit { it[KEY_LAST_UPDATE_CHECK] = millis }
+            cache = cache.copy(lastUpdateCheckMillis = millis)
         }
     }
 

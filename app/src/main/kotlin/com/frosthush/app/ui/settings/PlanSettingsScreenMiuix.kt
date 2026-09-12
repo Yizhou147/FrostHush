@@ -184,9 +184,9 @@ fun PlanSettingsMiuix(onBack: () -> Unit) {
             },
             onDismiss = { showFallbackWarning = false },
         )
-        // 计划可靠性检查沿用 material3 AlertDialog（与计划页共用同一实现）
+        // 计划可靠性检查：按 UiMode 分派（miuix 为 OverlayDialog 版，material 为 AlertDialog 版）
         if (showReliabilityDialog) {
-            PlanReliabilityDialog(onDismiss = { showReliabilityDialog = false })
+            PlanReliabilityDialog(show = showReliabilityDialog, onDismiss = { showReliabilityDialog = false })
         }
         MiuixConfirmDialog(
             show = showRestoreConfirm,

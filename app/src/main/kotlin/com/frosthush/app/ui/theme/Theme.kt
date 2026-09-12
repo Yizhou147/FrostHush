@@ -11,9 +11,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.frosthush.app.data.SettingsStore
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeController
+
+/** miuix 主色定制：miuix 默认蓝（#3482FF）偏浅，按用户要求略加深（仅浅色模式；深色模式保持默认） */
+private val MiuixDeepBlue = Color(0xFF2F6FEC)
 
 /** 亮色主题：与雹的 md_theme_*（values/colors.xml）一致 */
 private val LightColors = lightColorScheme(
@@ -129,24 +130,31 @@ fun FrostHushTheme(content: @Composable () -> Unit) {
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
     val uiMode = UiMode.fromValue(uiModeValue)
 
+    // miuix 色板始终构造并包裹（与 MaterialTheme 同构）：
+    // 若按 uiMode 分支包裹/不包裹，切换「界面风格」会改变组合树结构，
+    // 导致下层全部 remember 状态丢失（页面跳回首页、欢迎覆盖层被关闭）——曾经的真实 bug。
+    val miuixColors = remember(dark) {
+        if (dark) {
+            top.yukonga.miuix.kmp.theme.darkColorScheme()
+        } else {
+            top.yukonga.miuix.kmp.theme.lightColorScheme(
+                primary = MiuixDeepBlue,
+                primaryVariant = MiuixDeepBlue,
+                // 选中态容器（应用集 chip / 星期胶囊等）：默认 #EAF2FF 太浅，加深一档
+                tertiaryContainer = Color(0xFFD8E6FF),
+                tertiaryContainerVariant = Color(0xFFD8E6FF),
+                onTertiaryContainer = MiuixDeepBlue,
+            )
+        }
+    }
     // MaterialTheme 始终提供：迁移期 material3 组件仍在各页面使用
     MaterialTheme(colorScheme = if (dark) DarkColors else LightColors) {
-        CompositionLocalProvider(LocalUiMode provides uiMode) {
-            when (uiMode) {
-                UiMode.Miuix -> MiuixFrostHushTheme(dark = dark, content = content)
-                UiMode.Material -> content()
+        MiuixTheme(colors = miuixColors) {
+            CompositionLocalProvider(LocalUiMode provides uiMode) {
+                content()
             }
         }
     }
-}
-
-/** miuix 分支：套一层 MiuixTheme，提供 HyperOS 设计语言的色彩与字体 token */
-@Composable
-private fun MiuixFrostHushTheme(dark: Boolean, content: @Composable () -> Unit) {
-    val controller = remember(dark) {
-        ThemeController(colorSchemeMode = if (dark) ColorSchemeMode.Dark else ColorSchemeMode.Light)
-    }
-    MiuixTheme(controller = controller, content = content)
 }
 
 /**

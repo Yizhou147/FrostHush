@@ -7,6 +7,8 @@
     <uses-sdk tools:overrideLibrary="rikka.shizuku.api, rikka.shizuku.provider, top.yukonga.miuix.kmp.blur"/>
 
     <!-- 专注结束提醒（Android 13+ 运行时权限，低版本自动视为已获取） -->
+    <!-- 联网权限：仅用于「检查更新」（访问 GitHub Releases），其余功能与数据均在本地 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- 读取已安装应用列表（无运行时弹窗，能查询到列表即视为已获取） -->
     <uses-permission

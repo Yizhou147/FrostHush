@@ -59,6 +59,7 @@ private const val KEY_THEME_SETTINGS = "themeSettings"
 private const val KEY_SETTINGS_FOCUS = "settingsFocus"
 private const val KEY_SETTINGS_PLAN = "settingsPlan"
 private const val KEY_SETTINGS_DATA = "settingsData"
+private const val KEY_UPDATE_SETTINGS = "updateSettings"
 private const val PREFIX_PLAN_EDIT = "planEdit:"
 
 private fun encodeRoute(route: NavKey): String = when (route) {
@@ -70,6 +71,7 @@ private fun encodeRoute(route: NavKey): String = when (route) {
     Route.SettingsFocus -> KEY_SETTINGS_FOCUS
     Route.SettingsPlan -> KEY_SETTINGS_PLAN
     Route.SettingsData -> KEY_SETTINGS_DATA
+    Route.UpdateSettings -> KEY_UPDATE_SETTINGS
     is Route.PlanEdit -> "$PREFIX_PLAN_EDIT${route.planId}"
     else -> KEY_MAIN
 }
@@ -83,6 +85,7 @@ private fun decodeRoute(value: String): Route? = when {
     value == KEY_SETTINGS_FOCUS -> Route.SettingsFocus
     value == KEY_SETTINGS_PLAN -> Route.SettingsPlan
     value == KEY_SETTINGS_DATA -> Route.SettingsData
+    value == KEY_UPDATE_SETTINGS -> Route.UpdateSettings
     value.startsWith(PREFIX_PLAN_EDIT) ->
         value.removePrefix(PREFIX_PLAN_EDIT).toLongOrNull()?.let { Route.PlanEdit(it) }
     else -> null

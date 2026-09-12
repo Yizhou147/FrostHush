@@ -45,6 +45,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,6 +68,8 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TabRow
+import top.yukonga.miuix.kmp.basic.TabRowWithContour
+import top.yukonga.miuix.kmp.basic.TabRowDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -364,29 +367,47 @@ private fun ChartSectionMiuix(
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
-            TabRow(
+            // 白色卡片内默认 TabRow 选中块（surfaceContainer=白）与卡片同色不可见：
+            // 未选中透明底+灰字，选中浅灰块+黑字
+            // 带描边的 TabRow（HyperOS 观感，选中块更醒目）
+            TabRowWithContour(
                 tabs = listOf(
                     stringResource(R.string.stats_chart_7d),
                     stringResource(R.string.stats_chart_30d),
                 ),
                 selectedTabIndex = if (days == 7) 0 else 1,
                 onTabSelected = { onChartDaysChange(if (it == 0) 7 else 30) },
+                colors = TabRowDefaults.tabRowColors(
+                    backgroundColor = Color.Transparent,
+                    contentColor = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    selectedBackgroundColor = MiuixTheme.colorScheme.secondaryVariant,
+                    selectedContentColor = MiuixTheme.colorScheme.onBackground,
+                ),
             )
             Spacer(Modifier.height(12.dp))
-            FocusBarChartMiuix(history, days, onSelect = onDateSelect)
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth()) {
-                Text(
-                    text = Format.date(System.currentTimeMillis() - (days - 1) * 86_400_000L),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = Format.date(System.currentTimeMillis()),
-                    style = MiuixTheme.textStyles.footnote2,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                )
+            // 切换 7/30 天：图表与日期区间交叉淡入淡出（内容按 days 快照，新旧画面才有差异）
+            AnimatedContent(
+                targetState = days,
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                label = "statsChartRange",
+            ) { chartDays ->
+                Column(Modifier.fillMaxWidth()) {
+                    FocusBarChartMiuix(history, chartDays, onSelect = onDateSelect)
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(
+                            text = Format.date(System.currentTimeMillis() - (chartDays - 1) * 86_400_000L),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = Format.date(System.currentTimeMillis()),
+                            style = MiuixTheme.textStyles.footnote2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
+                }
             }
         }
     }
@@ -441,7 +462,7 @@ private fun MonthHeaderMiuix(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

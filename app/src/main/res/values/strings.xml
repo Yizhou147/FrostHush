@@ -167,7 +167,7 @@
     <string name="settings_ui_style_miuix">Miuix (HyperOS)</string>
     <string name="settings_ui_style_material">Material (default)</string>
     <string name="settings_enable_blur">Blur</string>
-    <string name="settings_enable_blur_summary">Blur the top and bottom bars</string>
+    <string name="settings_enable_blur_summary">Blur the bottom bar only</string>
     <string name="settings_floating_bottom_bar">Floating bottom bar</string>
     <string name="settings_floating_bottom_bar_summary">Use a floating bottom bar</string>
     <string name="settings_floating_bar_blur">Liquid glass</string>
@@ -254,7 +254,7 @@
     <string name="about_opensource">Open source notice</string>
     <string name="about_opensource_text">Hail (https://github.com/aistra0528/Hail) itself does not include a focus mode; focus mode was added on top of it. This standalone app is extracted from that feature and does not include Hail\'s freeze/stop features.</string>
     <string name="about_privacy">Privacy</string>
-    <string name="about_privacy_text">All data is stored locally on your device and never uploaded.</string>
+    <string name="about_privacy_text">All data stays on your device and is never uploaded; the Internet permission is only used to check for updates.</string>
 
     <!-- 应用集 -->
     <string name="group_title">App groups</string>
@@ -393,4 +393,37 @@
     <string name="debug_export_log_summary">Export key event logs for troubleshooting</string>
     <string name="debug_exported">Diagnostic log exported: %1$s</string>
     <string name="debug_export_failed">Export failed</string>
+    <string name="about_check_update">Check for updates</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_failed">Check failed. Check your network and try again.</string>
+    <string name="update_latest">You\'re on the latest version.</string>
+    <string name="update_available_title">Update available: %1$s</string>
+    <string name="update_download">Download update</string>
+    <string name="settings_dynamic_background">Dynamic background</string>
+    <string name="settings_dynamic_background_summary">About page flowing color background (Android 15+)</string>
+    <string name="settings_update_entry_summary">Mirror &amp; auto check</string>
+    <string name="update_mirror">Mirror</string>
+    <string name="mirror_direct">GitHub direct</string>
+    <string name="mirror_gh_proxy">gh-proxy.com</string>
+    <string name="mirror_ghfast">ghfast.top (download only)</string>
+    <string name="mirror_moeyy">github.moeyy.xyz (download only)</string>
+    <string name="update_auto_check">Check on launch</string>
+    <string name="update_auto_check_summary">Check silently on app start (once per 24h)</string>
+    <string name="update_open_release">Open latest release page</string>
+    <string name="update_current_version">Current version</string>
+    <string name="mirror_custom">Custom</string>
+    <string name="custom_mirror_hint">Mirror prefix, e.g. https://your-mirror.example/</string>
+    <string name="custom_mirror_title">Custom mirror</string>
+    <string name="update_internet_note">The Internet permission is only used to check for updates (accessing GitHub Releases). All data stays on your device.</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_previous">Previous</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+    <string name="welcome_page_permissions">Permissions</string>
+    <string name="welcome_page_shizuku">Connect Shizuku</string>
+    <string name="welcome_page_battery">Battery &amp; autostart</string>
+    <string name="welcome_page_ready">All set</string>
+    <string name="welcome_ready_summary">Check the status below; you can adjust everything later in Settings.</string>
+    <string name="settings_replay_welcome">Replay the welcome guide</string>
+    <string name="settings_replay_welcome_summary">Reopen the welcome pages and permission guide</string>
 </resources>

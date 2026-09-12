@@ -367,12 +367,17 @@ private fun ChartSection(
                     label = { Text(stringResource(R.string.stats_chart_30d)) },
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            FocusBarChart(history, days, onSelect = onDateSelect)
+            AnimatedContent(
+                targetState = days,
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                label = "statsChartRangeM",
+            ) { chartDays ->
+                Column(Modifier.fillMaxWidth()) {
+                    FocusBarChart(history, chartDays, onSelect = onDateSelect)
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth()) {
                 Text(
-                    Format.date(System.currentTimeMillis() - (days - 1) * 86_400_000L),
+                    Format.date(System.currentTimeMillis() - (chartDays - 1) * 86_400_000L),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -383,7 +388,9 @@ private fun ChartSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            }
         }
+    }
     }
 }
 

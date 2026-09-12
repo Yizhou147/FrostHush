@@ -183,6 +183,7 @@ fun SegmentRatioBarMiuix(segments: List<FocusStore.Segment>) {
 /** 分段时长数字输入对话框（miuix）：title 传段类型标题，range 校验范围 */
 @Composable
 fun SegmentMinutesDialogMiuix(
+    show: Boolean,
     title: String,
     selected: Int,
     range: IntRange,
@@ -192,7 +193,7 @@ fun SegmentMinutesDialogMiuix(
     val context = LocalContext.current
     var input by remember { mutableStateOf(selected.toString()) }
     OverlayDialog(
-        show = true,
+        show = show,
         title = title,
         onDismissRequest = onCancel,
     ) {
@@ -236,6 +237,7 @@ fun SegmentMinutesDialogMiuix(
  */
 @Composable
 fun MiuixTimePickerDialog(
+    show: Boolean,
     initialHour: Int,
     initialMinute: Int,
     onDismiss: () -> Unit,
@@ -244,7 +246,7 @@ fun MiuixTimePickerDialog(
     var hour by remember { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
     var minute by remember { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.plan_time_title),
         onDismissRequest = onDismiss,
     ) {

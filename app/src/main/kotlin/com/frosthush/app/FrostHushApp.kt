@@ -1,5 +1,6 @@
 package com.frosthush.app
 
+import com.frosthush.app.update.UpdateChecker
 import android.app.Application
 import android.content.pm.ApplicationInfo
 import android.os.Build
@@ -9,14 +10,33 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.util.DebugLog
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class FrostHushApp : Application() {
+
     override fun onCreate() {
         super.onCreate()
         app = this
         DebugLog.d("Lifecycle", "Application.onCreate 进程启动 now=${System.currentTimeMillis()}")
         SettingsStore.init()
+        // 自动检查更新（可选开启）：启动时后台静默检查，24 小时节流；
+        // 结果存内存（UpdateChecker.lastResult），在「设置 → 检查更新」页查看，不打扰用户
+        Thread {
+            runCatching {
+                runBlocking {
+                    val enabled = SettingsStore.autoCheckUpdate.first()
+                    val last = SettingsStore.lastUpdateCheckMillis.first()
+                    val mirrorId = SettingsStore.updateMirror.first()
+                    if (enabled && System.currentTimeMillis() - last > AUTO_CHECK_INTERVAL_MS) {
+                        val mirror = UpdateChecker.UpdateMirror.fromId(mirrorId)
+                        UpdateChecker.lastResult = UpdateChecker.check(BuildConfig.VERSION_NAME, mirror)
+                        SettingsStore.setLastUpdateCheckMillis(System.currentTimeMillis())
+                    }
+                }
+            }
+        }.start()
         // 预测性返回手势（对齐 KernelSU）：ApplicationInfo 的该开关是隐藏 API，
         // 这里反射打开/关闭；开关为进程级，修改后下一次启动才生效。
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -61,6 +81,9 @@ class FrostHushApp : Application() {
     }
 
     companion object {
+        /** 自动检查更新节流间隔 */
+        private const val AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+
         lateinit var app: FrostHushApp
             private set
 

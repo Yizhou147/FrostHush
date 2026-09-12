@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Folder
@@ -78,6 +79,7 @@ fun SettingsScreenMaterial(
     onOpenFocusSettings: () -> Unit,
     onOpenPlanSettings: () -> Unit,
     onOpenDataSettings: () -> Unit,
+    onOpenUpdateSettings: () -> Unit,
     /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
     bottomInnerPadding: Dp = 0.dp,
 ) {
@@ -156,6 +158,19 @@ fun SettingsScreenMaterial(
                     )
                 },
             )
+            SettingCard(
+                icon = Icons.Filled.CloudDownload,
+                title = stringResource(R.string.about_check_update),
+                summary = stringResource(R.string.settings_update_entry_summary),
+                onClick = onOpenUpdateSettings,
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
     }
 }
@@ -204,7 +219,7 @@ internal fun SettingCard(
  * internal：设置页（计划与可靠性二级页）与计划页（省电提醒横幅）复用。
  */
 @Composable
-internal fun PlanReliabilityDialog(onDismiss: () -> Unit) {
+internal fun PlanReliabilityDialogMaterial(show: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var checkKey by remember { mutableStateOf(0) }
 
@@ -223,6 +238,7 @@ internal fun PlanReliabilityDialog(onDismiss: () -> Unit) {
     val shizukuOk = remember(checkKey) { FocusManager.shizukuReady() }
     val allOk = batteryOk && exactAlarmOk && shizukuOk
 
+    if (!show) return
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.plan_rel_title)) },
@@ -351,7 +367,7 @@ internal fun checkBatteryOptimization(context: Context): Boolean = runCatching {
 }.getOrDefault(true)
 
 /** 精确闹钟是否可用（Manifest 已声明 USE_EXACT_ALARM，Android 13+ 安装即授） */
-private fun checkExactAlarm(context: Context): Boolean = runCatching {
+internal fun checkExactAlarm(context: Context): Boolean = runCatching {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
     } else true
@@ -370,7 +386,7 @@ internal fun openBatterySettings(context: Context) {
 }
 
 /** 跳转系统「精确闹钟」授权页（仅 Android 12+，低版本恒可用无需跳转） */
-private fun openExactAlarmSettings(context: Context) {
+internal fun openExactAlarmSettings(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         runCatching {
             context.startActivity(

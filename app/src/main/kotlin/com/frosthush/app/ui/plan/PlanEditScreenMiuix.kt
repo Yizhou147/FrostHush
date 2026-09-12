@@ -362,10 +362,10 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                         style = MiuixTheme.textStyles.title4,
                     )
                     Spacer(Modifier.height(8.dp))
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    // 7 个星期胶囊单行均分（weight 等宽 + 收窄内边距，保证不换行）
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         val weekdayLabels = listOf(
                             1 to stringResource(R.string.plan_weekday_mon),
@@ -383,27 +383,39 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                                 onClick = {
                                     weekdays = if (day in weekdays) weekdays - day else weekdays + day
                                 },
+                                modifier = Modifier.weight(1f),
                             )
                         }
                     }
-                    Row {
+                    Spacer(Modifier.height(8.dp))
+                    // 快捷三按钮等分铺满整行，与星期胶囊行留 8dp 呼吸间距
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         TextButton(
                             text = stringResource(R.string.plan_workdays),
                             onClick = { weekdays = setOf(1, 2, 3, 4, 5) },
+                            modifier = Modifier.weight(1f),
                         )
                         TextButton(
                             text = stringResource(R.string.plan_weekend),
                             onClick = { weekdays = setOf(6, 7) },
+                            modifier = Modifier.weight(1f),
                         )
                         TextButton(
                             text = stringResource(R.string.plan_once_only),
                             onClick = { weekdays = emptySet() },
-                            // 不重复（空 weekdays）为选中态：用主色按钮高亮
+                            // 不重复（空 weekdays）为选中态：与星期胶囊同款浅蓝容器色
                             colors = if (weekdays.isEmpty()) {
-                                ButtonDefaults.textButtonColorsPrimary()
+                                ButtonDefaults.textButtonColors(
+                                    color = MiuixTheme.colorScheme.tertiaryContainer,
+                                    textColor = MiuixTheme.colorScheme.onTertiaryContainer,
+                                )
                             } else {
                                 ButtonDefaults.textButtonColors()
                             },
+                            modifier = Modifier.weight(1f),
                         )
                     }
                     if (weekdays.isEmpty()) {
@@ -523,84 +535,89 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                             )
                         }
                     }
+                    // 开始/结束时间选择器（OverlayDialog 必须置于 Scaffold 内容内由 popup host 渲染，
+                    // 放在 Scaffold 外会导致点击时间按钮后弹窗不显示）
+                    MiuixTimePickerDialog(
+                        show = showStartPicker,
+                        initialHour = startMinute / 60,
+                            initialMinute = startMinute % 60,
+                            onDismiss = { showStartPicker = false },
+                            onConfirm = { h, m ->
+                                startMinute = h * 60 + m
+                                showStartPicker = false
+                            },
+                    )
+                    MiuixTimePickerDialog(
+                        show = showEndPicker,
+                        initialHour = endMinute / 60,
+                            initialMinute = endMinute % 60,
+                            onDismiss = { showEndPicker = false },
+                            onConfirm = { h, m ->
+                                endMinute = h * 60 + m
+                                showEndPicker = false
+                            },
+                    )
+                    // 按时间段调整分段：选择该段新的结束时间 → 时长自动反算，后续段顺延
+                    MiuixTimePickerDialog(
+                        show = editingEndIndex >= 0 && editingEndIndex < segmentBounds.size,
+                        initialHour = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) / 60,
+                            initialMinute = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) % 60,
+                            onDismiss = { editingEndIndex = -1 },
+                            onConfirm = { h, m ->
+                                val chosen = h * 60 + m // 当天时刻 0..1439
+                                val segStart = segmentBounds[editingEndIndex].first
+                                var segEnd = chosen
+                                // 结束不晚于开始 → 视为次日结束
+                                if (segEnd <= segStart % 1440) segEnd += 1440
+                                val duration = segEnd - segStart
+                                if (duration < FocusStore.MIN_MINUTES || duration >= 1440) {
+                                    Toast.makeText(context, context.getString(R.string.plan_segments_invalid), Toast.LENGTH_SHORT).show()
+                                } else {
+                                    segments = segments.toMutableList().apply {
+                                        set(editingEndIndex, FocusStore.Segment(this[editingEndIndex].type, duration))
+                                    }
+                                }
+                                editingEndIndex = -1
+                            },
+                    )
+                    // 段时长输入对话框（点时长胶囊触发；计划分段单段可超 240 分钟，但总时长 < 24 小时在保存时校验）
+                    val index = durationDialogIndex
+                    val seg = segments.getOrNull(index) ?: FocusStore.Segment(FocusStore.SEGMENT_FOCUS, 0)
+                    SegmentMinutesDialogMiuix(
+                        show = index in segments.indices,
+                        title = stringResource(
+                                if (seg.isFocus) R.string.focus_segment_focus_duration_title
+                                else R.string.focus_segment_rest_duration_title
+                            ),
+                            selected = seg.minutes,
+                            range = FocusStore.MIN_MINUTES..1439,
+                            onConfirm = { minutes ->
+                                segments = segments.toMutableList().apply { set(index, FocusStore.Segment(this[index].type, minutes)) }
+                                durationDialogIndex = -1
+                            },
+                            onCancel = { durationDialogIndex = -1 },
+                    )
                 }
             }
         }
     }
-
-    if (showStartPicker) {
-        MiuixTimePickerDialog(
-            initialHour = startMinute / 60,
-            initialMinute = startMinute % 60,
-            onDismiss = { showStartPicker = false },
-            onConfirm = { h, m ->
-                startMinute = h * 60 + m
-                showStartPicker = false
-            },
-        )
-    }
-    if (showEndPicker) {
-        MiuixTimePickerDialog(
-            initialHour = endMinute / 60,
-            initialMinute = endMinute % 60,
-            onDismiss = { showEndPicker = false },
-            onConfirm = { h, m ->
-                endMinute = h * 60 + m
-                showEndPicker = false
-            },
-        )
-    }
-    // 按时间段调整分段：选择该段新的结束时间 → 时长自动反算，后续段顺延
-    if (editingEndIndex >= 0 && editingEndIndex < segmentBounds.size) {
-        MiuixTimePickerDialog(
-            initialHour = (segmentBounds[editingEndIndex].second % 1440) / 60,
-            initialMinute = (segmentBounds[editingEndIndex].second % 1440) % 60,
-            onDismiss = { editingEndIndex = -1 },
-            onConfirm = { h, m ->
-                val chosen = h * 60 + m // 当天时刻 0..1439
-                val segStart = segmentBounds[editingEndIndex].first
-                var segEnd = chosen
-                // 结束不晚于开始 → 视为次日结束
-                if (segEnd <= segStart % 1440) segEnd += 1440
-                val duration = segEnd - segStart
-                if (duration < FocusStore.MIN_MINUTES || duration >= 1440) {
-                    Toast.makeText(context, context.getString(R.string.plan_segments_invalid), Toast.LENGTH_SHORT).show()
-                } else {
-                    segments = segments.toMutableList().apply {
-                        set(editingEndIndex, FocusStore.Segment(this[editingEndIndex].type, duration))
-                    }
-                }
-                editingEndIndex = -1
-            },
-        )
-    }
-    // 段时长输入对话框（点时长胶囊触发；计划分段单段可超 240 分钟，但总时长 < 24 小时在保存时校验）
-    if (durationDialogIndex in segments.indices) {
-        val index = durationDialogIndex
-        val seg = segments[index]
-        SegmentMinutesDialogMiuix(
-            title = stringResource(
-                if (seg.isFocus) R.string.focus_segment_focus_duration_title
-                else R.string.focus_segment_rest_duration_title
-            ),
-            selected = seg.minutes,
-            range = FocusStore.MIN_MINUTES..1439,
-            onConfirm = { minutes ->
-                segments = segments.toMutableList().apply { set(index, FocusStore.Segment(this[index].type, minutes)) }
-                durationDialogIndex = -1
-            },
-            onCancel = { durationDialogIndex = -1 },
-        )
-    }
 }
 
-/** 星期选择胶囊：选中态用主色按钮，未选中用次要按钮 */
+/** 星期选择胶囊：选中态用 miuix 下拉选中容器色（浅蓝），未选中用中性灰按钮 */
 @Composable
-private fun WeekdayChipMiuix(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun WeekdayChipMiuix(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(
         onClick = onClick,
-        colors = if (selected) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
-        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier,
+        colors = if (selected) {
+            ButtonDefaults.buttonColors(
+                color = MiuixTheme.colorScheme.tertiaryContainer,
+                contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
+            )
+        } else {
+            ButtonDefaults.buttonColors()
+        },
+        insideMargin = PaddingValues(horizontal = 2.dp, vertical = 8.dp),
     ) {
         Text(text = label, style = MiuixTheme.textStyles.body2)
     }
