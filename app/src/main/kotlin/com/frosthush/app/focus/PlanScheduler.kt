@@ -217,7 +217,7 @@ object PlanScheduler {
     }
 
     /** 两个启用计划的执行时段是否重叠（含跨天尾部与次日头部） */
-    private fun plansOverlap(a: FocusPlan, b: FocusPlan): Boolean {
+    internal fun plansOverlap(a: FocusPlan, b: FocusPlan): Boolean {
         val daysA = executionDays(a)
         val daysB = executionDays(b)
         for (d in 1..7) {
@@ -404,7 +404,7 @@ object PlanScheduler {
      * - 昨天：跨午夜计划（23:00-02:00）在次日凌晨、或超长计划跨天后进程重启的场景——
      *   只查"今天"会把进行中的执行误判为未开始，END 兜底闹钟被排到 24 小时后。
      */
-    private fun inProgressEndMillis(plan: FocusPlan, now: Long, durationMillis: Long): Long? {
+    internal fun inProgressEndMillis(plan: FocusPlan, now: Long, durationMillis: Long): Long? {
         for (daysAgo in 0..1) {
             val c = Calendar.getInstance().apply {
                 timeInMillis = now
@@ -426,7 +426,7 @@ object PlanScheduler {
 
     /** 计划下一次开始时间（毫秒）：按星期过滤，当天已过开始时间则顺延到下一匹配日；
      *  weekdays 为空（不重复）时取最近一次（今天未过则今天，否则明天）。 */
-    private fun nextStartMillis(plan: FocusPlan, fromMillis: Long): Long {
+    internal fun nextStartMillis(plan: FocusPlan, fromMillis: Long): Long {
         val c = Calendar.getInstance().apply { timeInMillis = fromMillis }
         if (plan.weekdays.isEmpty()) {
             c.set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)

@@ -19,15 +19,17 @@ import rikka.shizuku.Shizuku
 object FocusStore {
     private const val MAX_HISTORY = 1000
 
-    private val dir = File(app.filesDir, "focus")
-    private val sessionFile = File(dir, "session.json")
-    private val historyFile = File(dir, "sessions.json")
-    private val blacklistFile = File(dir, "blacklist.json")
-    private val presetsFile = File(dir, "presets.json")
-    private val appGroupsFile = File(dir, "appGroups.json")
-    private val selectedGroupFile = File(dir, "selectedGroup.json")
-    private val plansFile = File(dir, "focusPlans.json")
-    private val planExecutedFile = File(dir, "planExecuted.json")
+    // by lazy：延迟到首次真实读写才求值。app 是 lateinit（Application.onCreate 赋值），
+    // 立即求值会让纯 JVM 单元测试仅构造数据类（FocusPlan/ActiveSession）时就崩在 object 初始化。
+    private val dir by lazy { File(app.filesDir, "focus") }
+    private val sessionFile by lazy { File(dir, "session.json") }
+    private val historyFile by lazy { File(dir, "sessions.json") }
+    private val blacklistFile by lazy { File(dir, "blacklist.json") }
+    private val presetsFile by lazy { File(dir, "presets.json") }
+    private val appGroupsFile by lazy { File(dir, "appGroups.json") }
+    private val selectedGroupFile by lazy { File(dir, "selectedGroup.json") }
+    private val plansFile by lazy { File(dir, "focusPlans.json") }
+    private val planExecutedFile by lazy { File(dir, "planExecuted.json") }
 
     /** 时长有效范围（分钟） */
     const val MIN_MINUTES = 1

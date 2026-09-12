@@ -148,7 +148,9 @@ object UpdateChecker {
     internal fun isNewer(remote: String, current: String): Boolean {
         val r = remote.split('.').map { it.trim().toIntOrNull() }
         val c = current.split('.').map { it.trim().toIntOrNull() }
-        if (r.any { it == null } || c.any { it == null }) return remote != current
+        // 任一段非数字（预发布 tag、脏数据、空 tag_name）：保守按"无更新"处理，
+        // 避免字符串不等就误报有更新（如 rc 后缀、缺失 tag_name 的镜像响应）
+        if (r.any { it == null } || c.any { it == null }) return false
         for (i in 0 until maxOf(r.size, c.size)) {
             val rv = r.getOrNull(i) ?: 0
             val cv = c.getOrNull(i) ?: 0
