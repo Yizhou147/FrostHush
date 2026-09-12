@@ -277,6 +277,7 @@ private fun GroupListContentMiuix(
                         text = stringResource(R.string.focus_select_all),
                         onClick = { onSelectAll(groups.map { it.id }.toSet()) },
                     )
+                    Spacer(Modifier.width(8.dp))
                     TextButton(
                         text = stringResource(R.string.focus_clear_selection),
                         onClick = { onSelectAll(emptySet()) },

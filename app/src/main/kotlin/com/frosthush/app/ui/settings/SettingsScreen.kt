@@ -15,8 +15,8 @@ import com.frosthush.app.ui.theme.UiMode
 fun SettingsScreen(
     onOpenTheme: () -> Unit,
     onOpenFocusSettings: () -> Unit,
-    onOpenPlanSettings: () -> Unit,
     onOpenDataSettings: () -> Unit,
+    onReplayWelcome: () -> Unit = {},
     onOpenUpdateSettings: () -> Unit,
     /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
     bottomInnerPadding: Dp = 0.dp,
@@ -25,8 +25,8 @@ fun SettingsScreen(
         UiMode.Miuix -> SettingsScreenMiuix(
             onOpenTheme = onOpenTheme,
             onOpenFocusSettings = onOpenFocusSettings,
-            onOpenPlanSettings = onOpenPlanSettings,
             onOpenDataSettings = onOpenDataSettings,
+            onReplayWelcome = onReplayWelcome,
             onOpenUpdateSettings = onOpenUpdateSettings,
             bottomInnerPadding = bottomInnerPadding,
         )
@@ -34,8 +34,8 @@ fun SettingsScreen(
         UiMode.Material -> SettingsScreenMaterial(
             onOpenTheme = onOpenTheme,
             onOpenFocusSettings = onOpenFocusSettings,
-            onOpenPlanSettings = onOpenPlanSettings,
             onOpenDataSettings = onOpenDataSettings,
+            onReplayWelcome = onReplayWelcome,
             onOpenUpdateSettings = onOpenUpdateSettings,
             bottomInnerPadding = bottomInnerPadding,
         )

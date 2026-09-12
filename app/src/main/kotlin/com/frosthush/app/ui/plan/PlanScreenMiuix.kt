@@ -198,6 +198,7 @@ fun PlanScreenMiuix(
                         text = stringResource(R.string.focus_select_all),
                         onClick = { selected = plans.map { it.id }.toSet() },
                     )
+                    Spacer(Modifier.width(8.dp))
                     TextButton(
                         text = stringResource(R.string.focus_clear_selection),
                         onClick = { selected = emptySet() },

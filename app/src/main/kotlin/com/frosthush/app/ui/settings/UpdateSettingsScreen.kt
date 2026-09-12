@@ -16,6 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,6 +53,11 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Info
+import top.yukonga.miuix.kmp.icon.extended.Alarm
+import top.yukonga.miuix.kmp.icon.extended.Update
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
+import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 
 /**
@@ -132,11 +141,13 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
                     } else {
                         stringResource(R.string.about_version, BuildConfig.VERSION_NAME)
                     },
+                    startAction = { SettingIcon(MiuixIcons.Update) },
                     onClick = { state.check() },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.update_open_release),
                     summary = "https://github.com/Yizhou147/FrostHush/releases/latest",
+                    startAction = { SettingIcon(MiuixIcons.Link) },
                     onClick = {
                         val r = UpdateChecker.lastResult
                         openUrl(
@@ -153,6 +164,7 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
                     selectedIndex = UpdateChecker.UpdateMirror.entries
                         .indexOfFirst { it.id == mirror }.coerceAtLeast(0),
                     title = stringResource(R.string.update_mirror),
+                    startAction = { SettingIcon(MiuixIcons.CloudFill) },
                     summary = if (mirror == "custom") {
                         SettingsStore.cache.customMirror.ifBlank {
                             stringResource(R.string.custom_mirror_hint)
@@ -181,19 +193,28 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
                     onCheckedChange = { SettingsStore.setAutoCheckUpdate(it) },
                     title = stringResource(R.string.update_auto_check),
                     summary = stringResource(R.string.update_auto_check_summary),
+                    startAction = { SettingIcon(MiuixIcons.Alarm) },
                 )
-                // 当前版本（静态行）
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        text = stringResource(R.string.update_current_version),
-                        style = MiuixTheme.textStyles.body1,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = "v${BuildConfig.VERSION_NAME}",
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
+                // 当前版本（静态行）；编译时间随版本显示（正式版隐藏，原关于页位置移至此处）。
+                // 版本文本列与标题左对齐（图标右侧 12dp，与其他设置项的摘要缩进一致）
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SettingIcon(MiuixIcons.Info)
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(
+                            text = stringResource(R.string.update_current_version),
+                            style = MiuixTheme.textStyles.body1,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = if (BuildConfig.IS_OFFICIAL_BUILD) {
+                                BuildConfig.VERSION_NAME
+                            } else {
+                                BuildConfig.VERSION_NAME + " · " + stringResource(R.string.about_build_time, BuildConfig.BUILD_TIME)
+                            },
+                            style = MiuixTheme.textStyles.body2,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        )
+                    }
                 }
             }
             // 联网权限用途说明（INTERNET 为普通权限，安装即授，无需运行时申请）
@@ -296,7 +317,7 @@ private fun UpdateSettingsMaterial(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SettingCard(
-                icon = Icons.Filled.CloudDownload,
+                icon = Icons.Filled.Refresh,
                 title = stringResource(R.string.about_check_update),
                 summary = if (state.checking) {
                     stringResource(R.string.update_checking)
@@ -307,7 +328,7 @@ private fun UpdateSettingsMaterial(onBack: () -> Unit) {
                 trailing = { },
             )
             SettingCard(
-                icon = Icons.Filled.CloudDownload,
+                icon = Icons.Filled.OpenInNew,
                 title = stringResource(R.string.update_open_release),
                 summary = "https://github.com/Yizhou147/FrostHush/releases/latest",
                 onClick = {
@@ -321,14 +342,14 @@ private fun UpdateSettingsMaterial(onBack: () -> Unit) {
                 trailing = { },
             )
             SettingCard(
-                icon = Icons.Filled.CloudDownload,
+                icon = Icons.Filled.CloudSync,
                 title = stringResource(R.string.update_mirror),
                 summary = stringResource(UpdateChecker.UpdateMirror.fromId(mirror).labelRes),
                 onClick = { showMirrorDialog = true },
                 trailing = { },
             )
             SettingCard(
-                icon = Icons.Filled.CloudDownload,
+                icon = Icons.Filled.Schedule,
                 title = stringResource(R.string.update_auto_check),
                 summary = stringResource(R.string.update_auto_check_summary),
                 onClick = { SettingsStore.setAutoCheckUpdate(!autoCheck) },
@@ -339,11 +360,15 @@ private fun UpdateSettingsMaterial(onBack: () -> Unit) {
                     )
                 },
             )
-            // 当前版本（静态行）
+            // 当前版本（静态行）；编译时间随版本显示（正式版隐藏）
             SettingCard(
                 icon = Icons.Filled.CloudDownload,
                 title = stringResource(R.string.update_current_version),
-                summary = "v${BuildConfig.VERSION_NAME}",
+                summary = if (BuildConfig.IS_OFFICIAL_BUILD) {
+                    BuildConfig.VERSION_NAME
+                } else {
+                    BuildConfig.VERSION_NAME + " · " + stringResource(R.string.about_build_time, BuildConfig.BUILD_TIME)
+                },
                 onClick = {},
                 trailing = {},
             )

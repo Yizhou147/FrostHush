@@ -37,7 +37,7 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.extended.Import
 import top.yukonga.miuix.kmp.icon.extended.Report
-import top.yukonga.miuix.kmp.icon.extended.Tasks
+import top.yukonga.miuix.kmp.icon.extended.FileDownloads
 import top.yukonga.miuix.kmp.icon.extended.UploadCloud
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -146,7 +146,7 @@ fun DataSettingsMiuix(
                 ArrowPreference(
                     title = stringResource(R.string.settings_export_stats),
                     summary = stringResource(R.string.settings_export_stats_summary),
-                    startAction = { SettingIcon(MiuixIcons.Tasks) },
+                    startAction = { SettingIcon(MiuixIcons.FileDownloads) },
                     onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTag()}.json") },
                 )
                 ArrowPreference(

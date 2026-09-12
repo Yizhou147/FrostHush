@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Gesture
+import androidx.compose.material.icons.filled.Grain
+import androidx.compose.material.icons.filled.Swipe
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.WavingHand
@@ -65,11 +67,11 @@ import kotlin.math.roundToInt
  * 与全项目一致的「双 UI」结构：按当前 [UiMode] 分派到 miuix 版或 material 版实现。
  */
 @Composable
-fun ThemeSettingsScreen(onBack: () -> Unit, onReplayWelcome: () -> Unit = {}) {
+fun ThemeSettingsScreen(onBack: () -> Unit) {
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
     when (UiMode.fromValue(uiModeValue)) {
-        UiMode.Miuix -> ThemeSettingsMiuix(onBack = onBack, onReplayWelcome = onReplayWelcome)
-        UiMode.Material -> ThemeSettingsMaterial(onBack = onBack, onReplayWelcome = onReplayWelcome)
+        UiMode.Miuix -> ThemeSettingsMiuix(onBack = onBack)
+        UiMode.Material -> ThemeSettingsMaterial(onBack = onBack)
     }
 }
 
@@ -90,7 +92,7 @@ private fun applyPredictiveBack(context: android.content.Context, enable: Boolea
 // ==================== miuix 版 ====================
 
 @Composable
-private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit = {}) {
+private fun ThemeSettingsMiuix(onBack: () -> Unit) {
     val context = LocalContext.current
     val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
@@ -152,6 +154,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     selectedIndex = themeMode.coerceIn(themeItems.indices),
                     title = stringResource(R.string.settings_theme),
                     summary = stringResource(R.string.settings_theme_mode_summary),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.Palette) },
                     onSelectedIndexChange = { SettingsStore.setThemeMode(it) },
                 )
                 top.yukonga.miuix.kmp.preference.OverlayDropdownPreference(
@@ -159,6 +162,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     selectedIndex = if (UiMode.fromValue(uiModeValue) == UiMode.Miuix) 0 else 1,
                     title = stringResource(R.string.settings_ui_style),
                     summary = stringResource(R.string.settings_ui_style_summary, styleLabel),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.Brush) },
                     onSelectedIndexChange = {
                         SettingsStore.setUiMode(if (it == 0) SettingsStore.UI_MODE_MIUIX else SettingsStore.UI_MODE_MATERIAL)
                     },
@@ -171,12 +175,14 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     onCheckedChange = { SettingsStore.setEnableBlur(it) },
                     title = stringResource(R.string.settings_enable_blur),
                     summary = stringResource(R.string.settings_enable_blur_summary),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.BlurOn) },
                 )
                 top.yukonga.miuix.kmp.preference.SwitchPreference(
                     checked = dynamicBackground,
                     onCheckedChange = { SettingsStore.setEnableDynamicBackground(it) },
                     title = stringResource(R.string.settings_dynamic_background),
                     summary = stringResource(R.string.settings_dynamic_background_summary),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.WbIridescent) },
                 )
             }
             // 底栏：悬浮底栏 + 液态玻璃
@@ -186,6 +192,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     onCheckedChange = { SettingsStore.setEnableFloatingBottomBar(it) },
                     title = stringResource(R.string.settings_floating_bottom_bar),
                     summary = stringResource(R.string.settings_floating_bottom_bar_summary),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.Layers) },
                 )
                 if (liquidGlassAvailable(floatingBar)) {
                     top.yukonga.miuix.kmp.preference.SwitchPreference(
@@ -193,6 +200,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                         onCheckedChange = { SettingsStore.setEnableFloatingBottomBarBlur(it) },
                         title = stringResource(R.string.settings_floating_bar_blur),
                         summary = stringResource(R.string.settings_floating_bar_blur_summary),
+                        startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.Grain) },
                     )
                 }
             }
@@ -206,6 +214,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     },
                     title = stringResource(R.string.settings_enable_predictive_back),
                     summary = stringResource(R.string.settings_enable_predictive_back_summary),
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.Swipe) },
                 )
                 top.yukonga.miuix.kmp.preference.SliderPreference(
                     value = pageScale,
@@ -215,16 +224,7 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
                     valueText = "${(pageScale * 100).roundToInt()}%",
                     valueRange = SettingsStore.PAGE_SCALE_RANGE,
                     steps = 7,
-                )
-            }
-            top.yukonga.miuix.kmp.basic.Card {
-                top.yukonga.miuix.kmp.preference.ArrowPreference(
-                    title = stringResource(R.string.settings_replay_welcome),
-                    summary = stringResource(R.string.settings_replay_welcome_summary),
-                    onClick = {
-                        onBack()
-                        onReplayWelcome()
-                    },
+                    startAction = { SettingIcon(androidx.compose.material.icons.Icons.Filled.ZoomIn) },
                 )
             }
         }
@@ -235,17 +235,10 @@ private fun ThemeSettingsMiuix(onBack: () -> Unit, onReplayWelcome: () -> Unit =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemeSettingsMaterial(onBack: () -> Unit, onReplayWelcome: () -> Unit = {}) {
+private fun ThemeSettingsMaterial(onBack: () -> Unit) {
     val context = LocalContext.current
     val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
     val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
-    val enableBlur by SettingsStore.enableBlur.collectAsState(initial = SettingsStore.cache.enableBlur)
-    val dynamicBackground by SettingsStore.enableDynamicBackground
-        .collectAsState(initial = SettingsStore.cache.enableDynamicBackground)
-    val floatingBar by SettingsStore.enableFloatingBottomBar
-        .collectAsState(initial = SettingsStore.cache.enableFloatingBottomBar)
-    val floatingBarBlur by SettingsStore.enableFloatingBottomBarBlur
-        .collectAsState(initial = SettingsStore.cache.enableFloatingBottomBarBlur)
     val predictiveBack by SettingsStore.enablePredictiveBack
         .collectAsState(initial = SettingsStore.cache.enablePredictiveBack)
     val pageScale by SettingsStore.pageScale.collectAsState(initial = SettingsStore.cache.pageScale)
@@ -300,48 +293,7 @@ private fun ThemeSettingsMaterial(onBack: () -> Unit, onReplayWelcome: () -> Uni
                 onClick = { showStyleDialog = true },
                 trailing = { Icon(Icons.Filled.ChevronRight, contentDescription = null) },
             )
-            SettingCard(
-                icon = Icons.Filled.BlurOn,
-                title = stringResource(R.string.settings_enable_blur),
-                summary = stringResource(R.string.settings_enable_blur_summary),
-                onClick = { SettingsStore.setEnableBlur(!enableBlur) },
-                trailing = { Switch(checked = enableBlur, onCheckedChange = { SettingsStore.setEnableBlur(it) }) },
-            )
-            SettingCard(
-                icon = Icons.Filled.WbIridescent,
-                title = stringResource(R.string.settings_dynamic_background),
-                summary = stringResource(R.string.settings_dynamic_background_summary),
-                onClick = { SettingsStore.setEnableDynamicBackground(!dynamicBackground) },
-                trailing = {
-                    Switch(
-                        checked = dynamicBackground,
-                        onCheckedChange = { SettingsStore.setEnableDynamicBackground(it) },
-                    )
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Layers,
-                title = stringResource(R.string.settings_floating_bottom_bar),
-                summary = stringResource(R.string.settings_floating_bottom_bar_summary),
-                onClick = { SettingsStore.setEnableFloatingBottomBar(!floatingBar) },
-                trailing = {
-                    Switch(checked = floatingBar, onCheckedChange = { SettingsStore.setEnableFloatingBottomBar(it) })
-                },
-            )
-            if (liquidGlassAvailable(floatingBar)) {
-                SettingCard(
-                    icon = Icons.Filled.Layers,
-                    title = stringResource(R.string.settings_floating_bar_blur),
-                    summary = stringResource(R.string.settings_floating_bar_blur_summary),
-                    onClick = { SettingsStore.setEnableFloatingBottomBarBlur(!floatingBarBlur) },
-                    trailing = {
-                        Switch(
-                            checked = floatingBarBlur,
-                            onCheckedChange = { SettingsStore.setEnableFloatingBottomBarBlur(it) },
-                        )
-                    },
-                )
-            }
+            // 模糊 / 动态背景 / 悬浮底栏 / 液态玻璃仅在 miuix 主题下可用，material 模式隐藏（见 miuix 版主题设置页）
             SettingCard(
                 icon = Icons.Filled.Gesture,
                 title = stringResource(R.string.settings_enable_predictive_back),
@@ -399,16 +351,6 @@ private fun ThemeSettingsMaterial(onBack: () -> Unit, onReplayWelcome: () -> Uni
                     )
                 }
             }
-            SettingCard(
-                icon = Icons.Filled.WavingHand,
-                title = stringResource(R.string.settings_replay_welcome),
-                summary = stringResource(R.string.settings_replay_welcome_summary),
-                onClick = {
-                    onBack()
-                    onReplayWelcome()
-                },
-                trailing = { Icon(Icons.Filled.ChevronRight, contentDescription = null) },
-            )
         }
     }
 

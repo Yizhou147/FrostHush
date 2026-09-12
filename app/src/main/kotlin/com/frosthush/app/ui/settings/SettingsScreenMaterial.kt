@@ -1,6 +1,7 @@
 package com.frosthush.app.ui.settings
 
 import android.app.AlarmManager
+import android.widget.Toast
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -24,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
@@ -31,6 +33,9 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Cast
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -41,8 +46,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,6 +72,9 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.frosthush.app.R
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.frosthush.app.focus.ShizukuManager
 import rikka.shizuku.Shizuku
 
@@ -77,19 +89,44 @@ import rikka.shizuku.Shizuku
 fun SettingsScreenMaterial(
     onOpenTheme: () -> Unit,
     onOpenFocusSettings: () -> Unit,
-    onOpenPlanSettings: () -> Unit,
     onOpenDataSettings: () -> Unit,
     onOpenUpdateSettings: () -> Unit,
+    onReplayWelcome: () -> Unit = {},
     /** 底栏高度：仅作为列表底部内边距，避免最后一项被悬浮底栏遮挡 */
     bottomInnerPadding: Dp = 0.dp,
 ) {
     val themeMode by SettingsStore.themeMode
         .collectAsState(initial = SettingsStore.cache.themeMode)
 
-    val themeLabel = when (themeMode) {
-        SettingsStore.THEME_LIGHT -> stringResource(R.string.settings_theme_light)
-        SettingsStore.THEME_DARK -> stringResource(R.string.settings_theme_dark)
-        else -> stringResource(R.string.settings_theme_system)
+    val focusIsland by SettingsStore.focusIslandEnabled
+        .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
+    val suspendFallback by SettingsStore.suspendFallbackMode
+        .collectAsState(initial = SettingsStore.cache.suspendFallbackMode)
+    var showReliabilityDialog by remember { mutableStateOf(false) }
+    var showFallbackScopeDialog by remember { mutableStateOf(false) }
+    var showFallbackWarning by remember { mutableStateOf(false) }
+    var pendingFallbackMode by remember { mutableStateOf(SettingsStore.FALLBACK_OFF) }
+    var restoreCount by remember { mutableStateOf(0) }
+    var showRestoreConfirm by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    fun checkSuspended() {
+        scope.launch {
+            val n = withContext(Dispatchers.Default) { FocusManager.suspendedEntries().size }
+            if (n == 0) {
+                Toast.makeText(context, context.getString(R.string.settings_restore_suspended_none), Toast.LENGTH_SHORT).show()
+            } else {
+                restoreCount = n
+                showRestoreConfirm = true
+            }
+        }
+    }
+
+    val fallbackSummary = when (suspendFallback) {
+        SettingsStore.FALLBACK_CLONE_ONLY -> stringResource(R.string.settings_force_freeze_summary_clone)
+        SettingsStore.FALLBACK_ALL -> stringResource(R.string.settings_force_freeze_summary_all)
+        else -> stringResource(R.string.settings_force_freeze_summary_off)
     }
 
     Scaffold(
@@ -109,7 +146,7 @@ fun SettingsScreenMaterial(
             SettingCard(
                 icon = Icons.Filled.DarkMode,
                 title = stringResource(R.string.settings_theme_page_title),
-                summary = stringResource(R.string.settings_theme_summary, themeLabel),
+                summary = stringResource(R.string.settings_theme_summary),
                 onClick = onOpenTheme,
                 trailing = {
                     Icon(
@@ -119,6 +156,7 @@ fun SettingsScreenMaterial(
                     )
                 },
             )
+
             SettingCard(
                 icon = Icons.Filled.Timer,
                 title = stringResource(R.string.settings_group_focus),
@@ -132,19 +170,47 @@ fun SettingsScreenMaterial(
                     )
                 },
             )
+
             SettingCard(
-                icon = Icons.Filled.VerifiedUser,
-                title = stringResource(R.string.settings_group_plan),
-                summary = stringResource(R.string.settings_group_plan_summary),
-                onClick = onOpenPlanSettings,
+                icon = Icons.Filled.Cast,
+                title = stringResource(R.string.settings_focus_island),
+                summary = stringResource(R.string.settings_focus_island_summary),
+                onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
                 trailing = {
-                    Icon(
-                        Icons.Filled.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
                 },
             )
+
+            SettingCard(
+                icon = Icons.Filled.Block,
+                title = stringResource(R.string.settings_force_freeze),
+                summary = fallbackSummary,
+                onClick = { showFallbackScopeDialog = true },
+                trailing = {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+            )
+
+            SettingCard(
+                icon = Icons.Filled.VerifiedUser,
+                title = stringResource(R.string.settings_plan_reliability),
+                summary = stringResource(R.string.settings_plan_reliability_summary),
+                onClick = { showReliabilityDialog = true },
+                trailing = {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+            )
+
+            SettingCard(
+                icon = Icons.Filled.LockOpen,
+                title = stringResource(R.string.settings_restore_suspended),
+                summary = stringResource(R.string.settings_restore_suspended_summary),
+                onClick = { checkSuspended() },
+                trailing = {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+            )
+
             SettingCard(
                 icon = Icons.Filled.Folder,
                 title = stringResource(R.string.settings_group_data),
@@ -158,6 +224,7 @@ fun SettingsScreenMaterial(
                     )
                 },
             )
+
             SettingCard(
                 icon = Icons.Filled.CloudDownload,
                 title = stringResource(R.string.about_check_update),
@@ -171,7 +238,102 @@ fun SettingsScreenMaterial(
                     )
                 },
             )
+
+            SettingCard(
+                icon = Icons.Filled.Refresh,
+                title = stringResource(R.string.settings_replay_welcome),
+                summary = stringResource(R.string.settings_replay_welcome_summary),
+                onClick = onReplayWelcome,
+                trailing = {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                },
+            )
         }
+    }
+
+    PlanReliabilityDialog(show = showReliabilityDialog, onDismiss = { showReliabilityDialog = false })
+    if (showFallbackScopeDialog) {
+        AlertDialog(
+            onDismissRequest = { showFallbackScopeDialog = false },
+            title = { Text(stringResource(R.string.settings_force_freeze_scope_title)) },
+            text = {
+                Column {
+                    listOf(
+                        SettingsStore.FALLBACK_OFF to stringResource(R.string.settings_force_freeze_scope_off),
+                        SettingsStore.FALLBACK_CLONE_ONLY to stringResource(R.string.settings_force_freeze_scope_clone),
+                        SettingsStore.FALLBACK_ALL to stringResource(R.string.settings_force_freeze_scope_all),
+                    ).forEach { (mode, label) ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = suspendFallback == mode, onClick = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        showFallbackScopeDialog = false
+                                        if (mode == SettingsStore.FALLBACK_OFF) {
+                                            SettingsStore.setSuspendFallbackMode(mode)
+                                        } else if (suspendFallback != SettingsStore.FALLBACK_OFF) {
+                                            SettingsStore.setSuspendFallbackMode(mode)
+                                        } else {
+                                            pendingFallbackMode = mode
+                                            showFallbackWarning = true
+                                        }
+                                    },
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFallbackScopeDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (showFallbackWarning) {
+        AlertDialog(
+            onDismissRequest = { showFallbackWarning = false },
+            title = { Text(stringResource(R.string.settings_force_freeze_warning_title)) },
+            text = { Text(stringResource(R.string.settings_force_freeze_warning_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showFallbackWarning = false
+                    SettingsStore.setSuspendFallbackMode(pendingFallbackMode)
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFallbackWarning = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (showRestoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirm = false },
+            title = { Text(stringResource(R.string.settings_restore_suspended)) },
+            text = { Text(stringResource(R.string.settings_restore_suspended_confirm, restoreCount)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRestoreConfirm = false
+                    scope.launch {
+                        val restored = withContext(Dispatchers.Default) { FocusManager.restoreSuspendedApps() }
+                        Toast.makeText(
+                            context,
+                            if (restored > 0) context.getString(R.string.focus_suspended_restored, restored)
+                            else context.getString(R.string.focus_suspended_restore_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }) { Text(stringResource(R.string.action_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
     }
 }
 

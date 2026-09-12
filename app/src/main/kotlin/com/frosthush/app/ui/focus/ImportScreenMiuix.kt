@@ -230,6 +230,7 @@ private fun ManualImportTab(
                 text = stringResource(R.string.import_select_all),
                 onClick = { selected = filtered.map { it.entry }.filter { it !in blacklist }.toSet() },
             )
+            Spacer(Modifier.width(8.dp))
             TextButton(
                 text = stringResource(R.string.import_clear),
                 onClick = { selected = emptySet() },

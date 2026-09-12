@@ -68,7 +68,6 @@ import com.frosthush.app.ui.plan.PlanScreen
 import com.frosthush.app.ui.settings.ConfigImportScreen
 import com.frosthush.app.ui.settings.DataSettingsScreen
 import com.frosthush.app.ui.settings.FocusSettingsScreen
-import com.frosthush.app.ui.settings.PlanSettingsScreen
 import com.frosthush.app.ui.settings.SettingsScreen
 import com.frosthush.app.ui.settings.ThemeSettingsScreen
 import com.frosthush.app.ui.settings.UpdateSettingsScreen
@@ -191,7 +190,7 @@ private fun MainNavHost(onReplayWelcome: () -> Unit) {
             entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
             onBack = { navigator.pop() },
             entryProvider = entryProvider {
-                entry<Route.Main> { MainScreen() }
+                entry<Route.Main> { MainScreen(onReplayWelcome = onReplayWelcome) }
                 entry<Route.Import> { ImportScreen(onBack = navigator::pop) }
                 entry<Route.AppGroups> { AppGroupScreen(onBack = navigator::pop) }
                 entry<Route.PlanEdit> { route ->
@@ -201,14 +200,8 @@ private fun MainNavHost(onReplayWelcome: () -> Unit) {
                     }
                     PlanEditScreen(plan = plan, onBack = navigator::pop)
                 }
-                entry<Route.ThemeSettings> {
-                    ThemeSettingsScreen(
-                        onBack = navigator::pop,
-                        onReplayWelcome = onReplayWelcome,
-                    )
-                }
+                entry<Route.ThemeSettings> { ThemeSettingsScreen(onBack = navigator::pop) }
                 entry<Route.SettingsFocus> { FocusSettingsScreen(onBack = navigator::pop) }
-                entry<Route.SettingsPlan> { PlanSettingsScreen(onBack = navigator::pop) }
                 entry<Route.SettingsData> {
                     DataSettingsScreen(
                         onBack = navigator::pop,
@@ -302,7 +295,7 @@ private fun PlanReminderDialog(planId: Long, onDismiss: () -> Unit) {
  *   **列表底部内边距**，因此底栏下方不会再出现一条被占位的纯色横条。
  */
 @Composable
-private fun MainScreen() {
+private fun MainScreen(onReplayWelcome: () -> Unit = {}) {
     val navigator = LocalNavigator.current
     val uiMode = LocalUiMode.current
     val enableBlur = LocalEnableBlur.current
@@ -352,6 +345,7 @@ private fun MainScreen() {
                         tab = MainTab.entries[page],
                         bottomInnerPadding = bottomInnerPadding,
                         mainPagerState = mainPagerState,
+                        onReplayWelcome = onReplayWelcome,
                     )
                 }
             }
@@ -399,6 +393,7 @@ private fun TabPage(
     tab: MainTab,
     bottomInnerPadding: Dp,
     mainPagerState: MainPagerState,
+    onReplayWelcome: () -> Unit = {},
 ) {
     val navigator = LocalNavigator.current
     when (tab) {
@@ -421,9 +416,9 @@ private fun TabPage(
         MainTab.Settings -> SettingsScreen(
             onOpenTheme = { navigator.push(Route.ThemeSettings) },
             onOpenFocusSettings = { navigator.push(Route.SettingsFocus) },
-            onOpenPlanSettings = { navigator.push(Route.SettingsPlan) },
             onOpenDataSettings = { navigator.push(Route.SettingsData) },
             onOpenUpdateSettings = { navigator.push(Route.UpdateSettings) },
+            onReplayWelcome = onReplayWelcome,
             bottomInnerPadding = bottomInnerPadding,
         )
 

@@ -42,7 +42,6 @@ import top.yukonga.miuix.kmp.icon.extended.Alarm
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Promotions
 import top.yukonga.miuix.kmp.icon.extended.Recent
-import top.yukonga.miuix.kmp.icon.extended.ScreenMirroring
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -63,8 +62,6 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
         .collectAsState(initial = SettingsStore.cache.defaultRestMinutes)
     val notifyFinish by SettingsStore.notifyFinishEnabled
         .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
-    val focusIsland by SettingsStore.focusIslandEnabled
-        .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
     val planRemindSeconds by SettingsStore.planRemindSeconds
         .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
     var showDurationDialog by remember { mutableStateOf(false) }
@@ -129,13 +126,6 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
                     title = stringResource(R.string.settings_notify_finish),
                     summary = stringResource(R.string.settings_notify_finish_summary),
                     startAction = { SettingIcon(MiuixIcons.Promotions) },
-                )
-                SwitchPreference(
-                    checked = focusIsland,
-                    onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) },
-                    title = stringResource(R.string.settings_focus_island),
-                    summary = stringResource(R.string.settings_focus_island_summary),
-                    startAction = { SettingIcon(MiuixIcons.ScreenMirroring) },
                 )
             }
         }

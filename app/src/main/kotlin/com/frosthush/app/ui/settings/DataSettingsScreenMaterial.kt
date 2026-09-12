@@ -142,7 +142,7 @@ fun DataSettingsMaterial(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             SettingCard(
-                icon = Icons.Filled.BarChart,
+                icon = Icons.Filled.FileDownload,
                 title = stringResource(R.string.settings_export_stats),
                 summary = stringResource(R.string.settings_export_stats_summary),
                 onClick = { statsExportLauncher.launch("frosthush-stats-${exportTimeTag()}.json") },

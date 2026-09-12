@@ -61,8 +61,6 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
         .collectAsState(initial = SettingsStore.cache.defaultRestMinutes)
     val notifyFinish by SettingsStore.notifyFinishEnabled
         .collectAsState(initial = SettingsStore.cache.notifyFinishEnabled)
-    val focusIsland by SettingsStore.focusIslandEnabled
-        .collectAsState(initial = SettingsStore.cache.focusIslandEnabled)
     val planRemindSeconds by SettingsStore.planRemindSeconds
         .collectAsState(initial = SettingsStore.cache.planRemindSeconds)
     var showDurationDialog by remember { mutableStateOf(false) }
@@ -141,15 +139,6 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
                 onClick = { SettingsStore.setNotifyFinishEnabled(!notifyFinish) },
                 trailing = {
                     Switch(checked = notifyFinish, onCheckedChange = { SettingsStore.setNotifyFinishEnabled(it) })
-                },
-            )
-            SettingCard(
-                icon = Icons.Filled.Android,
-                title = stringResource(R.string.settings_focus_island),
-                summary = stringResource(R.string.settings_focus_island_summary),
-                onClick = { SettingsStore.setFocusIslandEnabled(!focusIsland) },
-                trailing = {
-                    Switch(checked = focusIsland, onCheckedChange = { SettingsStore.setFocusIslandEnabled(it) })
                 },
             )
         }

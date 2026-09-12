@@ -159,8 +159,6 @@ fun FocusScreenMaterial(
     val shizukuState by ShizukuManager.state.collectAsState()
     val defaultMinutes by SettingsStore.defaultFocusMinutes
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
-    val confirmBeforeStart by SettingsStore.confirmBeforeStart
-        .collectAsState(initial = SettingsStore.cache.confirmBeforeStart)
 
     var session by remember { mutableStateOf(FocusStore.activeSession()) }
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
@@ -500,13 +498,8 @@ fun FocusScreenMaterial(
                 if (conflicts.isNotEmpty()) {
                     conflictPlans = conflicts
                     showConflictDialog = true
-                } else if (confirmBeforeStart) {
-                    showWarningDialog = true
                 } else {
-                    scope.launch {
-                        val err = FocusManager.startFocus(segments)
-                        if (err != null) handleStartError(err)
-                    }
+                    showWarningDialog = true
                 }
             },
         )
@@ -540,14 +533,7 @@ fun FocusScreenMaterial(
                     PlanScheduler.markPlansSkippedToday(conflictPlans)
                     showConflictDialog = false
                     // 标记冲突计划失效后，继续走二次确认警告流程
-                    if (confirmBeforeStart) {
-                        showWarningDialog = true
-                    } else {
-                        scope.launch {
-                            val err = FocusManager.startFocus(pendingSegments)
-                            if (err != null) handleStartError(err)
-                        }
-                    }
+                    showWarningDialog = true
                 }) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {

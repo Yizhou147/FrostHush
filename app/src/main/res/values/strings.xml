@@ -156,7 +156,7 @@
     <string name="settings_focus_island_summary">Requires the module to unlock the focus notification whitelist</string>
     <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI and XMSF scopes (libxposed API 101)</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_theme_summary">Current: %1$s</string>
+    <string name="settings_theme_summary">Change appearance settings</string>
     <string name="settings_theme_system">Follow system</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
@@ -164,8 +164,8 @@
     <string name="settings_theme_mode_summary">Choose the light/dark mode</string>
     <string name="settings_ui_style">Interface style</string>
     <string name="settings_ui_style_summary">Current: %1$s</string>
-    <string name="settings_ui_style_miuix">Miuix (HyperOS)</string>
-    <string name="settings_ui_style_material">Material (default)</string>
+    <string name="settings_ui_style_miuix">Miuix</string>
+    <string name="settings_ui_style_material">Material</string>
     <string name="settings_enable_blur">Blur</string>
     <string name="settings_enable_blur_summary">Blur the bottom bar only</string>
     <string name="settings_floating_bottom_bar">Floating bottom bar</string>
@@ -176,7 +176,6 @@
     <string name="settings_enable_predictive_back_summary">Enable support for the predictive back gesture</string>
     <string name="settings_page_scale">Interface scale</string>
     <string name="settings_page_scale_summary">Adjust the global display scale</string>
-    <string name="settings_confirm_before_start">Confirm before starting</string>
     <string name="settings_force_freeze">Force freeze</string>
     <string name="settings_force_freeze_summary_off">Off</string>
     <string name="settings_force_freeze_summary_clone">Cloned apps only</string>
@@ -187,7 +186,6 @@
     <string name="settings_force_freeze_scope_all">All user apps</string>
     <string name="settings_force_freeze_warning_title">Enable force freeze?</string>
     <string name="settings_force_freeze_warning_text">When enabled, apps that cannot be suspended will be frozen by disabling instead. Disabling is more thorough (background running is also blocked), but during focus the app icon disappears from the launcher (restored when focus ends), and some launchers may rearrange icon order. Enabling this is only needed on systems that block suspending cloned apps.</string>
-    <string name="settings_confirm_before_start_summary">Show the "cannot exit midway" warning before starting focus</string>
     <string name="settings_plan_remind">Remind before plans start</string>
     <string name="settings_plan_remind_summary_seconds">Remind %1$d seconds before start</string>
     <string name="settings_plan_remind_summary_none">No reminder; focus starts directly</string>
@@ -216,8 +214,6 @@
     <!-- 设置分组二级页 -->
     <string name="settings_group_focus">Focus</string>
     <string name="settings_group_focus_summary">Default duration, plan reminders and notifications</string>
-    <string name="settings_group_plan">Plan &amp; reliability</string>
-    <string name="settings_group_plan_summary">Confirmation, force freeze and reliability checks</string>
     <string name="settings_group_data">Data</string>
     <string name="settings_group_data_summary">Export, import and clear data</string>
 

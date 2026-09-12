@@ -216,16 +216,6 @@ fun AboutScreenMiuix(bottomInnerPadding: Dp = 0.dp) {
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.graphicsLayer { alpha = 1f - versionProgress },
                 )
-                // 编译时间：正式版隐藏（仍写入诊断日志头部），其余构建显示，便于区分测试包
-                if (!BuildConfig.IS_OFFICIAL_BUILD) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = stringResource(R.string.about_build_time, BuildConfig.BUILD_TIME),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.graphicsLayer { alpha = 1f - versionProgress },
-                    )
-                }
             }
             Spacer(Modifier.height(16.dp))
             Text(

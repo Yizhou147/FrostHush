@@ -90,7 +90,6 @@ object SettingsStore {
     private val KEY_NOTIFY_FINISH = booleanPreferencesKey("notify_finish_enabled")
     private val KEY_FOCUS_ISLAND = booleanPreferencesKey("focus_island_enabled")
     private val KEY_THEME_MODE = intPreferencesKey("theme_mode")
-    private val KEY_CONFIRM_BEFORE_START = booleanPreferencesKey("confirm_before_start")
     private val KEY_WELCOME_DONE = booleanPreferencesKey("welcome_done")
     private val KEY_PLAN_REMIND_SECONDS = intPreferencesKey("plan_remind_seconds")
     private val KEY_SUSPEND_FALLBACK = intPreferencesKey("suspend_fallback_mode")
@@ -122,7 +121,6 @@ object SettingsStore {
                     notifyFinishEnabled = prefs[KEY_NOTIFY_FINISH] ?: true,
                     focusIslandEnabled = prefs[KEY_FOCUS_ISLAND] ?: false,
                     themeMode = prefs[KEY_THEME_MODE] ?: THEME_SYSTEM,
-                    confirmBeforeStart = prefs[KEY_CONFIRM_BEFORE_START] ?: true,
                     welcomeDone = prefs[KEY_WELCOME_DONE] ?: false,
                     planRemindSeconds = prefs[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS,
                     suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
@@ -147,7 +145,6 @@ object SettingsStore {
     val notifyFinishEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_NOTIFY_FINISH] ?: true }
     val focusIslandEnabled: Flow<Boolean> = app.dataStore.data.map { it[KEY_FOCUS_ISLAND] ?: false }
     val themeMode: Flow<Int> = app.dataStore.data.map { it[KEY_THEME_MODE] ?: THEME_SYSTEM }
-    val confirmBeforeStart: Flow<Boolean> = app.dataStore.data.map { it[KEY_CONFIRM_BEFORE_START] ?: true }
     val welcomeDone: Flow<Boolean> = app.dataStore.data.map { it[KEY_WELCOME_DONE] ?: false }
     val planRemindSeconds: Flow<Int> = app.dataStore.data.map { it[KEY_PLAN_REMIND_SECONDS] ?: DEFAULT_PLAN_REMIND_SECONDS }
 
@@ -186,12 +183,6 @@ object SettingsStore {
         }
     }
 
-    fun setConfirmBeforeStart(enabled: Boolean) {
-        scope.launch {
-            app.dataStore.edit { it[KEY_CONFIRM_BEFORE_START] = enabled }
-            cache = cache.copy(confirmBeforeStart = enabled)
-        }
-    }
 
     fun setWelcomeDone(done: Boolean) {
         scope.launch {
