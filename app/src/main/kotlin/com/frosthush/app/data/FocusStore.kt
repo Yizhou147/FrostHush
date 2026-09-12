@@ -832,8 +832,10 @@ object FocusStore {
         saveAppGroups(normalized)
         // 悬空引用兜底：计划的 appGroupId 指向文件里不存在的应用集时改指默认集，
         // 否则 planEntries 返回空 → 该计划永远"无应用可冻结"且无提示
+        // 空应用集的导入文件（appGroups: []）合法：归一化后为空列表，此时无默认集可回退，
+        // 悬空引用保留原值（planEntries 会回退默认集逻辑之外再兜底为空，不至于崩溃）
         val groupIds = normalized.map { it.id }.toSet()
-        val fallbackGroupId = normalized.first { it.isDefault }.id
+        val fallbackGroupId = normalized.firstOrNull { it.isDefault }?.id
         saveFocusPlans(data.plans.map { p ->
             val de = p.directEntries
             val cleaned = if (de.isNullOrEmpty()) p
@@ -843,7 +845,8 @@ object FocusStore {
                 p.copy(directEntries = clean)
             }
             val gid = cleaned.appGroupId
-            if (gid != null && gid !in groupIds) cleaned.copy(appGroupId = fallbackGroupId) else cleaned
+            if (gid != null && fallbackGroupId != null && gid !in groupIds) cleaned.copy(appGroupId = fallbackGroupId)
+            else cleaned
         })
         presets.clear()
         presets.addAll(data.presets)

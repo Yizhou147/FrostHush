@@ -144,7 +144,7 @@ object UpdateChecker {
         }
     }
 
-    /** 版本号比较：按 '.' 分段数值比较（如 1.10.0 > 1.9.2）；解析失败按字符串比较 */
+    /** 版本号比较：按 '.' 分段数值比较（如 1.10.0 > 1.9.2）；任一段非数字（预发布/脏 tag）保守返回 false */
     internal fun isNewer(remote: String, current: String): Boolean {
         val r = remote.split('.').map { it.trim().toIntOrNull() }
         val c = current.split('.').map { it.trim().toIntOrNull() }
