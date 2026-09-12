@@ -43,10 +43,10 @@ object SettingsStore {
         val uiMode: String = UI_MODE_MIUIX,
         /** 顶栏 / 底栏模糊效果 */
         val enableBlur: Boolean = true,
-        /** 悬浮底栏 */
-        val enableFloatingBottomBar: Boolean = false,
-        /** 悬浮底栏液态玻璃（仅 API 33+ 生效，低版本自动降级） */
-        val enableFloatingBottomBarBlur: Boolean = false,
+        /** 悬浮底栏（默认开启） */
+        val enableFloatingBottomBar: Boolean = true,
+        /** 悬浮底栏液态玻璃（默认开启；仅 API 33+ 生效，低版本自动降级） */
+        val enableFloatingBottomBarBlur: Boolean = true,
         /** 关于页动态流动背景（AGSL 着色器，仅 Android 15+ 实际生效） */
         val enableDynamicBackground: Boolean = true,
         /** 检查更新镜像站（UpdateChecker.UpdateMirror.id） */
@@ -126,8 +126,8 @@ object SettingsStore {
                     suspendFallbackMode = prefs[KEY_SUSPEND_FALLBACK] ?: FALLBACK_OFF,
                     uiMode = prefs[KEY_UI_MODE] ?: UI_MODE_MATERIAL,
                     enableBlur = prefs[KEY_ENABLE_BLUR] ?: true,
-                    enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: false,
-                    enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false,
+                    enableFloatingBottomBar = prefs[KEY_FLOATING_BOTTOM_BAR] ?: true,
+                    enableFloatingBottomBarBlur = prefs[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: true,
                     enableDynamicBackground = prefs[KEY_DYNAMIC_BACKGROUND] ?: true,
                     updateMirror = prefs[KEY_UPDATE_MIRROR] ?: "gh-proxy",
                     customMirror = prefs[KEY_CUSTOM_MIRROR] ?: "",
@@ -211,8 +211,8 @@ object SettingsStore {
 
     val uiMode: Flow<String> = app.dataStore.data.map { it[KEY_UI_MODE] ?: UI_MODE_MIUIX }
     val enableBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_ENABLE_BLUR] ?: true }
-    val enableFloatingBottomBar: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR] ?: false }
-    val enableFloatingBottomBarBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: false }
+    val enableFloatingBottomBar: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR] ?: true }
+    val enableFloatingBottomBarBlur: Flow<Boolean> = app.dataStore.data.map { it[KEY_FLOATING_BOTTOM_BAR_BLUR] ?: true }
     val enableDynamicBackground: Flow<Boolean> = app.dataStore.data.map { it[KEY_DYNAMIC_BACKGROUND] ?: true }
     val updateMirror: Flow<String> = app.dataStore.data.map { it[KEY_UPDATE_MIRROR] ?: "gh-proxy" }
     val customMirror: Flow<String> = app.dataStore.data.map { it[KEY_CUSTOM_MIRROR] ?: "" }
