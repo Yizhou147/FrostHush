@@ -1186,8 +1186,8 @@ private fun FocusTimeDialog(
     // 单段最大 240 分钟（普通专注总时长上限）；新总时长超 240 在点开始时统一校验
     MiuixTimePickerDialog(
         show = editingEndIndex >= 0 && editingEndIndex < segmentBounds.size,
-        initialHour = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) / 60,
-            initialMinute = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) % 60,
+        initialHour = segmentBounds.getOrNull(editingEndIndex.coerceAtLeast(0))?.let { (it.second % 1440) / 60 } ?: 0,
+            initialMinute = segmentBounds.getOrNull(editingEndIndex.coerceAtLeast(0))?.let { (it.second % 1440) % 60 } ?: 0,
             onDismiss = { editingEndIndex = -1 },
             onConfirm = { h, m ->
                 val chosen = h * 60 + m // 当天时刻 0..1439

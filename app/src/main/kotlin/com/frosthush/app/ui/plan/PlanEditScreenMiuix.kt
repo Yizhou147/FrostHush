@@ -560,8 +560,8 @@ fun PlanEditScreenMiuix(plan: FocusPlan?, onBack: () -> Unit) {
                     // 按时间段调整分段：选择该段新的结束时间 → 时长自动反算，后续段顺延
                     MiuixTimePickerDialog(
                         show = editingEndIndex >= 0 && editingEndIndex < segmentBounds.size,
-                        initialHour = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) / 60,
-                            initialMinute = (segmentBounds[editingEndIndex.coerceAtLeast(0)].second % 1440) % 60,
+                        initialHour = segmentBounds.getOrNull(editingEndIndex.coerceAtLeast(0))?.let { (it.second % 1440) / 60 } ?: 0,
+                            initialMinute = segmentBounds.getOrNull(editingEndIndex.coerceAtLeast(0))?.let { (it.second % 1440) % 60 } ?: 0,
                             onDismiss = { editingEndIndex = -1 },
                             onConfirm = { h, m ->
                                 val chosen = h * 60 + m // 当天时刻 0..1439

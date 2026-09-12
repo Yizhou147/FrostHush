@@ -191,7 +191,7 @@ fun SegmentMinutesDialogMiuix(
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
-    var input by remember { mutableStateOf(selected.toString()) }
+    var input by remember(show) { mutableStateOf(selected.toString()) }
     OverlayDialog(
         show = show,
         title = title,
