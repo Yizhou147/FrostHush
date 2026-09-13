@@ -31,7 +31,6 @@ import rikka.shizuku.Shizuku
  */
 object FocusManager {
     private const val FINISH_CHANNEL_ID = "focus_finished"
-    private const val FINISH_NOTIFICATION_ID = 101
 
     /** 上一次结束岛通知使用的 id：发布前先 cancel 它，避免残留的同 id 通知让本次被判成"更新" */
     private var lastFinishIslandId = 0
@@ -87,6 +86,10 @@ object FocusManager {
     /** 结束专注的互斥锁：恢复/记历史/停服务可能被多线程并发触发，需串行化避免重复写历史 */
     private val restoreLock = Any()
 
+    /** 开始专注的互斥锁：手动开始与计划 START 闹钟（各自独立线程）的"检查→写会话"必须原子，
+     *  否则并发时后写者覆盖前者的会话文件，被覆盖那场冻结的应用永远无人解冻 */
+    private val startLock = Any()
+
     fun shizukuReady(): Boolean = runCatching {
         !Shizuku.isPreV11() && Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
@@ -106,26 +109,33 @@ object FocusManager {
      * 返回 null 表示成功，否则返回错误提示文案。
      */
     suspend fun startFocus(segments: List<FocusStore.Segment>): String? = withContext(Dispatchers.IO) {
-        if (segments.isEmpty() || segments.first().type != FocusStore.SEGMENT_FOCUS || segments.last().type != FocusStore.SEGMENT_FOCUS) {
+        // 尾部休息段自动修剪：分段必须以专注结束，末尾追加/删除后残留的休息段没有意义
+        // （原实现对尾部休息直接报"时长无效"，用户难以理解原因）
+        val trimmed = segments.dropLastWhile { !it.isFocus }
+        if (trimmed.isEmpty() || trimmed.first().type != FocusStore.SEGMENT_FOCUS || trimmed.last().type != FocusStore.SEGMENT_FOCUS) {
             return@withContext app.getString(R.string.focus_duration_invalid)
         }
-        if (segments.any { it.minutes < FocusStore.MIN_MINUTES }) {
+        if (trimmed.any { it.minutes < FocusStore.MIN_MINUTES }) {
             return@withContext app.getString(R.string.focus_duration_invalid)
         }
-        val total = segments.sumOf { it.minutes }
+        val total = trimmed.sumOf { it.minutes }
         if (total !in durationRange) return@withContext app.getString(R.string.focus_duration_invalid)
         // 防御：排除自身，避免误暂停本应用
         val packages = FocusStore.blacklist().filter { it != BuildConfig.APPLICATION_ID }
         if (packages.isEmpty()) return@withContext app.getString(R.string.focus_no_apps)
         if (!shizukuReady()) return@withContext app.getString(R.string.focus_shizuku_unavailable)
         val start = System.currentTimeMillis()
-        // 开新会话前清掉上一场的结束提醒：残留的结束岛会占用"每应用一条焦点通知"的位置，
-        // 导致本场的岛不显示 / 倒计时不更新（2026-09-11 日志实证）
-        clearFinishIsland()
-        // 先持久化会话并启动服务，再立即刷新 UI 进入全屏专注：
-        // 逐个暂停应用（每次一次 Shizuku IPC）耗时较长，不能等全部挂起完成才显示锁屏
-        FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, total, segments = segments))
-        startFocusService()
+        synchronized(startLock) {
+            // 锁内复查：并发时另一入口可能刚写入会话（手动开始 vs 计划 START 闹钟）
+            if (FocusStore.activeSession() != null) return@withContext app.getString(R.string.focus_session_exists)
+            // 开新会话前清掉上一场的结束提醒：残留的结束岛会占用"每应用一条焦点通知"的位置，
+            // 导致本场的岛不显示 / 倒计时不更新（2026-09-11 日志实证）
+            clearFinishIsland()
+            // 先持久化会话并启动服务，再立即刷新 UI 进入全屏专注：
+            // 逐个暂停应用（每次一次 Shizuku IPC）耗时较长，不能等全部挂起完成才显示锁屏
+            FocusStore.saveActiveSession(FocusStore.ActiveSession(packages, start, total, segments = trimmed))
+            startFocusService()
+        }
         bumpVersion()
         var suspended = 0
         packages.forEach { entry ->
@@ -162,14 +172,18 @@ object FocusManager {
         val duration = plan.durationMinutes
         if (duration < FocusStore.MIN_MINUTES) return app.getString(R.string.focus_duration_invalid)
         val start = System.currentTimeMillis()
-        // 清掉上一场的结束提醒，避免残留结束岛占用焦点通知位（同 startFocus）
-        clearFinishIsland()
-        FocusStore.saveActiveSession(
-            FocusStore.ActiveSession(
-                packages, start, duration, planId = plan.id, segments = plan.segments
+        synchronized(startLock) {
+            // 锁内复查：并发时手动开始可能刚写入会话（handleStart 的预检查与本写入之间有窗口）
+            if (FocusStore.activeSession() != null) return app.getString(R.string.focus_session_exists)
+            // 清掉上一场的结束提醒，避免残留结束岛占用焦点通知位（同 startFocus）
+            clearFinishIsland()
+            FocusStore.saveActiveSession(
+                FocusStore.ActiveSession(
+                    packages, start, duration, planId = plan.id, segments = plan.segments
+                )
             )
-        )
-        startFocusService()
+            startFocusService()
+        }
         bumpVersion()
         var suspended = 0
         packages.forEach { entry ->
@@ -208,7 +222,7 @@ object FocusManager {
                     System.currentTimeMillis() - session.endMillis <= 10 * 60_000L
                 ) {
                     if (SettingsStore.cache.focusIslandEnabled) showFinishIsland(session)
-                    else showFinishNotification()
+                    else showFinishNotification(session)
                 }
                 FocusStore.clearActiveSession()
                 session.packages.forEach { entry ->
@@ -230,6 +244,12 @@ object FocusManager {
                         Thread.sleep(5000)
                     } catch (_: InterruptedException) {
                     }
+                    // 5 秒内可能有新会话启动（快速重开 / 背靠背计划首尾相接）：
+                    // 此时服务已属于新会话，停服会杀掉新专注的 tick 与前台通知
+                    if (FocusStore.activeSession() != null) {
+                        DebugLog.d("Focus", "延迟停服前检测到新会话，跳过停服")
+                        return@Thread
+                    }
                     // 诊断：停服前后各查一次活动通知，确认结束通知是否被随前台服务一起清掉
                     logActiveNotifications("停服前")
                     app.stopService(Intent(app, FocusService::class.java))
@@ -249,19 +269,23 @@ object FocusManager {
 
     /**
      * 跳过当前休息段（通知操作触发）：把当前休息段截短为实际已休息时长（0 分钟即塌缩跳过），
-     * 会话总时长相应提前，FocusService 下一 tick 观察到阶段推进后恢复暂停并继续下一段专注。
+     * 会话总时长相应提前，FocusService 下一 tick 观察到阶段推进后恢复暂停并继续下一段。
+     * 纳入 restoreLock：读-改-写期间若 restoreAndEnd 清掉会话，旧会话会被写回成"幽灵会话"。
+     * 调用方均在后台线程，可安全持锁。
      */
     fun skipRest() {
-        val session = FocusStore.activeSession() ?: return
-        val phase = session.phaseAt(System.currentTimeMillis())
-        if (phase.type != FocusStore.SEGMENT_REST) return
-        val segments = session.segments ?: return
-        if (phase.index >= segments.size) return
-        val elapsed = ((System.currentTimeMillis() - phase.segmentStart) / 60_000L).toInt().coerceAtLeast(0)
-        val updated = segments.toMutableList().apply {
-            set(phase.index, FocusStore.Segment(FocusStore.SEGMENT_REST, elapsed))
+        synchronized(restoreLock) {
+            val session = FocusStore.activeSession() ?: return
+            val phase = session.phaseAt(System.currentTimeMillis())
+            if (phase.type != FocusStore.SEGMENT_REST) return
+            val segments = session.segments ?: return
+            if (phase.index >= segments.size) return
+            val elapsed = ((System.currentTimeMillis() - phase.segmentStart) / 60_000L).toInt().coerceAtLeast(0)
+            val updated = segments.toMutableList().apply {
+                set(phase.index, FocusStore.Segment(FocusStore.SEGMENT_REST, elapsed))
+            }
+            FocusStore.saveActiveSession(session.copy(segments = updated))
         }
-        FocusStore.saveActiveSession(session.copy(segments = updated))
     }
 
     /** 按当前阶段设置挂起状态：专注段暂停，休息段解除暂停 */
@@ -378,7 +402,7 @@ object FocusManager {
         lastFinishIslandId = 0
     }
 
-    private fun showFinishNotification() {
+    private fun showFinishNotification(session: FocusStore.ActiveSession) {
         val manager = NotificationManagerCompat.from(app)
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(FINISH_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_HIGH)
@@ -386,6 +410,14 @@ object FocusManager {
         )
         val title = app.getString(R.string.focus_finished_title)
         val text = app.getString(R.string.focus_finished_text)
+        // id 与结束岛同规则、按会话开始时刻推导。旧实现用固定 101：FocusService 阶段切换的
+        // 前台通知从 100 起递增（含休息段的会话第一次切换即占用 101），结束通知发布后先被
+        // 覆盖、再被停服的 REMOVE 一起移除 → 通知消失。改为会话级唯一 id 后，
+        // clearFinishIsland 对两种模式也都能正确清理上一场的结束提醒。
+        val id = finishIslandId(session.startMillis)
+        if (lastFinishIslandId != 0 && lastFinishIslandId != id) {
+            runCatching { manager.cancel(lastFinishIslandId) }
+        }
         runCatching {
             val builder = NotificationCompat.Builder(app, FINISH_CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_stat_focus)
@@ -397,14 +429,11 @@ object FocusManager {
                     )
                 )
                 .setAutoCancel(true)
-            // 专注结束以焦点通知（岛）形式弹出（无倒计时），仅在设置开启超级岛时
-            if (SettingsStore.cache.focusIslandEnabled) {
-                runCatching {
-                    builder.addExtras(MiuiIsland.buildIslandExtras(app, title, text, null, null))
-                }
-            }
-            manager.notify(FINISH_NOTIFICATION_ID, builder.build())
-        }
+            manager.notify(id, builder.build())
+            lastFinishIslandId = id
+            DebugLog.d("Focus", "结束通知已发布 id=$id")
+        }.onFailure { DebugLog.e("Focus", "结束通知发布失败 id=$id", it) }
+        logActiveNotifications("结束通知发布后")
     }
 
     /** 累计专注时长（分钟） */

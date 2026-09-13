@@ -305,6 +305,9 @@ fun removeSegment(segments: List<FocusStore.Segment>, index: Int): List<FocusSto
             merged.add(s)
         }
     }
+    // 删掉最后一个专注段后残留的尾部休息段没有意义（会话以专注结束），一并修剪；
+    // 首段专注不会被删（调用点删除条件 index > 0），修剪后仍以专注开始/结束
+    while (merged.size > 1 && !merged.last().isFocus) merged.removeAt(merged.size - 1)
     return merged
 }
 

@@ -7,23 +7,29 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // AGP 9 内置 Kotlin 支持，无需再应用 kotlin-android（版本见根 build.gradle.kts）
     alias(libs.plugins.compose.compiler)
 }
 
 android {
     namespace = "com.frosthush.app"
-    compileSdk = 36
+    compileSdk = 37
+    // AGP 9.4 默认 build-tools 为 36.0.0；本机仅装了 36.1.0（ARM64 aapt2），显式钉住
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.frosthush.app"
         minSdk = 23
-        targetSdk = 36
-        versionCode = 8
-        versionName = "1.2.2"
-        // 编译时间（精确到分钟）：仅用于诊断日志导出头部（关于页不展示）
+        targetSdk = 37
+        versionCode = 9
+        versionName = "1.3.0"
+        // 编译时间（精确到分钟）：诊断日志导出头部 + 非正式版关于页展示
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
+        // 是否「正式版」：仅打正式发布包时带 -PisOfficialBuild=true。
+        // 正式版关于页不显示编译时间，其余构建（含本地测试用 release 包）仍显示。
+        val isOfficialBuild = (project.findProperty("isOfficialBuild") as String?)?.toBoolean() ?: false
+        buildConfigField("boolean", "IS_OFFICIAL_BUILD", isOfficialBuild.toString())
     }
 
     buildTypes {
@@ -78,6 +84,7 @@ android {
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.junit)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.material3)
@@ -92,6 +99,21 @@ dependencies {
     implementation(libs.pinyin4j)
     implementation(libs.hiddenapibypass)
     implementation(libs.kotlinx.coroutines.android)
+    // miuix（HyperOS 设计语言）：UI 组件 / 偏好项组件 / 图标 / 模糊
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.preference)
+    implementation(libs.miuix.icons)
+    implementation(libs.miuix.blur)
+    // 页面栈导航 + 预测性返回（navigation3 由 miuix-navigation3-ui 提供，与 KernelSU 同款转场）
+    implementation(libs.miuix.navigation3.ui)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigationevent.compose)
+    // 长按拖拽排序：Reorderable 3.1.0。org.jetbrains.compose 三组会与 androidx.compose 冲突，排除
+    implementation(libs.reorderable) {
+        exclude(group = "org.jetbrains.compose.runtime")
+        exclude(group = "org.jetbrains.compose.animation")
+        exclude(group = "org.jetbrains.compose.foundation")
+    }
     // 内置 Xposed 模块（焦点通知白名单解锁）：compileOnly，不打包进 APK，仅编译期引用
     compileOnly(libs.libxposed)
 }

@@ -1,6 +1,8 @@
 package com.frosthush.app
 
+import com.frosthush.app.update.UpdateChecker
 import android.app.Application
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import androidx.core.app.NotificationManagerCompat
 import com.frosthush.app.data.AppRepository
@@ -8,15 +10,51 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.util.DebugLog
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class FrostHushApp : Application() {
+
     override fun onCreate() {
         super.onCreate()
         app = this
-        // 进程启动/被系统回收后重启打点：配合每条日志的 pid 判断闹钟投递是否因进程
-        // 被杀/冻结而延迟（10:40:31 两闹钟同时补投现象的排查依据）
         DebugLog.d("Lifecycle", "Application.onCreate 进程启动 now=${System.currentTimeMillis()}")
         SettingsStore.init()
+        // 自动检查更新（可选开启）：启动时后台静默检查，24 小时节流；
+        // 结果存内存（UpdateChecker.lastResult），在「设置 → 检查更新」页查看，不打扰用户
+        Thread {
+            runCatching {
+                runBlocking {
+                    val enabled = SettingsStore.autoCheckUpdate.first()
+                    val last = SettingsStore.lastUpdateCheckMillis.first()
+                    val mirrorId = SettingsStore.updateMirror.first()
+                    val customMirror = SettingsStore.customMirror.first()
+                    if (enabled && System.currentTimeMillis() - last > AUTO_CHECK_INTERVAL_MS) {
+                        val mirror = UpdateChecker.UpdateMirror.fromId(mirrorId)
+                        val result = UpdateChecker.check(BuildConfig.VERSION_NAME, mirror, customMirror)
+                        UpdateChecker.lastResult = result
+                        // 仅成功时写节流时间戳：失败也写入会让一次网络不通压制之后 24h 的自动检查，
+                        // 且 Failed 只存内存、进程被杀即丢，用户既看不到失败也拿不到后续更新
+                        if (result !is UpdateChecker.CheckResult.Failed) {
+                            SettingsStore.setLastUpdateCheckMillis(System.currentTimeMillis())
+                        }
+                    }
+                }
+            }
+        }.start()
+        // 预测性返回手势（对齐 KernelSU）：ApplicationInfo 的该开关是隐藏 API，
+        // 这里反射打开/关闭；开关为进程级，修改后下一次启动才生效。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            runCatching {
+                HiddenApiBypass.addHiddenApiExemptions(
+                    "Landroid/content/pm/ApplicationInfo;->setEnableOnBackInvokedCallback"
+                )
+            }
+            setEnableOnBackInvokedCallback(applicationInfo, SettingsStore.cache.enablePredictiveBack)
+        }
+        // 进程启动/被系统回收后重启打点：配合每条日志的 pid 判断闹钟投递是否因进程
+        // 被杀/冻结而延迟（10:40:31 两闹钟同时补投现象的排查依据）
         // 清理历史残留的「专注阶段提醒」渠道（focus_phase）：
         // 工作总结第 22 项（2026-08-13）已删除该渠道对应代码与字符串，
         // 但 Android 不会因应用升级自动删除已注册的渠道，系统设置里仍残留显示。
@@ -49,7 +87,23 @@ class FrostHushApp : Application() {
     }
 
     companion object {
+        /** 自动检查更新节流间隔 */
+        private const val AUTO_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+
         lateinit var app: FrostHushApp
             private set
+
+        /**
+         * 开关当前进程的预测性返回手势（ApplicationInfo#setEnableOnBackInvokedCallback，隐藏 API）。
+         * 与 KernelSU 一致：反射调用失败时静默忽略，不影响其它功能。
+         */
+        fun setEnableOnBackInvokedCallback(appInfo: ApplicationInfo, enable: Boolean) {
+            runCatching {
+                val method = ApplicationInfo::class.java
+                    .getDeclaredMethod("setEnableOnBackInvokedCallback", Boolean::class.javaPrimitiveType)
+                method.isAccessible = true
+                method.invoke(appInfo, enable)
+            }
+        }
     }
 }

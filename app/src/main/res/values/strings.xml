@@ -79,6 +79,7 @@
     <string name="focus_shizuku_unavailable">Shizuku is unavailable, please grant permission first</string>
     <string name="focus_no_apps">Please select apps to suspend first</string>
     <string name="focus_duration_invalid">Invalid duration</string>
+    <string name="focus_session_exists">A focus session is already running</string>
     <string name="focus_restore_prompt">An unfinished focus session was detected. Connect Shizuku to resume suspending apps.</string>
     <string name="focus_connect_shizuku">Connect Shizuku</string>
     <string name="focus_suspended_restore_title">%1$d app(s) are still suspended</string>
@@ -156,11 +157,26 @@
     <string name="settings_focus_island_summary">Requires the module to unlock the focus notification whitelist</string>
     <string name="module_description">Built-in focus notification whitelist unlock; enable FrostHush in LSPosed and check System UI and XMSF scopes (libxposed API 101)</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_theme_summary">Current: %1$s</string>
+    <string name="settings_theme_summary">Change appearance settings</string>
     <string name="settings_theme_system">Follow system</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
-    <string name="settings_confirm_before_start">Confirm before starting</string>
+    <string name="settings_theme_page_title">Appearance</string>
+    <string name="settings_theme_mode_summary">Choose the light/dark mode</string>
+    <string name="settings_ui_style">Interface style</string>
+    <string name="settings_ui_style_summary">Current: %1$s</string>
+    <string name="settings_ui_style_miuix">Miuix</string>
+    <string name="settings_ui_style_material">Material</string>
+    <string name="settings_enable_blur">Blur</string>
+    <string name="settings_enable_blur_summary">Blur the bottom bar only</string>
+    <string name="settings_floating_bottom_bar">Floating bottom bar</string>
+    <string name="settings_floating_bottom_bar_summary">Use a floating bottom bar</string>
+    <string name="settings_floating_bar_blur">Liquid glass</string>
+    <string name="settings_floating_bar_blur_summary">Liquid glass effect for the floating bar (Android 13+)</string>
+    <string name="settings_enable_predictive_back">Predictive back gesture</string>
+    <string name="settings_enable_predictive_back_summary">Enable support for the predictive back gesture</string>
+    <string name="settings_page_scale">Interface scale</string>
+    <string name="settings_page_scale_summary">Adjust the global display scale</string>
     <string name="settings_force_freeze">Force freeze</string>
     <string name="settings_force_freeze_summary_off">Off</string>
     <string name="settings_force_freeze_summary_clone">Cloned apps only</string>
@@ -171,7 +187,6 @@
     <string name="settings_force_freeze_scope_all">All user apps</string>
     <string name="settings_force_freeze_warning_title">Enable force freeze?</string>
     <string name="settings_force_freeze_warning_text">When enabled, apps that cannot be suspended will be frozen by disabling instead. Disabling is more thorough (background running is also blocked), but during focus the app icon disappears from the launcher (restored when focus ends), and some launchers may rearrange icon order. Enabling this is only needed on systems that block suspending cloned apps.</string>
-    <string name="settings_confirm_before_start_summary">Show the "cannot exit midway" warning before starting focus</string>
     <string name="settings_plan_remind">Remind before plans start</string>
     <string name="settings_plan_remind_summary_seconds">Remind %1$d seconds before start</string>
     <string name="settings_plan_remind_summary_none">No reminder; focus starts directly</string>
@@ -197,6 +212,12 @@
     <string name="settings_import_failed">Import failed: invalid file format</string>
     <string name="settings_cleared">Stats cleared</string>
 
+    <!-- 设置分组二级页 -->
+    <string name="settings_group_focus">Focus</string>
+    <string name="settings_group_focus_summary">Default duration, plan reminders and notifications</string>
+    <string name="settings_group_data">Data</string>
+    <string name="settings_group_data_summary">Export, import and clear data</string>
+
     <!-- 配置导入 -->
     <string name="config_import_title">Import app config</string>
     <string name="config_import_summary">The file contains %1$d app groups, %2$d plans and %3$d presets</string>
@@ -221,6 +242,7 @@
 
     <!-- 关于 -->
     <string name="about_version">Version %s</string>
+    <string name="about_build_time">Build time: %1$s</string>
     <string name="about_hail_title">Hail</string>
     <string name="about_hail_url">github.com/aistra0528/Hail</string>
     <string name="about_project_title">FrostHush repository</string>
@@ -229,7 +251,7 @@
     <string name="about_opensource">Open source notice</string>
     <string name="about_opensource_text">Hail (https://github.com/aistra0528/Hail) itself does not include a focus mode; focus mode was added on top of it. This standalone app is extracted from that feature and does not include Hail\'s freeze/stop features.</string>
     <string name="about_privacy">Privacy</string>
-    <string name="about_privacy_text">All data is stored locally on your device and never uploaded.</string>
+    <string name="about_privacy_text">All data stays on your device and is never uploaded; the Internet permission is only used to check for updates.</string>
 
     <!-- 应用集 -->
     <string name="group_title">App groups</string>
@@ -368,4 +390,37 @@
     <string name="debug_export_log_summary">Export key event logs for troubleshooting</string>
     <string name="debug_exported">Diagnostic log exported: %1$s</string>
     <string name="debug_export_failed">Export failed</string>
+    <string name="about_check_update">Check for updates</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_failed">Check failed. Check your network and try again.</string>
+    <string name="update_latest">You\'re on the latest version.</string>
+    <string name="update_available_title">Update available: %1$s</string>
+    <string name="update_download">Download update</string>
+    <string name="settings_dynamic_background">Dynamic background</string>
+    <string name="settings_dynamic_background_summary">About page flowing color background (Android 15+)</string>
+    <string name="settings_update_entry_summary">Mirror &amp; auto check</string>
+    <string name="update_mirror">Mirror</string>
+    <string name="mirror_direct">GitHub direct</string>
+    <string name="mirror_gh_proxy">gh-proxy.com</string>
+    <string name="mirror_ghfast">ghfast.top (download only)</string>
+    <string name="mirror_moeyy">github.moeyy.xyz (download only)</string>
+    <string name="update_auto_check">Check on launch</string>
+    <string name="update_auto_check_summary">Check silently on app start (once per 24h)</string>
+    <string name="update_open_release">Open latest release page</string>
+    <string name="update_current_version">Current version</string>
+    <string name="mirror_custom">Custom</string>
+    <string name="custom_mirror_hint">Mirror prefix, e.g. https://your-mirror.example/</string>
+    <string name="custom_mirror_title">Custom mirror</string>
+    <string name="update_internet_note">The Internet permission is only used to check for updates (accessing GitHub Releases). All data stays on your device.</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_previous">Previous</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+    <string name="welcome_page_permissions">Permissions</string>
+    <string name="welcome_page_shizuku">Connect Shizuku</string>
+    <string name="welcome_page_battery">Battery &amp; autostart</string>
+    <string name="welcome_page_ready">All set</string>
+    <string name="welcome_ready_summary">Check the status below; you can adjust everything later in Settings.</string>
+    <string name="settings_replay_welcome">Replay the welcome guide</string>
+    <string name="settings_replay_welcome_summary">Reopen the welcome pages and permission guide</string>
 </resources>
