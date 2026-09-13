@@ -5,10 +5,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import com.frosthush.app.data.SettingsStore
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+
+/** miuix 主色定制：miuix 默认蓝（#3482FF）偏浅，按用户要求略加深（仅浅色模式；深色模式保持默认） */
+private val MiuixDeepBlue = Color(0xFF2F6FEC)
 
 /** 亮色主题：与雹的 md_theme_*（values/colors.xml）一致 */
 private val LightColors = lightColorScheme(
@@ -121,8 +127,46 @@ fun FrostHushTheme(content: @Composable () -> Unit) {
         SettingsStore.THEME_DARK -> true
         else -> isSystemInDarkTheme()
     }
-    MaterialTheme(
-        colorScheme = if (dark) DarkColors else LightColors,
-        content = content
-    )
+    val uiModeValue by SettingsStore.uiMode.collectAsState(initial = SettingsStore.cache.uiMode)
+    val uiMode = UiMode.fromValue(uiModeValue)
+
+    // miuix 色板始终构造并包裹（与 MaterialTheme 同构）：
+    // 若按 uiMode 分支包裹/不包裹，切换「界面风格」会改变组合树结构，
+    // 导致下层全部 remember 状态丢失（页面跳回首页、欢迎覆盖层被关闭）——曾经的真实 bug。
+    val miuixColors = remember(dark) {
+        if (dark) {
+            top.yukonga.miuix.kmp.theme.darkColorScheme()
+        } else {
+            top.yukonga.miuix.kmp.theme.lightColorScheme(
+                primary = MiuixDeepBlue,
+                primaryVariant = MiuixDeepBlue,
+                // 选中态容器（应用集 chip / 星期胶囊等）：默认 #EAF2FF 太浅，加深一档
+                tertiaryContainer = Color(0xFFD8E6FF),
+                tertiaryContainerVariant = Color(0xFFD8E6FF),
+                onTertiaryContainer = MiuixDeepBlue,
+            )
+        }
+    }
+    // MaterialTheme 始终提供：迁移期 material3 组件仍在各页面使用
+    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors) {
+        MiuixTheme(colors = miuixColors) {
+            CompositionLocalProvider(LocalUiMode provides uiMode) {
+                content()
+            }
+        }
+    }
+}
+
+/**
+ * 当前是否深色（供悬浮底栏等组件按深浅使用不同描边/阴影参数）。
+ * 与 [FrostHushTheme] 的判定保持一致：0 跟随系统 / 1 浅色 / 2 深色。
+ */
+@Composable
+fun isInDarkTheme(): Boolean {
+    val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
+    return when (themeMode) {
+        SettingsStore.THEME_LIGHT -> false
+        SettingsStore.THEME_DARK -> true
+        else -> isSystemInDarkTheme()
+    }
 }

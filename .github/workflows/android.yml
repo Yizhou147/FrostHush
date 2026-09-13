@@ -21,15 +21,19 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # 只缓存依赖元数据/jar（modules-2）与 wrapper，不缓存 transforms/build-cache 等可快速
+      # 本地重建的大头——整树缓存在依赖变更（toml/build.gradle.kts）后会触发 1.6GiB 级恢复，
+      # 曾因超出 actions/cache 下载超时白等 10 分钟（run 34698944841）。
+      # key 用 gradle-v2 代际：换缓存路径后避免命中按旧路径打包的历史条目。
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
+            ~/.gradle/caches/modules-2
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: gradle-v2-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
-            gradle-${{ runner.os }}-
+            gradle-v2-${{ runner.os }}-
 
       - name: Build with Gradle
         run: |

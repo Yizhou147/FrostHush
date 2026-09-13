@@ -136,6 +136,9 @@ class FocusService : Service() {
         runCatching { startForeground(NOTIFICATION_ID, notification) }
         // 进程被杀后 START_STICKY 重启：按当前阶段纠正挂起状态（幂等，防止边界状态下状态丢失）
         if (session != null) Thread { FocusManager.applySuspensionByPhase(session) }.start()
+        // 同一服务实例可能被重复启动（开机时 App.onCreate 与 BootReceiver 两条后台线程都会走恢复）：
+        // 先清掉旧 tick 回调再 post，否则同一 Runnable 存在多个待执行实例、各自再 repost，成倍叠加
+        handler.removeCallbacksAndMessages(null)
         handler.post(tickRunnable)
         return START_STICKY
     }

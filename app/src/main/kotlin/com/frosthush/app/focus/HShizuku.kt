@@ -183,12 +183,46 @@ object HShizuku {
         true
     }.getOrElse { false }
 
-    /** 通过 Shizuku 服务端（shell 权限）执行命令，返回 stdout；失败返回 null */
+    /** 命令执行超时：readText() 会无限期阻塞到流关闭，Shizuku binder 半死（ping 通但
+     *  newProcess 后远端不产出）时调用方会被永久卡住——restoreAndEnd 在 restoreLock 内
+     *  逐包执行本函数，一旦卡死所有结束路径全部停摆，必须加超时兜底。 */
+    private const val EXECUTE_TIMEOUT_MS = 15_000L
+
+    /** 通过 Shizuku 服务端（shell 权限）执行命令，返回 stdout；失败/超时返回 null。
+     *  独立读线程 + join 超时：超时销毁远端进程（流关闭、读线程随之退出）并按失败处理。 */
     fun execute(command: String): String? = runCatching {
         val service: IShizukuService = IShizukuService.Stub.asInterface(Shizuku.getBinder()) ?: return null
         val process = service.newProcess(arrayOf("sh", "-c", command), null, null) ?: return null
-        val pfd = process.inputStream ?: return null
-        ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
+        val pfd = process.inputStream
+        if (pfd == null) {
+            runCatching { process.destroy() }
+            return null
+        }
+        val output = StringBuilder()
+        val reader = Thread {
+            try {
+                ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { r ->
+                    val buf = CharArray(8192)
+                    while (true) {
+                        val n = r.read(buf)
+                        if (n < 0) break
+                        output.append(buf, 0, n)
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+        reader.isDaemon = true
+        reader.start()
+        reader.join(EXECUTE_TIMEOUT_MS)
+        if (reader.isAlive) {
+            DebugLog.e("FrostHush", "Shizuku 执行命令超时(${EXECUTE_TIMEOUT_MS}ms): $command", IllegalStateException("timeout"))
+            runCatching { process.destroy() }
+            return null
+        }
+        // 正常读完也销毁一次：防止远端 shell 进程残留（已退出的进程 destroy 无害）
+        runCatching { process.destroy() }
+        output.toString()
     }.getOrElse {
         android.util.Log.e("FrostHush", "Shizuku 执行命令失败: $command", it)
         null

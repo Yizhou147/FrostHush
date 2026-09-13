@@ -19,15 +19,17 @@ import rikka.shizuku.Shizuku
 object FocusStore {
     private const val MAX_HISTORY = 1000
 
-    private val dir = File(app.filesDir, "focus")
-    private val sessionFile = File(dir, "session.json")
-    private val historyFile = File(dir, "sessions.json")
-    private val blacklistFile = File(dir, "blacklist.json")
-    private val presetsFile = File(dir, "presets.json")
-    private val appGroupsFile = File(dir, "appGroups.json")
-    private val selectedGroupFile = File(dir, "selectedGroup.json")
-    private val plansFile = File(dir, "focusPlans.json")
-    private val planExecutedFile = File(dir, "planExecuted.json")
+    // by lazy：延迟到首次真实读写才求值。app 是 lateinit（Application.onCreate 赋值），
+    // 立即求值会让纯 JVM 单元测试仅构造数据类（FocusPlan/ActiveSession）时就崩在 object 初始化。
+    private val dir by lazy { File(app.filesDir, "focus") }
+    private val sessionFile by lazy { File(dir, "session.json") }
+    private val historyFile by lazy { File(dir, "sessions.json") }
+    private val blacklistFile by lazy { File(dir, "blacklist.json") }
+    private val presetsFile by lazy { File(dir, "presets.json") }
+    private val appGroupsFile by lazy { File(dir, "appGroups.json") }
+    private val selectedGroupFile by lazy { File(dir, "selectedGroup.json") }
+    private val plansFile by lazy { File(dir, "focusPlans.json") }
+    private val planExecutedFile by lazy { File(dir, "planExecuted.json") }
 
     /** 时长有效范围（分钟） */
     const val MIN_MINUTES = 1
@@ -136,23 +138,35 @@ object FocusStore {
 
     // ---------- 活动会话 ----------
 
-    fun activeSession(): ActiveSession? = runCatching {
-        if (!sessionFile.exists()) return null
-        val json = JSONObject(sessionFile.readText())
-        val arr = json.getJSONArray("packages")
-        ActiveSession(
-            packages = (0 until arr.length()).map { arr.getString(it) },
-            startMillis = json.getLong("start"),
-            durationMinutes = json.getInt("duration"),
-            planId = if (json.has("planId")) json.getLong("planId") else null,
-            segments = json.optJSONArray("segments")?.let { segArr ->
-                (0 until segArr.length()).map { i ->
-                    val o = segArr.getJSONObject(i)
-                    Segment(o.getInt("type"), o.getInt("minutes"))
-                }
-            },
-        )
-    }.getOrNull()
+    // 会话内存缓存：FocusService 每秒 tick、AppRoot 每次 version/phase 变化都会调 activeSession()，
+    // 直读文件等于每秒一次主线程磁盘 IO + JSON 解析。会话的全部写入都经 saveActiveSession /
+    // clearActiveSession（同进程），缓存与磁盘保持一致；null 不缓存（无会话时调用频率低，
+    // 保持直读，文件被外部删除/写入后也能自愈）。
+    @Volatile
+    private var activeSessionCache: ActiveSession? = null
+
+    fun activeSession(): ActiveSession? {
+        activeSessionCache?.let { return it }
+        val loaded = runCatching {
+            if (!sessionFile.exists()) return null
+            val json = JSONObject(sessionFile.readText())
+            val arr = json.getJSONArray("packages")
+            ActiveSession(
+                packages = (0 until arr.length()).map { arr.getString(it) },
+                startMillis = json.getLong("start"),
+                durationMinutes = json.getInt("duration"),
+                planId = if (json.has("planId")) json.getLong("planId") else null,
+                segments = json.optJSONArray("segments")?.let { segArr ->
+                    (0 until segArr.length()).map { i ->
+                        val o = segArr.getJSONObject(i)
+                        Segment(o.getInt("type"), o.getInt("minutes"))
+                    }
+                },
+            )
+        }.getOrNull()
+        if (loaded != null) activeSessionCache = loaded
+        return loaded
+    }
 
     fun saveActiveSession(session: ActiveSession) {
         dir.mkdirs()
@@ -167,10 +181,14 @@ object FocusStore {
                 })
             }
         }.toString())
+        activeSessionCache = session
     }
 
     fun clearActiveSession() {
         runCatching { sessionFile.delete() }
+        // 先删文件再清缓存：两步之间读到的调用方最多拿到即将删除的旧会话（与原行为一致）；
+        // 反过来先清缓存的话，间隙里的读取会把文件重新载入缓存，删除后残留脏缓存
+        activeSessionCache = null
     }
 
     // ---------- 会话记录 ----------
@@ -275,6 +293,11 @@ object FocusStore {
         } else {
             val dIdx = groups.indexOfFirst { it.isDefault }
             if (dIdx >= 0) groups[dIdx] = groups[dIdx].copy(entries = list)
+            else if (groups.isNotEmpty()) {
+                // 兜底恢复"恰好一个默认集"不变量：无默认集时把第一个当默认集写入，
+                // 否则本次勾选会被静默丢弃（原实现两个分支都不命中直接 saveAppGroups 原数据）
+                groups[0] = groups[0].copy(entries = list, isDefault = true)
+            }
         }
         saveAppGroups(groups)
     }
@@ -790,19 +813,40 @@ object FocusStore {
     /** 覆盖模式：整体替换应用集/计划/预设/选中集（原导入行为）。返回被过滤的本机未安装应用数。 */
     fun applyConfigOverwrite(data: ConfigData): Int {
         var filtered = 0
-        saveAppGroups(data.groups.map { g ->
+        val groups = data.groups.map { g ->
             val clean = filterInstalled(g.entries)
             filtered += g.entries.size - clean.size
             g.copy(entries = clean)
-        })
+        }
+        // 不变量修复：本地恒有"恰好一个默认应用集"。导入文件可能没有默认集或含多个——
+        // 原样写回会让 defaultGroup() 为 null → selectedGroup() 为 null → blacklist() 为空，
+        // 手动专注与计划全部无应用可用；saveBlacklist 也会静默丢勾选。
+        val defaultIdx = groups.indexOfFirst { it.isDefault }
+        val normalized = groups.mapIndexed { i, g ->
+            when {
+                defaultIdx < 0 -> g.copy(isDefault = i == 0)
+                i == defaultIdx -> g.copy(isDefault = true)
+                else -> g.copy(isDefault = false)
+            }
+        }
+        saveAppGroups(normalized)
+        // 悬空引用兜底：计划的 appGroupId 指向文件里不存在的应用集时改指默认集，
+        // 否则 planEntries 返回空 → 该计划永远"无应用可冻结"且无提示
+        // 空应用集的导入文件（appGroups: []）合法：归一化后为空列表，此时无默认集可回退，
+        // 悬空引用保留原值（planEntries 会回退默认集逻辑之外再兜底为空，不至于崩溃）
+        val groupIds = normalized.map { it.id }.toSet()
+        val fallbackGroupId = normalized.firstOrNull { it.isDefault }?.id
         saveFocusPlans(data.plans.map { p ->
             val de = p.directEntries
-            if (de.isNullOrEmpty()) p
+            val cleaned = if (de.isNullOrEmpty()) p
             else {
                 val clean = filterInstalled(de)
                 filtered += de.size - clean.size
                 p.copy(directEntries = clean)
             }
+            val gid = cleaned.appGroupId
+            if (gid != null && fallbackGroupId != null && gid !in groupIds) cleaned.copy(appGroupId = fallbackGroupId)
+            else cleaned
         })
         presets.clear()
         presets.addAll(data.presets)
@@ -961,6 +1005,9 @@ object FocusStore {
                         val idx = mergedPlans.indexOfFirst { it.id == req.conflictLocalId }
                         if (idx >= 0) {
                             mergedPlans[idx] = remapGroupRef(cleanP.copy(id = req.conflictLocalId!!, name = req.finalName), idMap)
+                            // 与 updateFocusPlan/deleteFocusPlan 同语义：替换本地计划后清除
+                            // "今日已执行"标记，否则替换进去的新计划当天到点会被跳过
+                            clearPlanExecuted(req.conflictLocalId)
                             replaced++
                         } else skipped++
                     } else keepLocal++
