@@ -54,6 +54,8 @@ open class FocusWidgetProvider : AppWidgetProvider() {
         private val PROVIDERS = listOf(
             QuickWidgetSmallProvider::class.java,
             QuickWidgetMidProvider::class.java,
+            QuickWidgetPadSmallProvider::class.java,
+            QuickWidgetPadWideProvider::class.java,
         )
 
         /** 三个尺寸的 receiver 组件，用于刷新全部实例 */
@@ -85,6 +87,12 @@ open class FocusWidgetProvider : AppWidgetProvider() {
         private const val CAP_SMALL_H = 170
         private const val CAP_WIDE_W = 245
         private const val CAP_WIDE_H = 170
+        // 大档（Pad：实测盒子 297×313dp）：容器更大，药丸接近番茄ToDo 的 82×51dp，
+        // 把 Pad 大盒子里的空白填掉。要求盒子能放下容器（否则退回中档，避免裁切）。
+        private const val LARGE_SMALL_W = 240
+        private const val LARGE_SMALL_H = 190
+        private const val LARGE_WIDE_W = 330
+        private const val LARGE_WIDE_H = 190
 
         /** 绘制单个实例 */
         fun render(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
@@ -98,9 +106,17 @@ open class FocusWidgetProvider : AppWidgetProvider() {
             } else {
                 minWidth >= CAP_WIDE_W || minHeight >= CAP_WIDE_H
             }
+            // 大档要求宽高同时够（容器 194×126 / 288×126 + 卡片内边距 12*2 + 标题约 26dp）
+            val large = if (small) {
+                minWidth >= LARGE_SMALL_W && minHeight >= LARGE_SMALL_H
+            } else {
+                minWidth >= LARGE_WIDE_W && minHeight >= LARGE_WIDE_H
+            }
             val layoutId = when {
+                small && large -> R.layout.widget_quick_small_capped_large
                 small && capped -> R.layout.widget_quick_small_capped
                 small -> R.layout.widget_quick_small
+                large -> R.layout.widget_quick_wide_capped_large
                 capped -> R.layout.widget_quick_wide_capped
                 else -> R.layout.widget_quick_wide
             }
@@ -136,7 +152,8 @@ open class FocusWidgetProvider : AppWidgetProvider() {
             // 打出实测盒子尺寸：Pad 上要按这个值校准 CAP_* 阈值与固定容器尺寸
             DebugLog.d(
                 "Widget",
-                "render id=$appWidgetId small=$small capped=$capped size=${minWidth}x$minHeight minutes=$minutes"
+                "render id=$appWidgetId small=$small capped=$capped large=$large " +
+                    "size=${minWidth}x$minHeight layout=${layoutId} minutes=$minutes"
             )
         }
 
@@ -153,3 +170,13 @@ class QuickWidgetSmallProvider : FocusWidgetProvider()
 /** 2×3 小部件（5 个时长格 + 设置格） */
 class QuickWidgetMidProvider : FocusWidgetProvider()
 
+
+/**
+ * 平板专用入口 · 1×1：内容与手机 2×2 相同（3 个时长 + 设置）。
+ * 与 A/B 两个入口的区别只在声明尺寸（targetCellWidth/Height = 1/1），供 Pad 的 1×1 格子使用；
+ * 手机上也会出现在列表里（≤1 格会偏小），故 label 里标明「平板 1×1」。
+ */
+class QuickWidgetPadSmallProvider : FocusWidgetProvider()
+
+/** 平板专用入口 · 1×2（高 1 格、宽 2 格）：内容与手机 2×4 相同（5 个时长 + 设置） */
+class QuickWidgetPadWideProvider : FocusWidgetProvider()

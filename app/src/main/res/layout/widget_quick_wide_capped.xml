@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- widget_quick_wide_capped · 大盒子版（Pad / 被拉大时）：卡片照旧填满盒子，格子装在固定尺寸容器（210dp×100dp、顶部左对齐），
-     盒子再大只多留白、格子尺寸不变。尺寸依据 Pad 实测：盒子 297×313dp（≈2×2 Pad 格），
-     番茄ToDo 同尺寸盒子里的药丸约 51×31dp、内容只占卡片宽 ~50%；我们取略大一点（3 列 × 2 行，药丸约 64×46dp），
-     中文与点按手感更好。由 FocusWidgetProvider 按实测尺寸切换（阈值见该文件 CAP_* 常量）。 -->
+<!-- widget_quick_wide_capped：卡片填满盒子，格子装在固定尺寸容器（210dp×100dp、顶部左对齐）。
+     中档：盒子约 245–330dp 宽时使用，药丸约 64×46dp。
+     由 FocusWidgetProvider 按实测盒子尺寸选择（阈值见该文件 CAP_* 常量）。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"

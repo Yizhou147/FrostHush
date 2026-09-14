@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 平板专用 · 1×1（3 个时长格 + 右下角「设置」，内容同手机 2×2）
+     平板专用入口：targetCellWidth/Height 直接声明 1×1 / 2×1（Pad 的 1 格物理尺寸 ≈ 手机 2 格）。
+     手机上也会出现该入口（1 格偏小），故 receiver 的 label 标明「平板」。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="620dp"
+    android:maxResizeHeight="300dp"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_quick_small"
+    android:previewImage="@drawable/widget_quick_preview_small"
+    android:widgetCategory="home_screen" />
