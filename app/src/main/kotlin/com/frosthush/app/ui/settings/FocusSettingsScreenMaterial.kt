@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -17,10 +18,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.FreeBreakfast
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -72,8 +75,8 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
     var showDurationDialog by remember { mutableStateOf(false) }
     var showRestDurationDialog by remember { mutableStateOf(false) }
     var showRemindDialog by remember { mutableStateOf(false) }
-    // 正在编辑的快速专注快捷方式（null = 未打开编辑框）
-    var editingShortcut by remember { mutableStateOf<QuickFocusStore.QuickShortcut?>(null) }
+    // 快速专注快捷方式编辑框（三条一起编辑）
+    var editingShortcuts by remember { mutableStateOf(false) }
     // 小部件时长编辑（两组：2×2 三格 / 宽版五格）
     var editingWidgetSmall by remember { mutableStateOf(false) }
     var editingWidgetWide by remember { mutableStateOf(false) }
@@ -169,7 +172,7 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
             val widgetSmallMinutes = remember(widgetVersion) { QuickFocusStore.widgetSmallMinutes() }
             val widgetWideMinutes = remember(widgetVersion) { QuickFocusStore.widgetWideMinutes() }
             SettingCard(
-                icon = Icons.Filled.Timer,
+                icon = Icons.Filled.Widgets,
                 title = stringResource(R.string.settings_widget_small),
                 summary = widgetSmallMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit),
                 onClick = { editingWidgetSmall = true },
@@ -182,9 +185,10 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
                 },
             )
             SettingCard(
-                icon = Icons.Filled.Timer,
+                icon = Icons.Filled.Widgets,
                 title = stringResource(R.string.settings_widget_wide),
-                summary = widgetWideMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit),
+                summary = widgetWideMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit) +
+                    " · " + stringResource(R.string.settings_widget_stretch_hint),
                 onClick = { editingWidgetWide = true },
                 trailing = {
                     Icon(
@@ -194,25 +198,28 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
                     )
                 },
             )
-            quickShortcuts.forEach { item ->
-                SettingCard(
-                    icon = Icons.Filled.Timer,
-                    title = item.label,
-                    summary = if (item.enabled) {
-                        stringResource(R.string.settings_quick_summary, item.minutes)
-                    } else {
-                        stringResource(R.string.settings_quick_disabled)
-                    },
-                    onClick = { editingShortcut = item },
-                    trailing = {
-                        Icon(
-                            Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    },
-                )
+            // 三条快捷方式合并成一行入口：三条各占一行会连出三个一模一样的图标，观感差
+            val enabledShortcuts = quickShortcuts.filter { it.enabled }
+            val hiddenShortcuts = quickShortcuts.size - enabledShortcuts.size
+            val quickSummary = if (enabledShortcuts.isEmpty()) {
+                stringResource(R.string.settings_quick_all_hidden)
+            } else {
+                enabledShortcuts.joinToString(" · ") { it.label } +
+                    if (hiddenShortcuts > 0) " " + stringResource(R.string.settings_quick_hidden_count, hiddenShortcuts) else ""
             }
+            SettingCard(
+                icon = Icons.Filled.Bolt,
+                title = stringResource(R.string.settings_quick_entry_title),
+                summary = quickSummary,
+                onClick = { editingShortcuts = true },
+                trailing = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
         }
     }
 
@@ -258,28 +265,29 @@ fun FocusSettingsMaterial(onBack: () -> Unit) {
             },
         )
     }
-    editingShortcut?.let { item ->
-        QuickShortcutDialogMaterial(
-            item = item,
+    if (editingShortcuts) {
+        QuickShortcutsDialogMaterial(
             onSave = { updated ->
-                val labelUntouched = updated.label == item.label
-                QuickFocusStore.update(updated)
+                updated.forEach { item ->
+                    val old = QuickFocusStore.shortcuts.firstOrNull { it.id == item.id }
+                    QuickFocusStore.update(item)
+                    // 时长改了但文案仍是「专注N分钟」旧默认形态 → 提示一次（文案与时长各自独立，
+                    // 不自动改写用户文案，只提醒，避免"文案写着 30 分钟、实际跑 45 分钟"）
+                    if (old != null && item.label == old.label && QuickFocusStore.isDefaultLabel(item.label) &&
+                        item.label != QuickFocusStore.defaultLabel(item.minutes)
+                    ) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_quick_label_stale, item.label),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
                 QuickFocus.syncShortcuts(context)
                 quickVersion++
-                // 时长改了但文案仍是「专注N分钟」的旧默认形态 → 提示一次（文案与时长各自独立，
-                // 不自动改写用户文案，只提醒，避免"文案写着 30 分钟、实际跑 45 分钟"）
-                if (labelUntouched && QuickFocusStore.isDefaultLabel(updated.label) &&
-                    updated.label != QuickFocusStore.defaultLabel(updated.minutes)
-                ) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_quick_label_stale, updated.label),
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-                editingShortcut = null
+                editingShortcuts = false
             },
-            onCancel = { editingShortcut = null },
+            onCancel = { editingShortcuts = false },
         )
     }
 }
@@ -337,62 +345,85 @@ private fun WidgetDurationsDialogMaterial(
     )
 }
 
-/** 快速专注快捷方式编辑框（material）：文案（≤[QuickFocusStore.LABEL_MAX] 字）+ 时长 + 是否在长按菜单显示 */
+/**
+ * 快速专注快捷方式编辑框（material）：三条一起编辑——文案（≤[QuickFocusStore.LABEL_MAX] 字）、
+ * 时长（1..240 分钟）、是否在长按菜单显示。三条放在同一个框里，避免设置页出现三行一样的图标。
+ */
 @Composable
-private fun QuickShortcutDialogMaterial(
-    item: QuickFocusStore.QuickShortcut,
-    onSave: (QuickFocusStore.QuickShortcut) -> Unit,
+private fun QuickShortcutsDialogMaterial(
+    onSave: (List<QuickFocusStore.QuickShortcut>) -> Unit,
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
-    var label by remember { mutableStateOf(item.label) }
-    var minutesInput by remember { mutableStateOf(item.minutes.toString()) }
-    var enabled by remember { mutableStateOf(item.enabled) }
+    val initial = remember { QuickFocusStore.shortcuts.toList() }
+    var labels by remember { mutableStateOf(initial.map { it.label }) }
+    var minutes by remember { mutableStateOf(initial.map { it.minutes.toString() }) }
+    var enabled by remember { mutableStateOf(initial.map { it.enabled }) }
     AlertDialog(
         onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.settings_quick_title, item.id)) },
+        title = { Text(stringResource(R.string.settings_quick_entry_title)) },
         text = {
-            Column {
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it.take(QuickFocusStore.LABEL_MAX) },
-                    label = { Text(stringResource(R.string.settings_quick_label)) },
-                    supportingText = {
-                        Text(
-                            stringResource(
-                                R.string.settings_quick_label_limit,
-                                label.length,
-                                QuickFocusStore.LABEL_MAX,
-                            )
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    stringResource(R.string.settings_quick_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                initial.indices.forEach { index ->
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.settings_quick_title, index + 1),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = labels[index],
+                            onValueChange = { new ->
+                                labels = labels.toMutableList().also { it[index] = new.take(QuickFocusStore.LABEL_MAX) }
+                            },
+                            label = { Text(stringResource(R.string.settings_quick_label)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
                         )
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = minutesInput,
-                    onValueChange = { minutesInput = it.filter(Char::isDigit).take(3) },
-                    label = { Text(stringResource(R.string.settings_quick_minutes)) },
-                    suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.settings_quick_enabled), modifier = Modifier.weight(1f))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedTextField(
+                            value = minutes[index],
+                            onValueChange = { new ->
+                                minutes = minutes.toMutableList().also { it[index] = new.filter(Char::isDigit).take(3) }
+                            },
+                            label = { Text(stringResource(R.string.settings_quick_minutes)) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.width(104.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = enabled[index],
+                            onCheckedChange = { new ->
+                                enabled = enabled.toMutableList().also { it[index] = new }
+                            },
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val minutes = minutesInput.toIntOrNull()
-                if (minutes == null || minutes !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
-                    Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                val values = minutes.map { it.toIntOrNull() }
+                if (values.any { it == null || it !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES }) {
+                    Toast.makeText(context, context.getString(R.string.settings_quick_invalid), Toast.LENGTH_SHORT).show()
                 } else {
-                    onSave(item.copy(label = label.ifBlank { QuickFocusStore.defaultLabel(minutes) }, minutes = minutes, enabled = enabled))
+                    onSave(
+                        initial.mapIndexed { index, item ->
+                            val m = values[index] ?: item.minutes
+                            item.copy(
+                                label = labels[index].ifBlank { QuickFocusStore.defaultLabel(m) },
+                                minutes = m,
+                                enabled = enabled[index],
+                            )
+                        }
+                    )
                 }
             }) { Text(stringResource(R.string.action_confirm)) }
         },

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -19,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -37,15 +39,18 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Alarm
+import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Promotions
 import top.yukonga.miuix.kmp.icon.extended.Recent
+import top.yukonga.miuix.kmp.icon.extended.Stopwatch
 import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -72,7 +77,8 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
     var showRestDurationDialog by remember { mutableStateOf(false) }
     var showRemindDialog by remember { mutableStateOf(false) }
     // 正在编辑的快速专注快捷方式（null = 未打开编辑框）；列表非可观察，用版本号触发重组
-    var editingShortcut by remember { mutableStateOf<QuickFocusStore.QuickShortcut?>(null) }
+    // 快速专注快捷方式编辑框（三条一起编辑）
+    var editingShortcuts by remember { mutableStateOf(false) }
     // 小部件时长编辑（两组：2×2 三格 / 宽版五格）
     var editingWidgetSmall by remember { mutableStateOf(false) }
     var editingWidgetWide by remember { mutableStateOf(false) }
@@ -154,13 +160,14 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
                 ArrowPreference(
                     title = stringResource(R.string.settings_widget_small),
                     summary = widgetSmallMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit),
-                    startAction = { SettingIcon(MiuixIcons.Timer) },
+                    startAction = { SettingIcon(MiuixIcons.GridView) },
                     onClick = { editingWidgetSmall = true },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.settings_widget_wide),
-                    summary = widgetWideMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit),
-                    startAction = { SettingIcon(MiuixIcons.Timer) },
+                    summary = widgetWideMinutes.joinToString(" / ") + " " + stringResource(R.string.focus_time_unit) +
+                        " · " + stringResource(R.string.settings_widget_stretch_hint),
+                    startAction = { SettingIcon(MiuixIcons.GridView) },
                     onClick = { editingWidgetWide = true },
                 )
             }
@@ -171,19 +178,22 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
             )
+            // 三条快捷方式合并成一行入口：三条各占一行会连出三个一模一样的图标，观感差
+            val enabledShortcuts = quickShortcuts.filter { it.enabled }
+            val hiddenShortcuts = quickShortcuts.size - enabledShortcuts.size
+            val quickSummary = if (enabledShortcuts.isEmpty()) {
+                stringResource(R.string.settings_quick_all_hidden)
+            } else {
+                enabledShortcuts.joinToString(" · ") { it.label } +
+                    if (hiddenShortcuts > 0) " " + stringResource(R.string.settings_quick_hidden_count, hiddenShortcuts) else ""
+            }
             Card {
-                quickShortcuts.forEach { item ->
-                    ArrowPreference(
-                        title = item.label,
-                        summary = if (item.enabled) {
-                            stringResource(R.string.settings_quick_summary, item.minutes)
-                        } else {
-                            stringResource(R.string.settings_quick_disabled)
-                        },
-                        startAction = { SettingIcon(MiuixIcons.Timer) },
-                        onClick = { editingShortcut = item },
-                    )
-                }
+                ArrowPreference(
+                    title = stringResource(R.string.settings_quick_entry_title),
+                    summary = quickSummary,
+                    startAction = { SettingIcon(MiuixIcons.Stopwatch) },
+                    onClick = { editingShortcuts = true },
+                )
             }
         }
 
@@ -232,27 +242,28 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
                 },
             )
         }
-        editingShortcut?.let { item ->
-            MiuixShortcutDialog(
-                item = item,
+        if (editingShortcuts) {
+            MiuixQuickShortcutsDialog(
                 onSave = { updated ->
-                    val labelUntouched = updated.label == item.label
-                    QuickFocusStore.update(updated)
+                    updated.forEach { item ->
+                        val old = QuickFocusStore.shortcuts.firstOrNull { it.id == item.id }
+                        QuickFocusStore.update(item)
+                        // 时长改了但文案仍是「专注N分钟」旧默认形态 → 提示一次（不自动改写用户文案）
+                        if (old != null && item.label == old.label && QuickFocusStore.isDefaultLabel(item.label) &&
+                            item.label != QuickFocusStore.defaultLabel(item.minutes)
+                        ) {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_quick_label_stale, item.label),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    }
                     QuickFocus.syncShortcuts(context)
                     quickVersion++
-                    // 时长改了但文案仍是「专注N分钟」旧默认形态 → 提示一次（不自动改写用户文案）
-                    if (labelUntouched && QuickFocusStore.isDefaultLabel(updated.label) &&
-                        updated.label != QuickFocusStore.defaultLabel(updated.minutes)
-                    ) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.settings_quick_label_stale, updated.label),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-                    editingShortcut = null
+                    editingShortcuts = false
                 },
-                onDismiss = { editingShortcut = null },
+                onDismiss = { editingShortcuts = false },
             )
         }
     }
@@ -321,61 +332,66 @@ private fun MiuixWidgetDurationsDialog(
     }
 }
 
-/** 快速专注快捷方式编辑框（miuix）：文案（≤[QuickFocusStore.LABEL_MAX] 字）+ 时长 + 是否在长按菜单显示 */
+/**
+ * 快速专注快捷方式编辑框（miuix）：三条一起编辑——文案（≤[QuickFocusStore.LABEL_MAX] 字）、
+ * 时长（1..240 分钟）、是否在长按菜单显示。三条放在同一个框里，避免设置页出现三行一样的图标。
+ */
 @Composable
-private fun MiuixShortcutDialog(
-    item: QuickFocusStore.QuickShortcut,
-    onSave: (QuickFocusStore.QuickShortcut) -> Unit,
+private fun MiuixQuickShortcutsDialog(
+    onSave: (List<QuickFocusStore.QuickShortcut>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var label by remember(item.id) { mutableStateOf(item.label) }
-    var minutesInput by remember(item.id) { mutableStateOf(item.minutes.toString()) }
-    var enabled by remember(item.id) { mutableStateOf(item.enabled) }
+    val initial = remember { QuickFocusStore.shortcuts.toList() }
+    var labels by remember { mutableStateOf(initial.map { it.label }) }
+    var minutes by remember { mutableStateOf(initial.map { it.minutes.toString() }) }
+    var enabled by remember { mutableStateOf(initial.map { it.enabled }) }
     OverlayDialog(
         show = true,
-        title = stringResource(R.string.settings_quick_title, item.id),
+        title = stringResource(R.string.settings_quick_entry_title),
         onDismissRequest = onDismiss,
     ) {
         Column(Modifier.fillMaxWidth()) {
-            TextField(
-                value = label,
-                onValueChange = { label = it.take(QuickFocusStore.LABEL_MAX) },
-                label = stringResource(R.string.settings_quick_label),
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
             Text(
-                stringResource(R.string.settings_quick_label_limit, label.length, QuickFocusStore.LABEL_MAX),
+                stringResource(R.string.settings_quick_hint),
                 style = MiuixTheme.textStyles.footnote1,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(Modifier.height(12.dp))
-            TextField(
-                value = minutesInput,
-                onValueChange = { minutesInput = it.filter(Char::isDigit).take(3) },
-                label = stringResource(R.string.settings_quick_minutes),
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                trailingIcon = {
-                    Text(
-                        text = stringResource(R.string.focus_time_unit),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            initial.indices.forEach { index ->
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    TextField(
+                        value = labels[index],
+                        onValueChange = { new ->
+                            labels = labels.toMutableList().also { it[index] = new.take(QuickFocusStore.LABEL_MAX) }
+                        },
+                        label = stringResource(R.string.settings_quick_label),
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
                     )
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            SwitchPreference(
-                checked = enabled,
-                onCheckedChange = { enabled = it },
-                title = stringResource(R.string.settings_quick_enabled),
-                summary = stringResource(R.string.settings_quick_enabled_summary),
-            )
+                    TextField(
+                        value = minutes[index],
+                        onValueChange = { new ->
+                            minutes = minutes.toMutableList().also { it[index] = new.filter(Char::isDigit).take(3) }
+                        },
+                        label = stringResource(R.string.settings_quick_minutes),
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.width(104.dp),
+                    )
+                    Switch(
+                        checked = enabled[index],
+                        onCheckedChange = { new ->
+                            enabled = enabled.toMutableList().also { it[index] = new }
+                        },
+                    )
+                }
+            }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
@@ -386,16 +402,19 @@ private fun MiuixShortcutDialog(
                 TextButton(
                     text = stringResource(R.string.action_confirm),
                     onClick = {
-                        val minutes = minutesInput.toIntOrNull()
-                        if (minutes == null || minutes !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES) {
-                            Toast.makeText(context, context.getString(R.string.focus_time_invalid), Toast.LENGTH_SHORT).show()
+                        val values = minutes.map { it.toIntOrNull() }
+                        if (values.any { it == null || it !in FocusStore.MIN_MINUTES..FocusStore.MAX_MINUTES }) {
+                            Toast.makeText(context, context.getString(R.string.settings_quick_invalid), Toast.LENGTH_SHORT).show()
                         } else {
                             onSave(
-                                item.copy(
-                                    label = label.ifBlank { QuickFocusStore.defaultLabel(minutes) },
-                                    minutes = minutes,
-                                    enabled = enabled,
-                                )
+                                initial.mapIndexed { index, item ->
+                                    val m = values[index] ?: item.minutes
+                                    item.copy(
+                                        label = labels[index].ifBlank { QuickFocusStore.defaultLabel(m) },
+                                        minutes = m,
+                                        enabled = enabled[index],
+                                    )
+                                }
                             )
                         }
                     },

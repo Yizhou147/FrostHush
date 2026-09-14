@@ -212,12 +212,9 @@
 
     <!-- 设置分组二级页 -->
     <string name="quick_focus_title">快速专注</string>
-    <string name="settings_quick_hint">长按应用图标，菜单里会显示以下快捷方式（最多三条，点开可改文案与时长）</string>
-    <string name="settings_quick_summary">%1$d 分钟</string>
-    <string name="settings_quick_disabled">已停用，不在长按菜单显示</string>
+    <string name="settings_quick_hint">长按应用图标，菜单里会显示已启用的快捷方式（最多三条）；文案最多 8 个字</string>
     <string name="settings_quick_title">快捷方式 %1$d</string>
     <string name="settings_quick_label">文案</string>
-    <string name="settings_quick_label_limit">%1$d/%2$d 字</string>
     <string name="settings_quick_minutes">时长</string>
     <string name="settings_quick_enabled">在长按菜单显示</string>
     <string name="settings_quick_enabled_summary">关闭后该行不出现在长按菜单</string>
@@ -227,11 +224,16 @@
     <string name="widget_quick_settings">设置</string>
     <string name="widget_quick_minutes_text">%1$d分钟</string>
     <string name="settings_widget_small">小部件时长（2×2）</string>
-    <string name="settings_widget_wide">小部件时长（2×3、2×4）</string>
+    <string name="settings_widget_wide">小部件时长（2×3）</string>
     <string name="settings_widget_hint">小部件格子里的时长，改完立即生效；「设置」格进这里</string>
     <string name="settings_widget_dialog_hint">共 %1$d 格，每格 1-240 分钟</string>
     <string name="settings_widget_invalid">请把每格都填成 1-240 之间的整数</string>
     <string name="settings_widget_cell">第 %1$d 格</string>
+    <string name="settings_quick_entry_title">快速专注快捷方式</string>
+    <string name="settings_quick_invalid">请把每条时长都填成 1-240 的整数</string>
+    <string name="settings_quick_hidden_count">（已隐藏 %1$d 条）</string>
+    <string name="settings_quick_all_hidden">未启用任何快捷方式</string>
+    <string name="settings_widget_stretch_hint">可向右拉伸成 2×4</string>
     <string name="settings_group_focus">专注设置</string>
     <string name="settings_group_focus_summary">默认时长、计划提醒与通知</string>
     <string name="settings_group_data">数据</string>
