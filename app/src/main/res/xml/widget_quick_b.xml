@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 小部件 B · 手机 2×3（5 个时长格 + 「设置」），可横向拉伸到 2×4
+     minWidth/minHeight 两套保持一致：Pad 的格子物理尺寸约等于手机的 2 格，
+     所以同样的 110dp/180dp 在手机上算 2/3 格、在 Pad 上算 1/2 格，
+     格子数由 targetCellWidth/Height 在 API 31+ 上精确声明。 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="180dp"
     android:minHeight="110dp"

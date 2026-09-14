@@ -93,7 +93,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_quick_2x2_info" />
+                android:resource="@xml/widget_quick_a" />
         </receiver>
 
         <!-- 桌面小部件（原生 AppWidget）：2×3：5 个时长格 + 右下角「设置」（可拉伸为 2×4）
@@ -108,7 +108,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/widget_quick_2x3_info" />
+                android:resource="@xml/widget_quick_b" />
         </receiver>
 
         <!-- 专注倒计时前台服务 -->
