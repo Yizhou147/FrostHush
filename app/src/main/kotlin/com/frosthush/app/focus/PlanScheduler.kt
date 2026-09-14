@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -59,9 +58,15 @@ object PlanScheduler {
     private const val NOTIFICATION_ID_REMIND = 202
     private const val NOTIFICATION_ID_RESULT = 203
 
+    /** END 闹钟允许的提前量：超过即视为系统提前投递，不结束专注、按真实结束时刻重排 END */
+    private const val END_EARLY_TOLERANCE_MS = 1_000L
+
     /** 提醒通知被点击的事件（MainActivity 转发），AppRoot 收集后弹「距开始倒计时」对话框 */
     data class ReminderClick(val planId: Long)
     val reminderClick = MutableStateFlow<ReminderClick?>(null)
+
+    // 上一次因"提前投递"重排 END 的目标时刻（同一目标只重排一次，防止系统反复提前投递时打转）
+    private var endRearmTarget = 0L
 
     // ---------- 注册 / 取消 ----------
 
@@ -124,8 +129,9 @@ object PlanScheduler {
             setAlarmClock(context, am, start,
                 alarmIntent(context, ACTION_START, plan.id, day, start), ACTION_START, plan.id)
         }
-        // 结束（到点恢复应用）
-        setExact(am, end, alarmIntent(context, ACTION_END, plan.id, day), ACTION_END, plan.id)
+        // 结束（到点恢复应用）——与提醒/开始一样走 setAlarmClock：setExact 注册的 END 会被系统合批
+        // 提前/延迟投递（2026-09-14 双机日志实测 −54.2s ~ +206s），足以让专注在倒计时没走完时提前结束
+        setAlarmClock(context, am, end, alarmIntent(context, ACTION_END, plan.id, day), ACTION_END, plan.id)
     }
 
     /** 取消计划已注册的全部闹钟（当前 + 未来 7 天内的发生日；实际最多存在两三个）。
@@ -385,14 +391,34 @@ object PlanScheduler {
         FocusStore.markPlanExecuted(planId, FocusStore.todayCode())
     }
 
-    /** 到点结束：仅当活动会话由该计划启动时才恢复（避免误杀手动专注） */
+    /**
+     * 到点结束：仅当活动会话由该计划启动、且确实已到点时才恢复（避免误杀手动专注）。
+     *
+     * 必须校验投递时刻：这台机器会把闹钟提前合批投递（2026-09-14 日志：END 目标 17:00:00
+     * 实际 16:59:05.798 投递，早 54.2s，用户看到倒计时还在走就弹了结束通知）。提前投递时不结束
+     * 会话，改按会话真实结束时刻重排 END 闹钟，由重排后的闹钟或 FocusService 的 tick 收尾；
+     * 同一目标只重排一次，避免系统反复提前投递时打转（真打转时宁可照旧结束，也不会卡住不结束）。
+     */
     private fun handleEnd(context: Context, planId: Long) {
         cancelReminderNotification(context) // 兜底：理论上提醒早已发完，防止残留焦点岛
         val session = FocusStore.activeSession() ?: return
-        DebugLog.d("Plan", "handleEnd id=$planId sessionPlanId=${session.planId} match=${session.planId == planId}")
-        if (session.planId == planId) {
-            Thread { FocusManager.restoreAndEnd() }.start()
+        val now = System.currentTimeMillis()
+        DebugLog.d(
+            "Plan", "handleEnd id=$planId sessionPlanId=${session.planId} match=${session.planId == planId} " +
+                "now=$now sessionEnd=${session.endMillis} ahead=${session.endMillis - now}ms"
+        )
+        if (session.planId != planId) return
+        val early = session.endMillis - now
+        if (early > END_EARLY_TOLERANCE_MS && endRearmTarget != session.endMillis) {
+            endRearmTarget = session.endMillis
+            DebugLog.d("Plan", "handleEnd 闹钟提前投递 ${early}ms，重排 END 到 ${session.endMillis}")
+            setAlarmClock(
+                context, context.getSystemService(AlarmManager::class.java), session.endMillis,
+                alarmIntent(context, ACTION_END, planId, dayCodeOf(session.endMillis)), ACTION_END, planId
+            )
+            return
         }
+        Thread { FocusManager.restoreAndEnd() }.start()
     }
 
     // ---------- 时间计算 ----------
@@ -460,26 +486,14 @@ object PlanScheduler {
 
     // ---------- 闹钟 / 通知辅助 ----------
 
-    private fun setExact(am: AlarmManager, triggerAtMillis: Long, pi: PendingIntent, action: String, planId: Long) {
-        val now = System.currentTimeMillis()
-        // ahead 为负说明注册了"已过时间"的闹钟：AlarmManager 会立即投递——这是排查
-        // "提前开始/延迟开始"的关键（区分系统延迟投递 vs 应用注册过期时间）
-        DebugLog.d(
-            "Alarm", "setExact action=$action planId=$planId triggerAt=$triggerAtMillis " +
-                "now=$now ahead=${triggerAtMillis - now}"
-        )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi)
-        } else {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pi)
-        }
-    }
-
     /**
      * 注册系统闹钟类闹钟（setAlarmClock）：Doze/省电豁免、不被合批提前/延迟投递，
-     * 用于计划提醒/开始这类"必须准点"的时刻（对齐闹钟类 app 的做法）。
-     * 副作用：状态栏会显示"下一个闹钟"小图标（时间 = 最近一次计划提醒/开始时刻）。
+     * 用于计划提醒/开始/结束这类"必须准点"的时刻（对齐闹钟类 app 的做法）。
+     * 实测投递误差 ≤30ms（2026-09-14 双机日志；同期用 setExact 注册的 END 偏差 −54.2s ~ +206s，
+     * 正是"倒计时没走完就提前结束专注"的根因，故 END 也改用本方法）。
      * 无需 SCHEDULE_EXACT_ALARM 权限（manifest 已声明 USE_EXACT_ALARM，系统自动授予）。
+     * 注：2026-09-14 用户实机确认状态栏「下一个闹钟」不受本方法影响，旧注释"状态栏会显示
+     * 下一个闹钟小图标（时间 = 最近一次提醒/开始时刻）"与实机不符，已更正。
      */
     private fun setAlarmClock(
         context: Context, am: AlarmManager, triggerAtMillis: Long,
