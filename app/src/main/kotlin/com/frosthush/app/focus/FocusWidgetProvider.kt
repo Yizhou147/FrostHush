@@ -91,7 +91,7 @@ open class FocusWidgetProvider : AppWidgetProvider() {
         // 把 Pad 大盒子里的空白填掉。要求盒子能放下容器（否则退回中档，避免裁切）。
         private const val LARGE_SMALL_W = 240
         private const val LARGE_SMALL_H = 190
-        private const val LARGE_WIDE_W = 330
+        private const val LARGE_WIDE_W = 292
         private const val LARGE_WIDE_H = 190
 
         /** 绘制单个实例 */

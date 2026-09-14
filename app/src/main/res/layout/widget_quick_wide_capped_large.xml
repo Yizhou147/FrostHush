@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- widget_quick_wide_capped_large：卡片填满盒子，格子装在固定尺寸容器（288dp×126dp、顶部左对齐）。
+<!-- widget_quick_wide_capped_large：卡片填满盒子，格子装在固定尺寸容器（268dp×126dp、顶部左对齐）。
      大档：盒子 ≥330×190dp 时使用，药丸约 90×57dp；与「平板 1×2」入口（2 格宽≈300dp）配合。
      由 FocusWidgetProvider 按实测盒子尺寸选择（阈值见该文件 CAP_* 常量）。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -20,7 +20,7 @@
         android:singleLine="true"
         android:maxLines="1" />
     <LinearLayout
-        android:layout_width="288dp"
+        android:layout_width="268dp"
         android:layout_height="126dp"
         android:orientation="vertical">
         <LinearLayout

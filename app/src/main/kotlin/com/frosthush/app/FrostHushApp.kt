@@ -9,6 +9,7 @@ import com.frosthush.app.data.AppRepository
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.focus.FocusWidgetProvider
 import com.frosthush.app.focus.QuickFocus
 import com.frosthush.app.util.DebugLog
 import kotlinx.coroutines.flow.first
@@ -78,6 +79,8 @@ class FrostHushApp : Application() {
             PlanScheduler.scheduleAll(this)
             // 重推长按菜单快捷方式（动态快捷方式随应用升级/清数据可能丢失，启动时整表替换一次）
             QuickFocus.syncShortcuts(this)
+            // 重刷桌面小部件：布局/尺寸策略随版本变化时，装完即生效（否则要等系统或用户重加）
+            FocusWidgetProvider.refreshAll(this)
         }.start()
     }
 
