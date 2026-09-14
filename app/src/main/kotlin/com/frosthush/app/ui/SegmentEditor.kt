@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import com.frosthush.app.ui.settings.NumberFieldMaterial
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
@@ -194,14 +195,12 @@ fun SegmentMinutesDialog(
         onDismissRequest = onCancel,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            NumberFieldMaterial(
                 value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(4) },
-                label = { Text(title) },
-                suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                onValueChange = { input = it },
+                label = title,
+                unit = stringResource(R.string.focus_time_unit),
+                maxDigits = 4,
             )
         },
         confirmButton = {

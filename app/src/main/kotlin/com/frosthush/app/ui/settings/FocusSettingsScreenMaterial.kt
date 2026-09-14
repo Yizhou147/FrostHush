@@ -314,16 +314,11 @@ private fun WidgetDurationsDialogMaterial(
                 )
                 Spacer(Modifier.height(8.dp))
                 inputs.forEachIndexed { index, value ->
-                    OutlinedTextField(
+                    NumberFieldMaterial(
                         value = value,
-                        onValueChange = { new ->
-                            inputs = inputs.toMutableList().also { it[index] = new.filter(Char::isDigit).take(3) }
-                        },
-                        label = { Text(stringResource(R.string.settings_widget_cell, index + 1)) },
-                        suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        onValueChange = { new -> inputs = inputs.toMutableList().also { it[index] = new } },
+                        label = stringResource(R.string.settings_widget_cell, index + 1),
+                        unit = stringResource(R.string.focus_time_unit),
                     )
                     Spacer(Modifier.height(6.dp))
                 }
@@ -393,9 +388,10 @@ private fun QuickShortcutsDialogMaterial(
                                 minutes = minutes.toMutableList().also { it[index] = new.filter(Char::isDigit).take(3) }
                             },
                             label = { Text(stringResource(R.string.settings_quick_minutes)) },
+                            suffix = { Text(stringResource(R.string.focus_time_unit)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
-                            modifier = Modifier.width(104.dp),
+                            modifier = Modifier.width(132.dp),
                         )
                         Spacer(Modifier.width(8.dp))
                         Switch(
@@ -447,14 +443,11 @@ private fun DurationDialog(
         onDismissRequest = onCancel,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
+            NumberFieldMaterial(
                 value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(3) },
-                label = { Text(title) },
-                suffix = { Text(stringResource(R.string.focus_time_unit)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
+                onValueChange = { input = it },
+                label = title,
+                unit = stringResource(R.string.focus_time_unit),
             )
         },
         confirmButton = {
@@ -487,14 +480,12 @@ private fun RemindSecondsDialog(
         title = { Text(stringResource(R.string.settings_plan_remind)) },
         text = {
             Column {
-                OutlinedTextField(
+                NumberFieldMaterial(
                     value = input,
-                    onValueChange = { input = it.filter(Char::isDigit).take(4) },
-                    label = { Text(stringResource(R.string.settings_plan_remind)) },
-                    suffix = { Text(stringResource(R.string.settings_plan_remind_unit)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    onValueChange = { input = it },
+                    label = stringResource(R.string.settings_plan_remind),
+                    unit = stringResource(R.string.settings_plan_remind_unit),
+                    maxDigits = 4,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(

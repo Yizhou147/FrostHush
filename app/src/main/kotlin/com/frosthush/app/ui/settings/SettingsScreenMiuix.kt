@@ -19,14 +19,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.width
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import kotlinx.coroutines.Dispatchers
@@ -330,5 +336,41 @@ internal fun MiuixConfirmDialog(
                 modifier = Modifier.weight(1f),
             )
         }
+    }
+}
+
+/**
+ * 数字输入 + 单位（miuix）：单位放在输入框**外面**紧跟其后，输入框宽度固定。
+ * 之前用框内 trailingIcon，输入框被拉宽时单位被甩到最右端（平板/宽对话框上尤其明显）。
+ */
+@Composable
+internal fun NumberFieldMiuix(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    unit: String,
+    maxDigits: Int = 3,
+    fieldWidth: Dp = 132.dp,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextField(
+            value = value,
+            onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
+            label = label,
+            useLabelAsPlaceholder = true,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.width(fieldWidth),
+        )
+        Text(
+            unit,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+        )
     }
 }

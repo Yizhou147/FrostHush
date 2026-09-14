@@ -57,17 +57,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.frosthush.app.R
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import kotlinx.coroutines.Dispatchers
@@ -546,3 +549,36 @@ internal fun openAppSettings(context: Context) {
  * 比直达安全中心自启动列表更通用、更贴近本应用上下文。
  */
 internal fun openAutostartSettings(context: Context) = openAppSettings(context)
+
+/**
+ * 数字输入 + 单位（material）：单位放在输入框**外面**紧跟其后，输入框宽度固定。
+ * 之前用框内 suffix，输入框被拉宽时（平板、以及手机上较宽的对话框）单位被甩到最右端，
+ * 数字与单位之间出现一大片空白；宽度固定 + 单位外置后任何屏宽下观感一致。
+ */
+@Composable
+internal fun NumberFieldMaterial(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    unit: String,
+    maxDigits: Int = 3,
+    fieldWidth: Dp = 132.dp,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
+            label = { Text(label) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.width(fieldWidth),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            unit,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

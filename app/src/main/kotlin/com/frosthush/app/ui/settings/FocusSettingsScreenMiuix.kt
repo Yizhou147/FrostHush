@@ -288,23 +288,11 @@ private fun MiuixWidgetDurationsDialog(
             )
             inputs.forEachIndexed { index, value ->
                 Spacer(Modifier.height(12.dp))
-                TextField(
+                NumberFieldMiuix(
                     value = value,
-                    onValueChange = { new ->
-                        inputs = inputs.toMutableList().also { it[index] = new.filter(Char::isDigit).take(3) }
-                    },
+                    onValueChange = { new -> inputs = inputs.toMutableList().also { it[index] = new } },
                     label = stringResource(R.string.settings_widget_cell, index + 1),
-                    useLabelAsPlaceholder = true,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    trailingIcon = {
-                        Text(
-                            text = stringResource(R.string.focus_time_unit),
-                            style = MiuixTheme.textStyles.body2,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+                    unit = stringResource(R.string.focus_time_unit),
                 )
             }
             Spacer(Modifier.height(16.dp))
@@ -382,7 +370,14 @@ private fun MiuixQuickShortcutsDialog(
                         useLabelAsPlaceholder = true,
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.width(104.dp),
+                        trailingIcon = {
+                            Text(
+                                text = stringResource(R.string.focus_time_unit),
+                                style = MiuixTheme.textStyles.body2,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            )
+                        },
+                        modifier = Modifier.width(132.dp),
                     )
                     Switch(
                         checked = enabled[index],
@@ -446,21 +441,11 @@ private fun MiuixDurationDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(Modifier.fillMaxWidth()) {
-            TextField(
+            NumberFieldMiuix(
                 value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(3) },
+                onValueChange = { input = it },
                 label = title,
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                trailingIcon = {
-                    Text(
-                        text = unit,
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
+                unit = unit,
             )
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -502,21 +487,12 @@ private fun MiuixRemindDialog(
         onDismissRequest = onDismiss,
     ) {
         Column(Modifier.fillMaxWidth()) {
-            TextField(
+            NumberFieldMiuix(
                 value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(4) },
+                onValueChange = { input = it },
                 label = stringResource(R.string.settings_plan_remind),
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                trailingIcon = {
-                    Text(
-                        text = stringResource(R.string.settings_plan_remind_unit),
-                        style = MiuixTheme.textStyles.body2,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
+                unit = stringResource(R.string.settings_plan_remind_unit),
+                maxDigits = 4,
             )
             Spacer(Modifier.height(8.dp))
             Text(
