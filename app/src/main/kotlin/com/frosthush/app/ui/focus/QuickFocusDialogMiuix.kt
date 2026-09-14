@@ -40,17 +40,35 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
     Scaffold(containerColor = Color.Transparent) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        var step by remember { mutableStateOf(STEP_CONFIRM) }
+        // 已有专注进行中：直接提示，不再走确认流程（与普通专注的 focus_session_exists 一致）
+        var step by remember {
+            mutableStateOf(if (FocusStore.activeSession() != null) STEP_ALREADY_FOCUSING else STEP_CONFIRM)
+        }
         var conflicts by remember { mutableStateOf<List<FocusStore.FocusPlan>>(emptyList()) }
 
         when (step) {
+            // ⓪ 已在专注：只提示
+            STEP_ALREADY_FOCUSING -> OverlayDialog(
+                show = true,
+                title = stringResource(R.string.focus_start),
+                onDismissRequest = onDismiss,
+            ) {
+                Text(stringResource(R.string.focus_session_exists))
+                QuickFocusButtonRow(
+                    cancelText = null,
+                    confirmText = stringResource(R.string.action_confirm),
+                    onCancel = onDismiss,
+                    onConfirm = onDismiss,
+                )
+            }
+
             // ① 确认框
             STEP_CONFIRM -> OverlayDialog(
                 show = true,
                 title = stringResource(R.string.quick_focus_title),
                 onDismissRequest = onDismiss,
             ) {
-                Text(stringResource(R.string.quick_focus_confirm_text, minutes))
+                Text(stringResource(R.string.focus_confirm_warning, minutes))
                 QuickFocusButtonRow(
                     cancelText = stringResource(R.string.action_cancel),
                     confirmText = stringResource(R.string.action_start),
@@ -101,7 +119,7 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
                 title = stringResource(R.string.focus_start),
                 onDismissRequest = onDismiss,
             ) {
-                Text(stringResource(R.string.focus_confirm_warning))
+                Text(stringResource(R.string.focus_confirm_warning, minutes))
                 QuickFocusButtonRow(
                     cancelText = stringResource(R.string.action_cancel),
                     confirmText = stringResource(R.string.action_start),
@@ -122,7 +140,7 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
 /** 快速专注对话框的按钮行（三处共用，miuix 样式：取消在左、主操作在右高亮） */
 @Composable
 private fun QuickFocusButtonRow(
-    cancelText: String,
+    cancelText: String?,
     confirmText: String,
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
@@ -131,8 +149,10 @@ private fun QuickFocusButtonRow(
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
     ) {
-        TextButton(text = cancelText, onClick = onCancel, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(12.dp))
+        if (cancelText != null) {
+            TextButton(text = cancelText, onClick = onCancel, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(12.dp))
+        }
         TextButton(
             text = confirmText,
             onClick = onConfirm,

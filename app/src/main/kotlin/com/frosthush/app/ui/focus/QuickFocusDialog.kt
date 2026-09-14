@@ -20,6 +20,8 @@ fun QuickFocusDialog(minutes: Int, onDismiss: () -> Unit) {
 }
 
 /** 确认流程的三步（两版 UI 共用同一组常量，避免各写各的） */
+/** 已有专注进行中（只提示，不走确认流程） */
+internal const val STEP_ALREADY_FOCUSING = 0
 internal const val STEP_CONFIRM = 1
 internal const val STEP_CONFLICT = 2
 internal const val STEP_WARNING = 3

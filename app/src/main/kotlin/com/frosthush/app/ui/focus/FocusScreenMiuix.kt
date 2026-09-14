@@ -569,7 +569,10 @@ fun FocusScreenMiuix(
         OverlayDialog(
             show = showWarningDialog,
             title = stringResource(R.string.focus_start),
-            summary = stringResource(R.string.focus_confirm_warning),
+            summary = stringResource(
+                R.string.focus_confirm_warning,
+                pendingSegments.sumOf { it.minutes },
+            ),
             onDismissRequest = { showWarningDialog = false },
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

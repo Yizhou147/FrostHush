@@ -37,7 +37,7 @@
     <string name="focus_import">Import</string>
     <string name="focus_start">Start focus</string>
     <string name="focus_select_duration">Select focus duration</string>
-    <string name="focus_confirm_warning">Once focus mode starts, the selected apps will be suspended and cannot be exited midway.</string>
+    <string name="focus_confirm_warning">Starting a %1$d-minute focus. The selected apps will be suspended, and it cannot be exited midway.</string>
     <string name="focus_fail_title">Focus failed to start</string>
     <string name="focus_fail_body">Some apps could not be frozen. This usually happens with cloned (dual-instance) apps: the system does not allow suspending apps of another user via Shizuku.\n\nSolutions:\n① Enable "Force freeze" in Settings — apps that cannot be suspended will be frozen by disabling instead (more thorough, but their icons disappear during focus).\n② If the device is rooted, start Shizuku in root mode to suspend them normally.</string>
     <string name="focus_fail_goto_settings">Go to settings</string>
@@ -214,7 +214,6 @@
 
     <!-- 设置分组二级页 -->
     <string name="quick_focus_title">Quick focus</string>
-    <string name="quick_focus_confirm_text">Start a %1$d-minute focus now?</string>
     <string name="settings_quick_hint">Long-press the app icon to see these shortcuts (up to 3; tap to edit label and duration)</string>
     <string name="settings_quick_summary">%1$d min</string>
     <string name="settings_quick_disabled">Off — hidden from the long-press menu</string>

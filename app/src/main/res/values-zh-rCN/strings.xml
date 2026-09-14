@@ -37,7 +37,7 @@
     <string name="focus_import">导入</string>
     <string name="focus_start">开始专注</string>
     <string name="focus_select_duration">选择专注时长</string>
-    <string name="focus_confirm_warning">开启专注模式后，所选应用将被暂停，且中途不可退出。</string>
+    <string name="focus_confirm_warning">即将开启 %1$d 分钟专注，所选应用将被暂停，且中途不可退出。</string>
     <string name="focus_fail_title">专注启动失败</string>
     <string name="focus_fail_body">部分应用无法冻结。这通常是分身（双开）应用受系统限制：系统不允许通过 Shizuku 暂停其他用户空间的应用。\n\n解决方法：\n① 在「设置 → 强制冻结」中开启，无法暂停的应用将改用"禁用"方式冻结（更彻底，但专注期间图标会暂时消失）；\n② 若设备已 root，用 Shizuku 的 root 模式启动后可正常暂停。</string>
     <string name="focus_fail_goto_settings">去设置</string>
@@ -212,7 +212,6 @@
 
     <!-- 设置分组二级页 -->
     <string name="quick_focus_title">快速专注</string>
-    <string name="quick_focus_confirm_text">现在开始 %1$d 分钟的专注？</string>
     <string name="settings_quick_hint">长按应用图标，菜单里会显示以下快捷方式（最多三条，点开可改文案与时长）</string>
     <string name="settings_quick_summary">%1$d 分钟</string>
     <string name="settings_quick_disabled">已停用，不在长按菜单显示</string>
@@ -226,7 +225,7 @@
     <string name="widget_quick_label">快速专注</string>
     <string name="widget_quick_title">霜息 · 快速专注</string>
     <string name="widget_quick_settings">设置</string>
-    <string name="widget_quick_minutes_text">%1$d 分钟</string>
+    <string name="widget_quick_minutes_text">%1$d分钟</string>
     <string name="settings_widget_small">小部件时长（2×2）</string>
     <string name="settings_widget_wide">小部件时长（2×3、2×4）</string>
     <string name="settings_widget_hint">小部件格子里的时长，改完立即生效；「设置」格进这里</string>

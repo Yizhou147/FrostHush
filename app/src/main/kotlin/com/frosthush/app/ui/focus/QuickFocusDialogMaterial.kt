@@ -28,15 +28,28 @@ import kotlinx.coroutines.launch
 internal fun QuickFocusDialogMaterial(minutes: Int, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var step by remember { mutableStateOf(STEP_CONFIRM) }
+    // 已有专注进行中：直接提示，不再走确认流程（与普通专注的 focus_session_exists 一致）
+    var step by remember {
+        mutableStateOf(if (FocusStore.activeSession() != null) STEP_ALREADY_FOCUSING else STEP_CONFIRM)
+    }
     var conflicts by remember { mutableStateOf<List<FocusStore.FocusPlan>>(emptyList()) }
 
     when (step) {
+        // ⓪ 已在专注：只提示
+        STEP_ALREADY_FOCUSING -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.focus_start)) },
+            text = { Text(stringResource(R.string.focus_session_exists)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
+            },
+        )
+
         // ① 确认框：本次快速专注的时长（文案来自快捷方式设置，正文用实际分钟数更准确）
         STEP_CONFIRM -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.quick_focus_title)) },
-            text = { Text(stringResource(R.string.quick_focus_confirm_text, minutes)) },
+            text = { Text(stringResource(R.string.focus_confirm_warning, minutes)) },
             confirmButton = {
                 TextButton(onClick = {
                     val found = QuickFocus.conflictsFor(minutes)
@@ -87,7 +100,7 @@ internal fun QuickFocusDialogMaterial(minutes: Int, onDismiss: () -> Unit) {
         else -> AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.focus_start)) },
-            text = { Text(stringResource(R.string.focus_confirm_warning)) },
+            text = { Text(stringResource(R.string.focus_confirm_warning, minutes)) },
             confirmButton = {
                 TextButton(onClick = {
                     onDismiss()

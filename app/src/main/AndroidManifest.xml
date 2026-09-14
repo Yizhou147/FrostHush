@@ -81,9 +81,9 @@
             android:name=".focus.FocusActionReceiver"
             android:exported="false"/>
 
-        <!-- 专注倒计时前台服务 -->
-        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
-             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
+        <!-- 桌面小部件（原生 AppWidget）：2×2：3 个时长格 + 右下角「设置」
+             同一 label 的多个小部件 → HyperOS 侧聚合为同一功能的不同尺寸；
+             2×3 可横向拉伸到 2×4（不再单列一个 4 列的入口） -->
         <receiver
             android:name=".focus.QuickWidgetSmallProvider"
             android:label="@string/widget_quick_label"
@@ -96,8 +96,9 @@
                 android:resource="@xml/widget_quick_2x2_info" />
         </receiver>
 
-        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
-             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
+        <!-- 桌面小部件（原生 AppWidget）：2×3：5 个时长格 + 右下角「设置」（可拉伸为 2×4）
+             同一 label 的多个小部件 → HyperOS 侧聚合为同一功能的不同尺寸；
+             2×3 可横向拉伸到 2×4（不再单列一个 4 列的入口） -->
         <receiver
             android:name=".focus.QuickWidgetMidProvider"
             android:label="@string/widget_quick_label"
@@ -110,19 +111,7 @@
                 android:resource="@xml/widget_quick_2x3_info" />
         </receiver>
 
-        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
-             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
-        <receiver
-            android:name=".focus.QuickWidgetWideProvider"
-            android:label="@string/widget_quick_label"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/widget_quick_2x4_info" />
-        </receiver>
+        <!-- 专注倒计时前台服务 -->
 
         <service
             android:name=".focus.FocusService"

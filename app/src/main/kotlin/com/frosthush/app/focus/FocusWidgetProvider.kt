@@ -54,7 +54,6 @@ open class FocusWidgetProvider : AppWidgetProvider() {
         private val PROVIDERS = listOf(
             QuickWidgetSmallProvider::class.java,
             QuickWidgetMidProvider::class.java,
-            QuickWidgetWideProvider::class.java,
         )
 
         /** 三个尺寸的 receiver 组件，用于刷新全部实例 */
@@ -123,5 +122,3 @@ class QuickWidgetSmallProvider : FocusWidgetProvider()
 /** 2×3 小部件（5 个时长格 + 设置格） */
 class QuickWidgetMidProvider : FocusWidgetProvider()
 
-/** 2×4 小部件（5 个时长格 + 设置格，格子更宽） */
-class QuickWidgetWideProvider : FocusWidgetProvider()
