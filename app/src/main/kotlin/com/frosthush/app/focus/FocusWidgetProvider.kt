@@ -73,12 +73,39 @@ open class FocusWidgetProvider : AppWidgetProvider() {
             DebugLog.d("Widget", "refreshAll 刷新 $count 个实例")
         }
 
+        /**
+         * 大盒子阈值（dp，实测盒子尺寸超过即换「格子固定尺寸」布局）。
+         * 阈值＝固定容器尺寸 + 卡片内边距 + 余量：小版容器 180×130、宽版 270×130，卡片内边距 12dp*2，
+         * 标题约 26dp，故高度阈值 190dp；宽度留 6dp 余量（210 / 300）。
+         * 依据：Pad 的「添加小部件」页把两个入口都分到同一个 ≈2×2 格子的大盒子（平板实测），
+         * 声明 targetCell 无法改变（HyperOS Pad 未按 sw600dp 解析 appwidget-provider），
+         * 所以改为按实测尺寸自适应渲染——不管拿到多大的盒子，格子都不被等比放大。
+         */
+        private const val CAP_SMALL_W = 210
+        private const val CAP_SMALL_H = 190
+        private const val CAP_WIDE_W = 300
+        private const val CAP_WIDE_H = 190
+
         /** 绘制单个实例 */
         fun render(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
             val info = runCatching { manager.getAppWidgetInfo(appWidgetId) }.getOrNull() ?: return
             val small = info.initialLayout == R.layout.widget_quick_small
+            val options = runCatching { manager.getAppWidgetOptions(appWidgetId) }.getOrNull()
+            val minWidth = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+            val minHeight = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+            val capped = if (small) {
+                minWidth >= CAP_SMALL_W || minHeight >= CAP_SMALL_H
+            } else {
+                minWidth >= CAP_WIDE_W || minHeight >= CAP_WIDE_H
+            }
+            val layoutId = when {
+                small && capped -> R.layout.widget_quick_small_capped
+                small -> R.layout.widget_quick_small
+                capped -> R.layout.widget_quick_wide_capped
+                else -> R.layout.widget_quick_wide
+            }
             val minutes = if (small) QuickFocusStore.widgetSmallMinutes() else QuickFocusStore.widgetWideMinutes()
-            val views = RemoteViews(context.packageName, if (small) R.layout.widget_quick_small else R.layout.widget_quick_wide)
+            val views = RemoteViews(context.packageName, layoutId)
             views.setTextViewText(R.id.widget_title, context.getString(R.string.widget_quick_title))
             minutes.forEachIndexed { index, value ->
                 val cellId = CELL_IDS.getOrNull(index) ?: return@forEachIndexed
@@ -106,7 +133,11 @@ open class FocusWidgetProvider : AppWidgetProvider() {
                 ),
             )
             runCatching { manager.updateAppWidget(appWidgetId, views) }
-            DebugLog.d("Widget", "render id=$appWidgetId small=$small minutes=$minutes")
+            // 打出实测盒子尺寸：Pad 上要按这个值校准 CAP_* 阈值与固定容器尺寸
+            DebugLog.d(
+                "Widget",
+                "render id=$appWidgetId small=$small capped=$capped size=${minWidth}x$minHeight minutes=$minutes"
+            )
         }
 
         /** 小部件点击的 requestCode：实例 id 与格子号组合（同一实例不同格子互不覆盖） */
