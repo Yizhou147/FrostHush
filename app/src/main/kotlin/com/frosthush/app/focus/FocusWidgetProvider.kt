@@ -81,10 +81,10 @@ open class FocusWidgetProvider : AppWidgetProvider() {
          * 声明 targetCell 无法改变（HyperOS Pad 未按 sw600dp 解析 appwidget-provider），
          * 所以改为按实测尺寸自适应渲染——不管拿到多大的盒子，格子都不被等比放大。
          */
-        private const val CAP_SMALL_W = 210
-        private const val CAP_SMALL_H = 190
-        private const val CAP_WIDE_W = 300
-        private const val CAP_WIDE_H = 190
+        private const val CAP_SMALL_W = 185
+        private const val CAP_SMALL_H = 170
+        private const val CAP_WIDE_W = 245
+        private const val CAP_WIDE_H = 170
 
         /** 绘制单个实例 */
         fun render(context: Context, manager: AppWidgetManager, appWidgetId: Int) {

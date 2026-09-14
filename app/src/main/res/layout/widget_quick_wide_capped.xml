@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- widget_quick_wide_capped · 大盒子版（Pad / 被拉大时）：卡片照旧填满盒子，但格子装在一个固定尺寸的容器里
-     （270dp×130dp，顶部左对齐），所以盒子再大也只是多出留白，格子不会被等比放大——
-     对齐番茄ToDo 的观感。由 FocusWidgetProvider 按实测尺寸切换（阈值见该文件常量）。
-     结构/控件 id 与手机版一致，只是多一层固定尺寸容器。 -->
+<!-- widget_quick_wide_capped · 大盒子版（Pad / 被拉大时）：卡片照旧填满盒子，格子装在固定尺寸容器（210dp×100dp、顶部左对齐），
+     盒子再大只多留白、格子尺寸不变。尺寸依据 Pad 实测：盒子 297×313dp（≈2×2 Pad 格），
+     番茄ToDo 同尺寸盒子里的药丸约 51×31dp、内容只占卡片宽 ~50%；我们取略大一点（3 列 × 2 行，药丸约 64×46dp），
+     中文与点按手感更好。由 FocusWidgetProvider 按实测尺寸切换（阈值见该文件 CAP_* 常量）。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -21,8 +21,8 @@
         android:singleLine="true"
         android:maxLines="1" />
     <LinearLayout
-        android:layout_width="270dp"
-        android:layout_height="130dp"
+        android:layout_width="210dp"
+        android:layout_height="100dp"
         android:orientation="vertical">
         <LinearLayout
             android:layout_width="match_parent"
@@ -38,7 +38,7 @@
             android:background="@drawable/widget_quick_cell_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
@@ -51,7 +51,7 @@
             android:background="@drawable/widget_quick_cell_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
@@ -64,7 +64,7 @@
             android:background="@drawable/widget_quick_cell_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
@@ -83,7 +83,7 @@
             android:background="@drawable/widget_quick_cell_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
@@ -96,7 +96,7 @@
             android:background="@drawable/widget_quick_cell_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
@@ -109,7 +109,7 @@
             android:background="@drawable/widget_quick_cell_settings_bg"
             android:gravity="center"
             android:textColor="@color/widget_quick_text_primary"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textFontWeight="500"
             android:singleLine="true"
             android:maxLines="1" />
