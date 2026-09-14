@@ -37,7 +37,7 @@
     <string name="focus_import">Import</string>
     <string name="focus_start">Start focus</string>
     <string name="focus_select_duration">Select focus duration</string>
-    <string name="focus_confirm_warning">Once focus mode starts, the selected apps will be suspended and cannot be exited midway.</string>
+    <string name="focus_confirm_warning">Starting a %1$d-minute focus. The selected apps will be suspended, and it cannot be exited midway.</string>
     <string name="focus_fail_title">Focus failed to start</string>
     <string name="focus_fail_body">Some apps could not be frozen. This usually happens with cloned (dual-instance) apps: the system does not allow suspending apps of another user via Shizuku.\n\nSolutions:\n① Enable "Force freeze" in Settings — apps that cannot be suspended will be frozen by disabling instead (more thorough, but their icons disappear during focus).\n② If the device is rooted, start Shizuku in root mode to suspend them normally.</string>
     <string name="focus_fail_goto_settings">Go to settings</string>
@@ -213,6 +213,29 @@
     <string name="settings_cleared">Stats cleared</string>
 
     <!-- 设置分组二级页 -->
+    <string name="quick_focus_title">Quick focus</string>
+    <string name="settings_quick_hint">Long-press the app icon to see the enabled shortcuts (up to 3); labels are limited to 8 characters</string>
+    <string name="settings_quick_title">Shortcut %1$d</string>
+    <string name="settings_quick_label">Label</string>
+    <string name="settings_quick_minutes">Duration</string>
+    <string name="settings_quick_enabled">Show in long-press menu</string>
+    <string name="settings_quick_enabled_summary">Hidden from the menu when off</string>
+    <string name="settings_quick_label_stale">Duration changed, but the label is still “%1$s”</string>
+    <string name="widget_quick_label">Quick focus</string>
+    <string name="widget_quick_title">FrostHush · Quick focus</string>
+    <string name="widget_quick_settings">Settings</string>
+    <string name="widget_quick_minutes_text">%1$d min</string>
+    <string name="settings_widget_small">Widget durations (2×2)</string>
+    <string name="settings_widget_wide">Widget durations (2×3)</string>
+    <string name="settings_widget_hint">Durations shown in the widget cells; changes apply instantly</string>
+    <string name="settings_widget_dialog_hint">%1$d cells, each 1-240 minutes</string>
+    <string name="settings_widget_invalid">Each cell must be an integer between 1 and 240</string>
+    <string name="settings_widget_cell">Cell %1$d</string>
+    <string name="settings_quick_entry_title">Quick focus shortcuts</string>
+    <string name="settings_quick_invalid">Each duration must be an integer between 1 and 240</string>
+    <string name="settings_quick_hidden_count">(%1$d hidden)</string>
+    <string name="settings_quick_all_hidden">No shortcut enabled</string>
+    <string name="settings_widget_stretch_hint">can be stretched to 2×4</string>
     <string name="settings_group_focus">Focus</string>
     <string name="settings_group_focus_summary">Default duration, plan reminders and notifications</string>
     <string name="settings_group_data">Data</string>
@@ -358,10 +381,6 @@
     <string name="plan_rel_battery_ok">Exempted</string>
     <string name="plan_rel_battery_fail">Not exempted — alarms may be delayed in deep sleep</string>
     <string name="plan_rel_battery_action">Settings</string>
-    <string name="plan_rel_exact_alarm">Exact alarm permission</string>
-    <string name="plan_rel_exact_alarm_ok">Available</string>
-    <string name="plan_rel_exact_alarm_fail">Not granted — plans may be delayed</string>
-    <string name="plan_rel_exact_alarm_action">Grant</string>
     <string name="plan_rel_autostart">Autostart permission</string>
     <string name="plan_rel_autostart_hint">Cannot be detected by apps. Allow autostart manually so plans still trigger after reboot or when the app is killed.</string>
     <string name="plan_rel_autostart_action">Open settings</string>

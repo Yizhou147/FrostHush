@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_quick_card_bg">#FF242424</color>
+    <color name="widget_quick_cell_bg">#FF2B3B54</color>
+    <color name="widget_quick_text_primary">#FF4788FF</color>
+    <color name="widget_quick_text_title">#80FFFFFF</color>
+</resources>

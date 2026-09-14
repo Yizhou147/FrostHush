@@ -19,14 +19,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.width
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import kotlinx.coroutines.Dispatchers
@@ -332,3 +338,38 @@ internal fun MiuixConfirmDialog(
         }
     }
 }
+
+/**
+ * 数字输入 + 单位（miuix）：单位在输入框内、紧跟数字一侧，并留出 [UNIT_END_INSET] 的右侧内缩。
+ * 输入框保持满宽（宽度由表单决定）——单位搬到框外会在右侧留下一大块空白，观感更差。
+ */
+@Composable
+internal fun NumberFieldMiuix(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    unit: String,
+    maxDigits: Int = 3,
+    modifier: Modifier = Modifier,
+) {
+    TextField(
+        value = value,
+        onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
+        label = label,
+        useLabelAsPlaceholder = true,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        trailingIcon = {
+            Text(
+                text = unit,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(end = UNIT_END_INSET),
+            )
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
+/** 单位距输入框右边缘的内缩：避免单位紧贴边框（用户反馈"贴边不好看"） */
+internal val UNIT_END_INSET = 24.dp

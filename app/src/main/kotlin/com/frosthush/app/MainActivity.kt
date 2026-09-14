@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.focus.QuickFocus
 import com.frosthush.app.ui.AppRoot
 import com.frosthush.app.ui.theme.FrostHushTheme
 import com.frosthush.app.ui.theme.LocalEnableBlur
@@ -47,6 +48,8 @@ class MainActivity : ComponentActivity() {
         }
         // 计划提醒通知点击：冷启动场景（单 Activity 已存在时走 onNewIntent）
         handlePlanReminderIntent(intent)
+        // 快速专注入口（快捷方式 / 小部件）
+        handleQuickFocusIntent(intent)
         setContent {
             // 系统栏图标深浅随主题模式：强制浅色→深色图标，强制深色→浅色图标
             val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
@@ -92,6 +95,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handlePlanReminderIntent(intent)
+        handleQuickFocusIntent(intent)
     }
 
     /** 计划提醒通知点击：转发给 PlanScheduler，AppRoot 收集后弹「距开始倒计时」对话框 */
@@ -100,5 +104,13 @@ class MainActivity : ComponentActivity() {
             val planId = intent.getLongExtra(PlanScheduler.EXTRA_PLAN_ID, -1L)
             if (planId > 0) PlanScheduler.onReminderClicked(planId)
         }
+    }
+
+    /**
+     * 快速专注入口（长按图标菜单的快捷方式 / 桌面小部件格子）：
+     * 只把 Intent 转成待确认请求，由 AppRoot 弹确认框（与普通专注同一套冲突预判 + 二次确认）。
+     */
+    private fun handleQuickFocusIntent(intent: Intent?) {
+        QuickFocus.handleIntent(intent)
     }
 }

@@ -52,10 +52,6 @@ class FocusService : Service() {
     // timerSystemCurrent 锚点：每个阶段开始时固定一次，阶段内岛参数完全一致
     private var islandTimerAnchor = 0L
 
-    /** 当前前台服务通知 ID：阶段切换时递增换新 ID 重新发布 → 新 key → 岛展开态滑入（对齐番茄Todo）；
-     *  不能用 cancel+旧 ID 重建（HyperOS 焦点通知对同 key 重建会过滤导致岛消失） */
-    private var currentNotificationId = NOTIFICATION_ID
-
     private val tickRunnable = object : Runnable {
         override fun run() {
             // 全程 try/catch：任何一步抛异常都不能让 tick 停表（否则 phase 停止更新，
@@ -103,13 +99,13 @@ class FocusService : Service() {
                 islandTimerAnchor = now
                 Thread { FocusManager.applySuspensionByPhase(session) }.start()
                 val notification = buildNotification(phase, session)
-                currentNotificationId++
-                runCatching { startForeground(currentNotificationId, notification) }
-                runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, notification) }
+                activeNotificationId++
+                runCatching { startForeground(activeNotificationId, notification) }
+                runCatching { NotificationManagerCompat.from(this@FocusService).notify(activeNotificationId, notification) }
             } else if (!islandEnabled) {
                 // 普通通知：每秒 notify 更新 contentText 倒计时（焦点通知不每秒 notify，岛走原生 chronometer）
                 val notification = buildNotification(phase, session)
-                runCatching { NotificationManagerCompat.from(this@FocusService).notify(currentNotificationId, notification) }
+                runCatching { NotificationManagerCompat.from(this@FocusService).notify(activeNotificationId, notification) }
             }
             return true
         }
@@ -132,8 +128,10 @@ class FocusService : Service() {
         FocusManager.phase.value = phase
         runCatching { createNotificationChannel() }
         val notification = runCatching { buildNotification(phase, session) }.getOrElse { fallbackNotification() }
-        runCatching { NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification) }
-        runCatching { startForeground(NOTIFICATION_ID, notification) }
+        // 新一场专注从 100 号重新开始（与旧实现一致：back-to-back 会话各自首条通知同 id）
+        activeNotificationId = NOTIFICATION_ID
+        runCatching { NotificationManagerCompat.from(this).notify(activeNotificationId, notification) }
+        runCatching { startForeground(activeNotificationId, notification) }
         // 进程被杀后 START_STICKY 重启：按当前阶段纠正挂起状态（幂等，防止边界状态下状态丢失）
         if (session != null) Thread { FocusManager.applySuspensionByPhase(session) }.start()
         // 同一服务实例可能被重复启动（开机时 App.onCreate 与 BootReceiver 两条后台线程都会走恢复）：
@@ -234,5 +232,16 @@ class FocusService : Service() {
 
         const val ACTION_SKIP_REST = "com.frosthush.app.focus.SKIP_REST"
         const val REQUEST_SKIP_REST = 5001
+
+        /**
+         * 当前前台服务通知 id：阶段切换时递增换新 ID 重新发布 → 新 key → 岛展开态滑入（对齐番茄Todo）；
+         * 不能用 cancel+旧 ID 重建（HyperOS 焦点通知对同 key 重建会过滤导致岛消失）。
+         * 会话结束时 FocusManager 要显式 cancel 掉这条"专注中"岛再发结束岛：焦点通知不响应 autoCancel，
+         * 只等服务 onDestroy 的 stopForeground(REMOVE) 会晚到，期间两条焦点通知同时挂着
+         * （2026-09-14 日志实测共存约 6s）。写入方仍只有本服务。
+         */
+        @Volatile
+        var activeNotificationId: Int = NOTIFICATION_ID
+            private set
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import com.frosthush.app.ui.settings.NumberFieldMiuix
 import com.frosthush.app.data.FocusStore
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -198,14 +199,12 @@ fun SegmentMinutesDialogMiuix(
         onDismissRequest = onCancel,
     ) {
         Column {
-            TextField(
+            NumberFieldMiuix(
                 value = input,
-                onValueChange = { input = it.filter(Char::isDigit).take(4) },
-                label = stringResource(R.string.focus_time_unit),
-                useLabelAsPlaceholder = true,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
+                onValueChange = { input = it },
+                label = title,
+                unit = stringResource(R.string.focus_time_unit),
+                maxDigits = 4,
             )
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

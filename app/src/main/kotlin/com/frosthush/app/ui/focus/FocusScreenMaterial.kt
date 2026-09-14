@@ -546,7 +546,14 @@ fun FocusScreenMaterial(
         AlertDialog(
             onDismissRequest = { showWarningDialog = false },
             title = { Text(stringResource(R.string.focus_start)) },
-            text = { Text(stringResource(R.string.focus_confirm_warning)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.focus_confirm_warning,
+                        pendingSegments.sumOf { it.minutes },
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     showWarningDialog = false

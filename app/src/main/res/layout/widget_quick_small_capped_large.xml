@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- widget_quick_small_capped_large：格子宽度按比例（weight=1 → 每列 = 可用宽 / 列数，随盒子自动适配各种平板），
+     行高固定 58dp 并整体垂直居中 —— 盒子再大只多上下留白，不会把格子拉变形。
+     大档：盒子高 ≥174dp（Pad 实测 313dp）时用。
+     由 FocusWidgetProvider 按实测盒子高度选择（阈值见该文件 CAP_* / LARGE_* 常量）。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_quick_bg"
+    android:padding="12dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical">
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="4dp"
+            android:paddingBottom="6dp"
+            android:textColor="@color/widget_quick_text_title"
+            android:textSize="13sp"
+            android:singleLine="true"
+            android:maxLines="1" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <TextView
+                android:id="@+id/widget_cell_1"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/widget_quick_cell_bg"
+                android:gravity="center"
+                android:textColor="@color/widget_quick_text_primary"
+                android:textSize="13sp"
+                android:textFontWeight="500"
+                android:singleLine="true"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/widget_cell_2"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/widget_quick_cell_bg"
+                android:gravity="center"
+                android:textColor="@color/widget_quick_text_primary"
+                android:textSize="13sp"
+                android:textFontWeight="500"
+                android:singleLine="true"
+                android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <TextView
+                android:id="@+id/widget_cell_3"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/widget_quick_cell_bg"
+                android:gravity="center"
+                android:textColor="@color/widget_quick_text_primary"
+                android:textSize="13sp"
+                android:textFontWeight="500"
+                android:singleLine="true"
+                android:maxLines="1" />
+            <TextView
+                android:id="@+id/widget_cell_settings"
+                android:layout_width="0dp"
+                android:layout_height="58dp"
+                android:layout_weight="1"
+                android:layout_margin="4dp"
+                android:background="@drawable/widget_quick_cell_settings_bg"
+                android:gravity="center"
+                android:textColor="@color/widget_quick_text_primary"
+                android:textSize="13sp"
+                android:textFontWeight="500"
+                android:singleLine="true"
+                android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小部件 A · 平板 1×1（内容与手机 2×2 相同：3 个时长格 + 右下角「设置」）
+     minWidth/minHeight 与手机版保持一致（不是按 70dp 格子公式算 Pad 格数）：Pad 的格子物理尺寸
+     约等于手机的 2 格，所以 110dp / 180dp 在手机上算 2 / 3 格，在 Pad 上仍落在 1 / 2 格内；
+     精确格数由 API 31+ 的 targetCellWidth/Height 声明。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="1"
+    android:targetCellHeight="1"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="110dp"
+    android:maxResizeWidth="620dp"
+    android:maxResizeHeight="300dp"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_quick_small"
+    android:previewImage="@drawable/widget_quick_preview_small"
+    android:widgetCategory="home_screen" />

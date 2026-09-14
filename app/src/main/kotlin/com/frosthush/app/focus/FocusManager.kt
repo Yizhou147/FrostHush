@@ -213,6 +213,13 @@ object FocusManager {
             if (session == null) {
                 false
             } else {
+                // 先撤掉「专注中」前台通知（岛）再发结束岛：HyperOS 每应用只保留一条焦点通知，
+                // 先撤后发才不会两条共存。旧实现是"发完结束岛 sleep(5000) 再停服"，靠服务销毁时的
+                // stopForeground(REMOVE) 撤岛——实测那 5s 里两条焦点通知同时挂着（2026-09-14 日志：
+                // 16:59:05.809 发结束岛 → 16:59:11.472 活动通知 [372600,100] → 11.975 [372600]）。
+                // 此刻活动会话还在，别处无法并发起新会话（startPlanFocus 有 activeSession 判据），
+                // 所以这里停服不会误杀新会话，也就不再需要旧实现的"延迟 5s + 复查"。
+                stopFocusServiceAndNotification()
                 // 结束提醒在这里统一发布（本方法是所有结束路径的唯一汇聚点：tick 到点 / 计划 END
                 // 闹钟 / 开机与冷启动兜底 / 界面兜底）。放在这里的意义是"谁结束会话都必然发一次"——
                 // 之前只在 FocusService tick 的"到点"分支发，END 闹钟抢先结束时 tick 会走"会话已空"
@@ -237,28 +244,6 @@ object FocusManager {
                         session.toHistorySegments(end),
                     )
                 )
-                // 延迟停止 FGS：让结束通知先完整滑出展示，再停服务移除"专注中"前台通知。
-                // 结束通知是独立 id（不属于本服务的前台通知），停服的 REMOVE 不会影响它。
-                Thread {
-                    try {
-                        Thread.sleep(5000)
-                    } catch (_: InterruptedException) {
-                    }
-                    // 5 秒内可能有新会话启动（快速重开 / 背靠背计划首尾相接）：
-                    // 此时服务已属于新会话，停服会杀掉新专注的 tick 与前台通知
-                    if (FocusStore.activeSession() != null) {
-                        DebugLog.d("Focus", "延迟停服前检测到新会话，跳过停服")
-                        return@Thread
-                    }
-                    // 诊断：停服前后各查一次活动通知，确认结束通知是否被随前台服务一起清掉
-                    logActiveNotifications("停服前")
-                    app.stopService(Intent(app, FocusService::class.java))
-                    try {
-                        Thread.sleep(500)
-                    } catch (_: InterruptedException) {
-                    }
-                    logActiveNotifications("停服后")
-                }.start()
                 phase.value = null
                 bumpVersion()
                 true
@@ -332,6 +317,22 @@ object FocusManager {
                 .joinToString(",") { it.id.toString() }
             DebugLog.d("Focus", "$scene 活动通知id=[$ids]")
         }.onFailure { DebugLog.e("Focus", "查询活动通知失败 $scene", it) }
+    }
+
+    /**
+     * 撤掉「专注中」前台通知（岛）并停止 FocusService，结束会话时在发结束岛之前调用。
+     * 显式 cancel 是必须的：焦点通知（岛）不响应 autoCancel，只等服务 onDestroy 的
+     * stopForeground(REMOVE) 撤岛会晚到（系统何时销毁服务不可控），期间结束岛与「专注中」岛
+     * 会同时挂着。cancel 完立刻 stopService，把 tick 与前台服务一并收掉。
+     */
+    private fun stopFocusServiceAndNotification() {
+        val id = FocusService.activeNotificationId
+        runCatching { NotificationManagerCompat.from(app).cancel(id) }
+            .onFailure { DebugLog.e("Focus", "撤销专注中通知失败 id=$id", it) }
+        runCatching { app.stopService(Intent(app, FocusService::class.java)) }
+            .onFailure { DebugLog.e("Focus", "停止专注服务失败", it) }
+        // 诊断：撤岛/停服后回查一次（此时结束岛尚未发布），确认「专注中」已消失
+        logActiveNotifications("撤岛停服后")
     }
 
     /**
