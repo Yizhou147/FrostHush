@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- 小部件用色：RemoteViews 是原生 XML，取不到 Compose/miuix 的运行时 token，
+         这里固定为 miuix 默认色板（primary #FF3482FF / tertiaryContainer #FFEAF2FF 等），
+         深浅色由 values-night 覆盖。 -->
+    <color name="widget_quick_card_bg">#FFFFFFFF</color>
+    <color name="widget_quick_cell_bg">#FFEAF2FF</color>
+    <color name="widget_quick_text_primary">#FF3482FF</color>
+    <color name="widget_quick_text_title">#99000000</color>
 </resources>

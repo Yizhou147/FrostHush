@@ -82,6 +82,48 @@
             android:exported="false"/>
 
         <!-- 专注倒计时前台服务 -->
+        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
+             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
+        <receiver
+            android:name=".focus.QuickWidgetSmallProvider"
+            android:label="@string/widget_quick_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_2x2_info" />
+        </receiver>
+
+        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
+             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
+        <receiver
+            android:name=".focus.QuickWidgetMidProvider"
+            android:label="@string/widget_quick_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_2x3_info" />
+        </receiver>
+
+        <!-- 桌面小部件（原生 AppWidget）：三个尺寸共用一个 provider，label 相同 →
+             HyperOS 侧聚合为同一功能的不同尺寸；initialLayout 用于分辨小/宽版 -->
+        <receiver
+            android:name=".focus.QuickWidgetWideProvider"
+            android:label="@string/widget_quick_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_quick_2x4_info" />
+        </receiver>
+
         <service
             android:name=".focus.FocusService"
             android:exported="false"

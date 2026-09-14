@@ -47,6 +47,7 @@ import com.frosthush.app.data.FocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
+import com.frosthush.app.focus.QuickFocus
 import com.frosthush.app.ui.about.AboutScreen
 import com.frosthush.app.ui.component.bottombar.BottomBar
 import com.frosthush.app.ui.component.bottombar.LocalMainPagerState
@@ -58,6 +59,7 @@ import com.frosthush.app.ui.component.bottombar.useNavigationRail
 import com.frosthush.app.ui.focus.FocusLockScreen
 import com.frosthush.app.ui.focus.FocusScreen
 import com.frosthush.app.ui.focus.ImportScreen
+import com.frosthush.app.ui.focus.QuickFocusDialog
 import com.frosthush.app.ui.group.AppGroupScreen
 import com.frosthush.app.ui.navigation3.LocalNavigator
 import com.frosthush.app.ui.navigation3.Navigator
@@ -132,7 +134,22 @@ fun AppRoot() {
     }
     // 专注已开始（全屏锁屏覆盖）时关闭提醒对话框，避免被遮挡
     LaunchedEffect(focusLocked) {
-        if (focusLocked) showPlanReminder = false
+        if (focusLocked) {
+            showPlanReminder = false
+            // 快捷方式/小部件点进来的待确认请求同样清掉，避免解锁后又弹一次
+            QuickFocus.request.value = null
+        }
+    }
+    // 快捷方式 / 小部件点击 → 快速专注确认流程（与普通专注同一套框）
+    val quickRequest by QuickFocus.request.collectAsState()
+    // 小部件「设置」格 → 打开应用的小部件设置（专注设置页里的快速专注区块）
+    val openWidgetSettings by QuickFocus.openWidgetSettings.collectAsState()
+    var pendingRoute by remember { mutableStateOf<Route?>(null) }
+    LaunchedEffect(openWidgetSettings) {
+        if (openWidgetSettings) {
+            QuickFocus.openWidgetSettings.value = false
+            pendingRoute = Route.SettingsFocus
+        }
     }
     // 统一根背景 = 当前界面风格的背景色，否则透明页面会透出窗口背景（纯白）
     val rootColor = when (LocalUiMode.current) {
@@ -161,7 +178,11 @@ fun AppRoot() {
                     replayWelcome = false
                 })
             } else {
-                MainNavHost(onReplayWelcome = { replayWelcome = true })
+                MainNavHost(
+                    onReplayWelcome = { replayWelcome = true },
+                    pendingRoute = pendingRoute,
+                    onPendingRouteConsumed = { pendingRoute = null },
+                )
             }
         }
         // 专注进行中：全屏锁定倒计时覆盖一切（进入淡入 + 缩放落定，结束快速淡出）
@@ -180,6 +201,12 @@ fun AppRoot() {
             planId = reminderPlanId,
             onDismiss = { showPlanReminder = false },
         )
+        quickRequest?.let { request ->
+            QuickFocusDialog(
+                minutes = request.minutes,
+                onDismiss = { QuickFocus.request.value = null },
+            )
+        }
     }
 }
 
@@ -188,8 +215,19 @@ fun AppRoot() {
  * 转场动画由 navigation3 默认实现提供（横向滑动 + 视差），预测性返回手势自动接入。
  */
 @Composable
-private fun MainNavHost(onReplayWelcome: () -> Unit) {
+private fun MainNavHost(
+    onReplayWelcome: () -> Unit,
+    pendingRoute: Route?,
+    onPendingRouteConsumed: () -> Unit,
+) {
     val navigator = rememberNavigator(Route.Main)
+    // 外部入口（小部件「设置」格）要求打开的页面：导航器就绪后 push 一次
+    LaunchedEffect(pendingRoute) {
+        pendingRoute?.let {
+            navigator.push(it)
+            onPendingRouteConsumed()
+        }
+    }
     // 配置导入预览数据：一次性载荷（不可序列化），与路由同生命周期
     var configImportData by remember { mutableStateOf<FocusStore.ConfigData?>(null) }
 
