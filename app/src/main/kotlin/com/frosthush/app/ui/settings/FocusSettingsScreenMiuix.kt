@@ -375,9 +375,10 @@ private fun MiuixQuickShortcutsDialog(
                                 text = stringResource(R.string.focus_time_unit),
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 16.dp),
                             )
                         },
-                        modifier = Modifier.width(132.dp),
+                        modifier = Modifier.width(120.dp),
                     )
                     Switch(
                         checked = enabled[index],

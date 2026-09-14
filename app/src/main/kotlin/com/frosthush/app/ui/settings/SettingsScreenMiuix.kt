@@ -340,8 +340,8 @@ internal fun MiuixConfirmDialog(
 }
 
 /**
- * 数字输入 + 单位（miuix）：单位放在输入框**外面**紧跟其后，输入框宽度固定。
- * 之前用框内 trailingIcon，输入框被拉宽时单位被甩到最右端（平板/宽对话框上尤其明显）。
+ * 数字输入 + 单位（miuix）：单位在输入框内、紧跟数字一侧，并留出 [UNIT_END_INSET] 的右侧内缩。
+ * 输入框保持满宽（宽度由表单决定）——单位搬到框外会在右侧留下一大块空白，观感更差。
  */
 @Composable
 internal fun NumberFieldMiuix(
@@ -350,27 +350,26 @@ internal fun NumberFieldMiuix(
     label: String,
     unit: String,
     maxDigits: Int = 3,
-    fieldWidth: Dp = 132.dp,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TextField(
-            value = value,
-            onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
-            label = label,
-            useLabelAsPlaceholder = true,
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.width(fieldWidth),
-        )
-        Text(
-            unit,
-            style = MiuixTheme.textStyles.body2,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-    }
+    TextField(
+        value = value,
+        onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
+        label = label,
+        useLabelAsPlaceholder = true,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        trailingIcon = {
+            Text(
+                text = unit,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(end = UNIT_END_INSET),
+            )
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
 }
+
+/** 单位距输入框右边缘的内缩：避免单位紧贴边框（用户反馈"贴边不好看"） */
+internal val UNIT_END_INSET = 24.dp

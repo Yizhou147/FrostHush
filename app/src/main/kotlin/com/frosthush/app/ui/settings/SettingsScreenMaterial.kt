@@ -551,9 +551,8 @@ internal fun openAppSettings(context: Context) {
 internal fun openAutostartSettings(context: Context) = openAppSettings(context)
 
 /**
- * 数字输入 + 单位（material）：单位放在输入框**外面**紧跟其后，输入框宽度固定。
- * 之前用框内 suffix，输入框被拉宽时（平板、以及手机上较宽的对话框）单位被甩到最右端，
- * 数字与单位之间出现一大片空白；宽度固定 + 单位外置后任何屏宽下观感一致。
+ * 数字输入 + 单位（material）：单位用框内 suffix（Material 的 suffix 本来就紧跟数字），
+ * 再留一点右侧内缩避免贴边；输入框保持满宽（把单位移到框外会在右侧留下大块空白）。
  */
 @Composable
 internal fun NumberFieldMaterial(
@@ -562,23 +561,21 @@ internal fun NumberFieldMaterial(
     label: String,
     unit: String,
     maxDigits: Int = 3,
-    fieldWidth: Dp = 132.dp,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
-            label = { Text(label) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.width(fieldWidth),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            unit,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onValueChange(it.filter(Char::isDigit).take(maxDigits)) },
+        label = { Text(label) },
+        suffix = {
+            Text(
+                unit,
+                modifier = Modifier.padding(end = 8.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        singleLine = true,
+        modifier = modifier.fillMaxWidth(),
+    )
 }
