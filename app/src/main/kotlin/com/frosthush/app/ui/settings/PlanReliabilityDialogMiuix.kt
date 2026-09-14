@@ -63,7 +63,7 @@ private fun PlanReliabilityDialogMiuix(show: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var checkKey by remember { mutableStateOf(0) }
 
-    // 从系统设置页返回后自动重新检测（省电/精确闹钟/自启动跳转后无需手动点「重新检测」）
+    // 从系统设置页返回后自动重新检测（省电/自启动跳转后无需手动点「重新检测」）
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -74,9 +74,8 @@ private fun PlanReliabilityDialogMiuix(show: Boolean, onDismiss: () -> Unit) {
     }
 
     val batteryOk = remember(checkKey) { checkBatteryOptimization(context) }
-    val exactAlarmOk = remember(checkKey) { checkExactAlarm(context) }
     val shizukuOk = remember(checkKey) { FocusManager.shizukuReady() }
-    val allOk = batteryOk && exactAlarmOk && shizukuOk
+    val allOk = batteryOk && shizukuOk
 
     OverlayDialog(
         show = show,
@@ -113,15 +112,6 @@ private fun PlanReliabilityDialogMiuix(show: Boolean, onDismiss: () -> Unit) {
                 ),
                 actionLabel = if (batteryOk) null else stringResource(R.string.plan_rel_battery_action),
                 onAction = { openBatterySettings(context) },
-            )
-            ReliabilityItemMiuix(
-                ok = exactAlarmOk,
-                title = stringResource(R.string.plan_rel_exact_alarm),
-                desc = stringResource(
-                    if (exactAlarmOk) R.string.plan_rel_exact_alarm_ok else R.string.plan_rel_exact_alarm_fail
-                ),
-                actionLabel = if (exactAlarmOk) null else stringResource(R.string.plan_rel_exact_alarm_action),
-                onAction = { openExactAlarmSettings(context) },
             )
             ReliabilityItemMiuix(
                 ok = null,

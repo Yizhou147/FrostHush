@@ -1,11 +1,9 @@
 package com.frosthush.app.ui.settings
 
-import android.app.AlarmManager
 import android.widget.Toast
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -385,7 +383,7 @@ internal fun PlanReliabilityDialogMaterial(show: Boolean, onDismiss: () -> Unit)
     val context = LocalContext.current
     var checkKey by remember { mutableStateOf(0) }
 
-    // 从系统设置页返回后自动重新检测（省电/精确闹钟/自启动跳转后无需手动点「重新检测」）
+    // 从系统设置页返回后自动重新检测（省电/自启动跳转后无需手动点「重新检测」）
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -396,9 +394,8 @@ internal fun PlanReliabilityDialogMaterial(show: Boolean, onDismiss: () -> Unit)
     }
 
     val batteryOk = remember(checkKey) { checkBatteryOptimization(context) }
-    val exactAlarmOk = remember(checkKey) { checkExactAlarm(context) }
     val shizukuOk = remember(checkKey) { FocusManager.shizukuReady() }
-    val allOk = batteryOk && exactAlarmOk && shizukuOk
+    val allOk = batteryOk && shizukuOk
 
     if (!show) return
     AlertDialog(
@@ -435,15 +432,6 @@ internal fun PlanReliabilityDialogMaterial(show: Boolean, onDismiss: () -> Unit)
                     ),
                     actionLabel = if (batteryOk) null else stringResource(R.string.plan_rel_battery_action),
                     onAction = { openBatterySettings(context) },
-                )
-                ReliabilityItem(
-                    ok = exactAlarmOk,
-                    title = stringResource(R.string.plan_rel_exact_alarm),
-                    desc = stringResource(
-                        if (exactAlarmOk) R.string.plan_rel_exact_alarm_ok else R.string.plan_rel_exact_alarm_fail
-                    ),
-                    actionLabel = if (exactAlarmOk) null else stringResource(R.string.plan_rel_exact_alarm_action),
-                    onAction = { openExactAlarmSettings(context) },
                 )
                 ReliabilityItem(
                     ok = null,
@@ -528,13 +516,6 @@ internal fun checkBatteryOptimization(context: Context): Boolean = runCatching {
         .isIgnoringBatteryOptimizations(context.packageName)
 }.getOrDefault(true)
 
-/** 精确闹钟是否可用（Manifest 已声明 USE_EXACT_ALARM，Android 13+ 安装即授） */
-internal fun checkExactAlarm(context: Context): Boolean = runCatching {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
-    } else true
-}.getOrDefault(true)
-
 /** 跳转系统「电池优化」豁免申请页，失败回退豁免列表页 */
 internal fun openBatterySettings(context: Context) {
     val request = Intent(
@@ -544,18 +525,6 @@ internal fun openBatterySettings(context: Context) {
     val list = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     if (runCatching { context.startActivity(request) }.isFailure) {
         runCatching { context.startActivity(list) }
-    }
-}
-
-/** 跳转系统「精确闹钟」授权页（仅 Android 12+，低版本恒可用无需跳转） */
-internal fun openExactAlarmSettings(context: Context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        runCatching {
-            context.startActivity(
-                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }
     }
 }
 

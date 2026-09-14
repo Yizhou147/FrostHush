@@ -356,10 +356,6 @@
     <string name="plan_rel_battery_ok">已豁免</string>
     <string name="plan_rel_battery_fail">未豁免，深度休眠时闹钟可能被延迟</string>
     <string name="plan_rel_battery_action">去设置</string>
-    <string name="plan_rel_exact_alarm">精确闹钟权限</string>
-    <string name="plan_rel_exact_alarm_ok">可用</string>
-    <string name="plan_rel_exact_alarm_fail">未授予，计划可能被延迟</string>
-    <string name="plan_rel_exact_alarm_action">去授权</string>
     <string name="plan_rel_autostart">自启动权限</string>
     <string name="plan_rel_autostart_hint">系统未提供检测接口，请手动允许自启动，避免开机或应用被杀后计划无法触发</string>
     <string name="plan_rel_autostart_action">前往设置</string>

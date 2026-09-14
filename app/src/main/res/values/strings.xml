@@ -358,10 +358,6 @@
     <string name="plan_rel_battery_ok">Exempted</string>
     <string name="plan_rel_battery_fail">Not exempted — alarms may be delayed in deep sleep</string>
     <string name="plan_rel_battery_action">Settings</string>
-    <string name="plan_rel_exact_alarm">Exact alarm permission</string>
-    <string name="plan_rel_exact_alarm_ok">Available</string>
-    <string name="plan_rel_exact_alarm_fail">Not granted — plans may be delayed</string>
-    <string name="plan_rel_exact_alarm_action">Grant</string>
     <string name="plan_rel_autostart">Autostart permission</string>
     <string name="plan_rel_autostart_hint">Cannot be detected by apps. Allow autostart manually so plans still trigger after reboot or when the app is killed.</string>
     <string name="plan_rel_autostart_action">Open settings</string>
