@@ -236,8 +236,6 @@
     <string name="settings_quick_hidden_count">(%1$d hidden)</string>
     <string name="settings_quick_all_hidden">No shortcut enabled</string>
     <string name="settings_widget_stretch_hint">can be stretched to 2×4</string>
-    <string name="widget_quick_label_pad_1x1">Quick focus · Pad 1×1</string>
-    <string name="widget_quick_label_pad_1x2">Quick focus · Pad 1×2</string>
     <string name="settings_group_focus">Focus</string>
     <string name="settings_group_focus_summary">Default duration, plan reminders and notifications</string>
     <string name="settings_group_data">Data</string>
