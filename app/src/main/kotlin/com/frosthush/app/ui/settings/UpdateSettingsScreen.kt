@@ -197,11 +197,17 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
                     startAction = { SettingIcon(MiuixIcons.Alarm) },
                 )
                 // 当前版本（静态行）；编译时间随版本显示（正式版隐藏，原关于页位置移至此处）。
-                // 注意：SettingIcon 已自带 12dp 右间距（与其他设置项一致），这里**不要再加 start padding**，
-                // 否则图标到文字变成 24dp、比其它设置项远一倍（真机反馈"略远"即此）
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                // 间距对齐其它设置项：SettingIcon 自带 12dp + miuix 偏好行 BasicComponent 的 8dp = 20dp
+                // （此前这里多给 12dp 变 24dp、偏大；完全不给又是 12dp、偏小）
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     SettingIcon(MiuixIcons.Info)
-                    Column {
+                    Column(Modifier.padding(start = 8.dp)) {
                         Text(
                             text = stringResource(R.string.update_current_version),
                             style = MiuixTheme.textStyles.body1,
