@@ -223,27 +223,26 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
             onSelect = { SettingsStore.setPlanRemindSeconds(it); showRemindDialog = false },
             onDismiss = { showRemindDialog = false },
         )
-        if (editingWidgetSmall || editingWidgetWide) {
-            val wide = editingWidgetWide
-            MiuixWidgetDurationsDialog(
-                title = stringResource(if (wide) R.string.settings_widget_wide else R.string.settings_widget_small),
-                initial = if (wide) QuickFocusStore.widgetWideMinutes() else QuickFocusStore.widgetSmallMinutes(),
-                onSave = { values ->
-                    if (wide) QuickFocusStore.updateWidgetWideMinutes(values)
-                    else QuickFocusStore.updateWidgetSmallMinutes(values)
-                    FocusWidgetProvider.refreshAll(context)
-                    widgetVersion++
-                    editingWidgetSmall = false
-                    editingWidgetWide = false
-                },
-                onDismiss = {
-                    editingWidgetSmall = false
-                    editingWidgetWide = false
-                },
-            )
-        }
-        if (editingShortcuts) {
-            MiuixQuickShortcutsDialog(
+        // 对话框常驻组合、用 show 传参：这样关闭时组合还在，OverlayDialog 才能播退场动画
+        // （此前用 if 包裹 + 内部 show=true，一关就从组合树上摘掉，退场动画丢失）
+        MiuixWidgetDurationsDialog(
+            show = editingWidgetSmall || editingWidgetWide,
+            wide = editingWidgetWide,
+            onSave = { values ->
+                if (editingWidgetWide) QuickFocusStore.updateWidgetWideMinutes(values)
+                else QuickFocusStore.updateWidgetSmallMinutes(values)
+                FocusWidgetProvider.refreshAll(context)
+                widgetVersion++
+                editingWidgetSmall = false
+                editingWidgetWide = false
+            },
+            onDismiss = {
+                editingWidgetSmall = false
+                editingWidgetWide = false
+            },
+        )
+        MiuixQuickShortcutsDialog(
+            show = editingShortcuts,
                 onSave = { updated ->
                     updated.forEach { item ->
                         val old = QuickFocusStore.shortcuts.firstOrNull { it.id == item.id }
@@ -265,21 +264,25 @@ fun FocusSettingsMiuix(onBack: () -> Unit) {
                 },
                 onDismiss = { editingShortcuts = false },
             )
-        }
     }
 }
 
 /** 小部件时长编辑框（miuix）：每格一个数字输入（1-240），确认时整体校验 */
 @Composable
 private fun MiuixWidgetDurationsDialog(
-    title: String,
-    initial: List<Int>,
+    show: Boolean,
+    wide: Boolean,
     onSave: (List<Int>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var inputs by remember(initial) { mutableStateOf(initial.map { it.toString() }) }
-    OverlayDialog(show = true, title = title, onDismissRequest = onDismiss) {
+    val title = stringResource(if (wide) R.string.settings_widget_wide else R.string.settings_widget_small)
+    // 每次打开按当前配置重新初始化（remember 以 show/wide 为键）
+    val initial = remember(show, wide) {
+        if (wide) QuickFocusStore.widgetWideMinutes() else QuickFocusStore.widgetSmallMinutes()
+    }
+    var inputs by remember(show, wide) { mutableStateOf(initial.map { it.toString() }) }
+    OverlayDialog(show = show, title = title, onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             Text(
                 stringResource(R.string.settings_widget_dialog_hint, initial.size),
@@ -326,16 +329,18 @@ private fun MiuixWidgetDurationsDialog(
  */
 @Composable
 private fun MiuixQuickShortcutsDialog(
+    show: Boolean,
     onSave: (List<QuickFocusStore.QuickShortcut>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val initial = remember { QuickFocusStore.shortcuts.toList() }
-    var labels by remember { mutableStateOf(initial.map { it.label }) }
-    var minutes by remember { mutableStateOf(initial.map { it.minutes.toString() }) }
-    var enabled by remember { mutableStateOf(initial.map { it.enabled }) }
+    // 每次打开按当前配置重新初始化（remember 以 show 为键）
+    val initial = remember(show) { QuickFocusStore.shortcuts.toList() }
+    var labels by remember(show) { mutableStateOf(initial.map { it.label }) }
+    var minutes by remember(show) { mutableStateOf(initial.map { it.minutes.toString() }) }
+    var enabled by remember(show) { mutableStateOf(initial.map { it.enabled }) }
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.settings_quick_entry_title),
         onDismissRequest = onDismiss,
     ) {

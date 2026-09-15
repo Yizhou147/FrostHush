@@ -41,10 +41,19 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         // 已有专注进行中：直接提示，不再走确认流程（与普通专注的 focus_session_exists 一致）
+        // 计划冲突预判：打开时就判一次。快速专注不再有独立的「确认框」——直接复用普通专注那条
+        //「（有冲突则）冲突预判 → 二次确认」的路径，全程只确认一次，与普通专注一致。
+        val initialConflicts = remember { QuickFocus.conflictsFor(minutes) }
+        var conflicts by remember { mutableStateOf(initialConflicts) }
         var step by remember {
-            mutableStateOf(if (FocusStore.activeSession() != null) STEP_ALREADY_FOCUSING else STEP_CONFIRM)
+            mutableStateOf(
+                when {
+                    FocusStore.activeSession() != null -> STEP_ALREADY_FOCUSING
+                    initialConflicts.isNotEmpty() -> STEP_CONFLICT
+                    else -> STEP_WARNING
+                }
+            )
         }
-        var conflicts by remember { mutableStateOf<List<FocusStore.FocusPlan>>(emptyList()) }
 
         when (step) {
             // ⓪ 已在专注：只提示
@@ -62,30 +71,7 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
                 )
             }
 
-            // ① 确认框
-            STEP_CONFIRM -> OverlayDialog(
-                show = true,
-                title = stringResource(R.string.quick_focus_title),
-                onDismissRequest = onDismiss,
-            ) {
-                Text(stringResource(R.string.focus_confirm_warning, minutes))
-                QuickFocusButtonRow(
-                    cancelText = stringResource(R.string.action_cancel),
-                    confirmText = stringResource(R.string.action_start),
-                    onCancel = onDismiss,
-                    onConfirm = {
-                        val found = QuickFocus.conflictsFor(minutes)
-                        if (found.isEmpty()) {
-                            step = STEP_WARNING
-                        } else {
-                            conflicts = found
-                            step = STEP_CONFLICT
-                        }
-                    },
-                )
-            }
-
-            // ② 计划冲突预判框（与普通专注同一文案与处理）
+            // ① 计划冲突预判框（与普通专注同一文案与处理）
             STEP_CONFLICT -> OverlayDialog(
                 show = true,
                 title = stringResource(R.string.focus_start),
@@ -113,7 +99,7 @@ internal fun QuickFocusDialogMiuix(minutes: Int, onDismiss: () -> Unit) {
                 )
             }
 
-            // ③ 二次确认警告 → 开始专注
+            // ② 二次确认警告 → 开始专注
             else -> OverlayDialog(
                 show = true,
                 title = stringResource(R.string.focus_start),

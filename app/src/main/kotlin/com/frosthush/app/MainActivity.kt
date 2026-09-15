@@ -46,10 +46,14 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
         }
-        // 计划提醒通知点击：冷启动场景（单 Activity 已存在时走 onNewIntent）
-        handlePlanReminderIntent(intent)
-        // 快速专注入口（快捷方式 / 小部件）
-        handleQuickFocusIntent(intent)
+        // 计划提醒通知点击：冷启动场景（单 Activity 已存在时走 onNewIntent）。
+        // savedInstanceState != null 说明本次是配置变化/进程恢复导致的重建——Intent 仍是启动时那一个，
+        // 重复处理会让对话框再弹一轮，故只在真正的冷启动处理一次。
+        if (savedInstanceState == null) {
+            handlePlanReminderIntent(intent)
+            // 快速专注入口（快捷方式 / 小部件）
+            handleQuickFocusIntent(intent)
+        }
         setContent {
             // 系统栏图标深浅随主题模式：强制浅色→深色图标，强制深色→浅色图标
             val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
