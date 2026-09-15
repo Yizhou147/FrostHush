@@ -450,9 +450,11 @@ private fun PlanRowMiuix(
             // 多选模式下不注册长按（长按留给拖拽排序，避免手势冲突）；非多选模式长按=进入多选
             .combinedClickable(onClick = onClick, onLongClick = if (selectionMode) null else onLongClick)
             .background(
-                // 选中态用浅灰底（不用主题蓝）；冲突高亮用错误红底，靠闪烁区分（与选中态不再同色）
+                // 选中态用浅灰底（不用主题蓝）；冲突高亮用错误红底、靠闪烁区分（与选中态不再同色）。
+                // 注意：不能用 errorContainer——它在浅色下≈纯白（#FFFDF6F4），叠 alpha 后完全看不出高亮，
+                // 故用 error 本体压到低透明度，深浅色下都能看见。
                 when {
-                    conflictHighlight -> MiuixTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                    conflictHighlight -> MiuixTheme.colorScheme.error.copy(alpha = 0.15f)
                     selected -> MiuixTheme.colorScheme.surfaceContainerHigh
                     else -> Color.Transparent
                 }

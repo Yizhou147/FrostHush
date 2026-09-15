@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
+import com.frosthush.app.ui.component.MarkdownText
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.ui.about.openUrl
 import com.frosthush.app.ui.theme.LocalUiMode
@@ -196,10 +197,11 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
                     startAction = { SettingIcon(MiuixIcons.Alarm) },
                 )
                 // 当前版本（静态行）；编译时间随版本显示（正式版隐藏，原关于页位置移至此处）。
-                // 版本文本列与标题左对齐（图标右侧 12dp，与其他设置项的摘要缩进一致）
+                // 注意：SettingIcon 已自带 12dp 右间距（与其他设置项一致），这里**不要再加 start padding**，
+                // 否则图标到文字变成 24dp、比其它设置项远一倍（真机反馈"略远"即此）
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     SettingIcon(MiuixIcons.Info)
-                    Column(Modifier.padding(start = 12.dp)) {
+                    Column {
                         Text(
                             text = stringResource(R.string.update_current_version),
                             style = MiuixTheme.textStyles.body1,
@@ -444,7 +446,12 @@ private fun UpdateResultContentMaterial(result: UpdateChecker.CheckResult?) {
                         .heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    Text(result.release.body, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+                    MarkdownText(
+                        markdown = result.release.body,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        headingColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
         }
@@ -477,10 +484,11 @@ private fun UpdateResultContent(
                         .heightIn(max = 300.dp)
                         .verticalScroll(rememberScrollState()),
                 ) {
-                    Text(
-                        text = r.release.body,
+                    MarkdownText(
+                        markdown = r.release.body,
                         style = MiuixTheme.textStyles.body2,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        headingColor = MiuixTheme.colorScheme.onSurface,
                     )
                 }
             }
