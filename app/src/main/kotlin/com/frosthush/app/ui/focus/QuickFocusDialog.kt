@@ -19,9 +19,11 @@ fun QuickFocusDialog(minutes: Int, onDismiss: () -> Unit) {
     }
 }
 
-/** 确认流程的三步（两版 UI 共用同一组常量，避免各写各的） */
+/**
+ * 确认流程的步骤（两版 UI 共用同一组常量）：没有独立的「确认框」——
+ * 快速专注直接复用普通专注那条「（有冲突则）冲突预判 → 二次确认」路径，全程只确认一次。
+ */
 /** 已有专注进行中（只提示，不走确认流程） */
 internal const val STEP_ALREADY_FOCUSING = 0
-internal const val STEP_CONFIRM = 1
 internal const val STEP_CONFLICT = 2
 internal const val STEP_WARNING = 3

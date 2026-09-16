@@ -211,7 +211,6 @@
     <string name="settings_cleared">统计已清空</string>
 
     <!-- 设置分组二级页 -->
-    <string name="quick_focus_title">快速专注</string>
     <string name="settings_quick_hint">长按应用图标，菜单里会显示已启用的快捷方式（最多三条）；文案最多 8 个字</string>
     <string name="settings_quick_title">快捷方式 %1$d</string>
     <string name="settings_quick_label">文案</string>
