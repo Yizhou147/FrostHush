@@ -37,28 +37,25 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * - 大圆环：蓝色弧（primary）= 本段剩余比例，随倒计时递减；轨道 secondaryContainer 浅灰
  * - 弧线平滑走动：倒计时每秒更新目标值，用 1s 线性补间连续逼近（实测逐秒跳变被用户反馈「一顿一顿」）；
  *   段切换/新会话（段起点变化）时比例从近 0 跳回近 1，直接落位不做回绕动画
- * - 全部文字置于环内（用户定稿方向）：阶段标题 / 等宽倒计时（防抖）/ 本段·整场说明 / 附加信息行
+ * - 环心：等宽倒计时（防数字抖动）+ 本段/整场说明；阶段标题与暂停应用数由调用方放在环外
+ *   （真机对比后用户定稿：全放环内太挤，回到第一版布局）
  *
  * FocusLockScreenMiuix（专注段全屏页）与 FocusScreenMiuix 的休息内容共用，保证两处观感一致。
  * 环尺寸由调用方按可用空间传入（横屏/小屏收缩防溢出），时间字号与描边按环尺寸等比缩放。
  *
- * @param stageLabel         环内倒计时上方的阶段标题（专注中/休息中）
  * @param remaining          本段剩余毫秒（segmentEndMillis - now，负值已由调用方收敛为 0）
  * @param segmentStartMillis 本段开始时刻（毫秒）；作为段身份用于检测段切换（切换时弧线 snap 落位）
  * @param segmentEndMillis   本段结束时刻（毫秒）；弧长比例 = remaining / (end - start)
- * @param subLabel           倒计时下方的本段/整场说明（如「共 30 分钟」）；空串则不显示
- * @param detailLabel        环内最下方的附加信息行（如「已暂停 N 个应用」）；空串则不显示
+ * @param subLabel           环内倒计时下方的说明文案（如「共 30 分钟」）；空串则不显示
  * @param preferredRingSize  环外径；调用方已按屏幕可用宽高收缩
  */
 @Composable
 internal fun FocusRingMiuix(
-    stageLabel: String,
     remaining: Long,
     segmentStartMillis: Long,
     segmentEndMillis: Long,
     subLabel: String,
     modifier: Modifier = Modifier,
-    detailLabel: String = "",
     preferredRingSize: Dp = 280.dp,
 ) {
     // 弧长比例 = 本段剩余 / 本段总时长（与系统计时器同语义：蓝弧递减，走完一段切换下一段时重置）
@@ -89,17 +86,7 @@ internal fun FocusRingMiuix(
             strokeWidth = preferredRingSize * 0.03f,
             size = preferredRingSize,
         )
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 28.dp),
-        ) {
-            Text(
-                text = stageLabel,
-                style = MiuixTheme.textStyles.body2,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(8.dp))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = FocusManager.countdownText(remaining),
                 style = MiuixTheme.textStyles.title1.copy(fontSize = timeFontSize),
@@ -113,15 +100,7 @@ internal fun FocusRingMiuix(
                     style = MiuixTheme.textStyles.footnote1,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     textAlign = TextAlign.Center,
-                )
-            }
-            if (detailLabel.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = detailLabel,
-                    style = MiuixTheme.textStyles.footnote1,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp),
                 )
             }
         }
