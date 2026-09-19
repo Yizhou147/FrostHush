@@ -431,6 +431,7 @@ fun FocusScreenMiuix(
                     onSkipRest = {
                         if (isResting) Thread { FocusManager.skipRest() }.start()
                     },
+                    bottomInnerPadding = bottomInnerPadding,
                 )
             } else {
                 // ---------- 空闲 ----------
@@ -721,9 +722,9 @@ private fun AppGroupChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
-/** 专注进行中：阶段标题 + 大圆环（蓝弧 = 本段剩余比例，环心等宽倒计时与说明，见 [FocusRingMiuix]）
- *  + 已暂停应用数（不可打断，无退出入口）。内容整体垂直居中，对齐 HyperOS 系统时钟计时页。
- *  休息阶段提供「跳过休息」按钮（应用内入口，立即恢复下一段专注）。 */
+/** 专注进行中：大圆环（蓝弧 = 本段剩余比例、平滑走动；阶段标题/倒计时/本段说明/暂停应用数
+ *  全部置于环内，见 [FocusRingMiuix]）+ 「跳过休息」（仅休息段）。内容垂直居中，并按底栏高度
+ *  上移避让悬浮底栏。业务规则：专注不可打断，无退出入口。 */
 @Composable
 private fun ActiveFocusContentMiuix(
     remaining: Long,
@@ -735,9 +736,10 @@ private fun ActiveFocusContentMiuix(
     shizukuReady: Boolean,
     onConnectShizuku: () -> Unit,
     onSkipRest: () -> Unit,
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     val context = LocalContext.current
-    BoxWithConstraints(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInnerPadding)) {
         // 环尺寸按可用空间收缩（横屏/小屏防溢出），上限 240dp、下限 150dp
         val ringSize = minOf(240.dp, maxWidth * 0.8f, maxHeight * 0.45f).coerceAtLeast(150.dp)
         Column(
@@ -745,30 +747,20 @@ private fun ActiveFocusContentMiuix(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(
-                text = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
-                style = MiuixTheme.textStyles.title4,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            )
-            Spacer(Modifier.height(28.dp))
             FocusRingMiuix(
+                stageLabel = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
                 remaining = remaining,
                 segmentStartMillis = segmentStartMillis,
                 segmentEndMillis = segmentEndMillis,
                 subLabel = subLabel,
-                preferredRingSize = ringSize,
-            )
-            Spacer(Modifier.height(28.dp))
-            Text(
-                text = if (isResting) stringResource(R.string.focus_rest_apps_restored)
+                detailLabel = if (isResting) stringResource(R.string.focus_rest_apps_restored)
                 else context.resources.getQuantityString(
                     R.plurals.focus_apps_paused, pausedCount, pausedCount
                 ),
-                style = MiuixTheme.textStyles.body1,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                preferredRingSize = ringSize,
             )
             if (isResting) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(28.dp))
                 Button(onClick = onSkipRest) {
                     Text(stringResource(R.string.focus_skip_rest))
                 }
