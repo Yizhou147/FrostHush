@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,7 +37,9 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 专注环形倒计时（miuix 版，对齐 HyperOS 系统时钟计时页的观感）：
  * - 大圆环：蓝色弧（primary）= 本段剩余比例，随倒计时递减；轨道 secondaryContainer 浅灰
  * - 弧线平滑走动：倒计时每秒更新目标值，用 1s 线性补间连续逼近（实测逐秒跳变被用户反馈「一顿一顿」）；
- *   段切换/新会话（段起点变化）时比例从近 0 跳回近 1，直接落位不做回绕动画
+ *   两类时间跳变直接落位不做动画：① 段切换/新会话（段起点变化，比例从近 0 跳回近 1）；
+ *   ② 同段内比例大幅回退（进程冻结恢复/回到前台纠正 now，界面停在冻结前旧帧的场景，
+ *   用户实测「点进应用满环快速退到半环」——每次进入必须直接显示正确的倒计时环）
  * - 环心：等宽倒计时（防数字抖动）+ 本段/整场说明；阶段标题与暂停应用数由调用方放在环外
  *   （真机对比后用户定稿：全放环内太挤，回到第一版布局）
  *
@@ -64,13 +67,20 @@ internal fun FocusRingMiuix(
     } else {
         0f
     }
-    // 段切换检测：段起点变化 = 进休息/回专注/新会话，此时 snap 落位；段内每秒 1s 线性补间平滑走动
-    var lastSegmentStart by remember { mutableLongStateOf(segmentStartMillis) }
-    val segmentSwitched = lastSegmentStart != segmentStartMillis
-    SideEffect { lastSegmentStart = segmentStartMillis }
+    // 段切换/时间跳变检测（两类情况 snap 直接落位，其余每秒 1s 线性补间平滑走动）：
+    // ① 段起点变化 = 进休息/回专注/新会话，比例从近 0 跳回近 1，不回绕动画；
+    // ② 同段内比例大幅回退 = 时间跳变纠正——进程冻结恢复/ON_RESUME 纠正 now 时，界面停在冻结前
+    //    旧帧（如休息刚开始的满环），恢复瞬间剩余时间一帧跳掉数秒，若仍走补间会看到
+    //    「满环快速退到正确位置」（用户实测）；判据：回退超过 2 个走秒步进（正常每帧只走 1 秒）。
+    var prevTarget by remember { mutableFloatStateOf(progress) }
+    var prevSegmentStart by remember { mutableLongStateOf(segmentStartMillis) }
+    val totalSeconds = ((segmentEndMillis - segmentStartMillis) / 1000f).coerceAtLeast(1f)
+    val snapRequired = segmentStartMillis != prevSegmentStart ||
+        progress < prevTarget - 2f / totalSeconds
+    SideEffect { prevTarget = progress; prevSegmentStart = segmentStartMillis }
     val animProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = if (segmentSwitched) snap() else tween(durationMillis = 1000, easing = LinearEasing),
+        animationSpec = if (snapRequired) snap() else tween(durationMillis = 1000, easing = LinearEasing),
         label = "focusRingProgress",
     )
     // 时间字号/描边随环等比缩放：0.17 ≈ 280dp 环时 47.6sp（HH:MM:SS 八字符约 228dp，仍在环内径内）
