@@ -23,6 +23,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -72,7 +73,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -282,8 +282,15 @@ fun FocusScreenMiuix(
     }
 
     val activeSession = session
-    val remaining = activeSession?.phaseAt(now)?.remainingAt(now) ?: 0L
-    val isResting = activeSession != null && activeSession.phaseAt(now).type == FocusStore.SEGMENT_REST
+    val activePhase = activeSession?.phaseAt(now)
+    val remaining = activePhase?.remainingAt(now) ?: 0L
+    val isResting = activePhase != null && !activePhase.isFocus
+    // 环内说明文案：共 X 分钟 / 第 N/M 段 · 共 X 分钟 / 休息 X 分钟
+    val ringSubLabel = if (activeSession != null && activePhase != null) {
+        focusRingSubLabel(context, isResting, activeSession, activePhase.index)
+    } else {
+        ""
+    }
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     val scrollBehavior = MiuixScrollBehavior()
@@ -410,8 +417,11 @@ fun FocusScreenMiuix(
                 // ---------- 专注进行中 ----------
                 ActiveFocusContentMiuix(
                     remaining = remaining,
+                    segmentStartMillis = activePhase?.segmentStart ?: 0L,
+                    segmentEndMillis = activePhase?.segmentEnd ?: 0L,
+                    subLabel = ringSubLabel,
                     isResting = isResting,
-                    pausedCount = session!!.packages.size,
+                    pausedCount = activeSession?.packages?.size ?: 0,
                     shizukuReady = shizukuReady,
                     onConnectShizuku = {
                         if (shizukuState == ShizukuManager.State.NOT_CONNECTED) ShizukuManager.openShizukuApp(context)
@@ -711,11 +721,15 @@ private fun AppGroupChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
-/** 专注进行中：当前阶段（专注/休息）+ 剩余时间 + 已暂停应用数（不可打断，无退出入口）。
+/** 专注进行中：阶段标题 + 大圆环（蓝弧 = 本段剩余比例，环心等宽倒计时与说明，见 [FocusRingMiuix]）
+ *  + 已暂停应用数（不可打断，无退出入口）。内容整体垂直居中，对齐 HyperOS 系统时钟计时页。
  *  休息阶段提供「跳过休息」按钮（应用内入口，立即恢复下一段专注）。 */
 @Composable
 private fun ActiveFocusContentMiuix(
     remaining: Long,
+    segmentStartMillis: Long,
+    segmentEndMillis: Long,
+    subLabel: String,
     isResting: Boolean,
     pausedCount: Int,
     shizukuReady: Boolean,
@@ -723,44 +737,50 @@ private fun ActiveFocusContentMiuix(
     onSkipRest: () -> Unit,
 ) {
     val context = LocalContext.current
-    Column(
-        Modifier.fillMaxSize().padding(vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
-            style = MiuixTheme.textStyles.title4,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = FocusManager.countdownText(remaining),
-            style = MiuixTheme.textStyles.title1,
-            fontFamily = FontFamily.Monospace,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = if (isResting) stringResource(R.string.focus_rest_apps_restored)
-            else context.resources.getQuantityString(
-                R.plurals.focus_apps_paused, pausedCount, pausedCount
-            ),
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-        if (isResting) {
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onSkipRest) {
-                Text(stringResource(R.string.focus_skip_rest))
-            }
-        }
-        if (!shizukuReady) {
-            Spacer(Modifier.height(32.dp))
-            ShizukuBannerMiuix(
-                text = stringResource(R.string.focus_restore_prompt),
-                actionText = stringResource(R.string.focus_connect_shizuku),
-                onAction = onConnectShizuku,
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // 环尺寸按可用空间收缩（横屏/小屏防溢出），上限 240dp、下限 150dp
+        val ringSize = minOf(240.dp, maxWidth * 0.8f, maxHeight * 0.45f).coerceAtLeast(150.dp)
+        Column(
+            Modifier.fillMaxSize().padding(vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
+                style = MiuixTheme.textStyles.title4,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
+            Spacer(Modifier.height(28.dp))
+            FocusRingMiuix(
+                remaining = remaining,
+                segmentStartMillis = segmentStartMillis,
+                segmentEndMillis = segmentEndMillis,
+                subLabel = subLabel,
+                preferredRingSize = ringSize,
+            )
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = if (isResting) stringResource(R.string.focus_rest_apps_restored)
+                else context.resources.getQuantityString(
+                    R.plurals.focus_apps_paused, pausedCount, pausedCount
+                ),
+                style = MiuixTheme.textStyles.body1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            if (isResting) {
+                Spacer(Modifier.height(24.dp))
+                Button(onClick = onSkipRest) {
+                    Text(stringResource(R.string.focus_skip_rest))
+                }
+            }
+            if (!shizukuReady) {
+                Spacer(Modifier.height(32.dp))
+                ShizukuBannerMiuix(
+                    text = stringResource(R.string.focus_restore_prompt),
+                    actionText = stringResource(R.string.focus_connect_shizuku),
+                    onAction = onConnectShizuku,
+                )
+            }
         }
     }
 }

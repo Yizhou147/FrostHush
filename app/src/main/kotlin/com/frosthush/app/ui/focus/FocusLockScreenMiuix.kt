@@ -3,6 +3,7 @@ package com.frosthush.app.ui.focus
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -17,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -24,9 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.frosthush.app.R
@@ -46,6 +46,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  *
  * 专注锁屏 · miuix 版（HyperOS 设计语言）：全屏沉浸页，无 Scaffold / 顶栏，
  * 铺满屏幕的背景容器 + 居中内容，自行处理系统栏 inset。
+ * 内容对齐 HyperOS 系统时钟计时页：阶段标题 + 大圆环（蓝弧 = 本段剩余比例，环心等宽倒计时
+ * 与「共 X 分钟」类说明，见 [FocusRingMiuix]）+ 已暂停应用数；环尺寸随屏幕自适应。
  */
 @Composable
 fun FocusLockScreenMiuix(onFinished: () -> Unit) {
@@ -57,6 +59,10 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
     val phase by FocusManager.phase.collectAsState()
     var remaining by remember { mutableLongStateOf(0L) }
     var pausedCount by remember { mutableIntStateOf(0) }
+    // 环形所需的本段起止与说明文案（refresh 内随倒计时每秒更新）
+    var segmentStartMillis by remember { mutableLongStateOf(0L) }
+    var segmentEndMillis by remember { mutableLongStateOf(0L) }
+    var ringSubLabel by remember { mutableStateOf("") }
     val isRest = phase?.isFocus == false
 
     // 单次刷新：会话已被清理（服务已结束）时返回 false
@@ -69,6 +75,9 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
         val phaseInfo = current ?: session.phaseAt(System.currentTimeMillis())
         remaining = phaseInfo.remainingAt(System.currentTimeMillis())
         pausedCount = session.packages.size
+        segmentStartMillis = phaseInfo.segmentStart
+        segmentEndMillis = phaseInfo.segmentEnd
+        ringSubLabel = focusRingSubLabel(context, !phaseInfo.isFocus, session, phaseInfo.index)
         // 诊断打点（抓 00:00 bug 现场）：仅异常状态记录，正常不刷日志——
         // 会话存在但 phase 为空 / remaining 归 0 时每秒留一条，配合 FocusService 的
         // tick 异常日志即可还原"锁屏 00:00"是 phase 停更还是 UI 层问题
@@ -103,7 +112,7 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
     BackHandler { }
 
     // 全屏沉浸容器：铺满屏幕并自绘不透明背景，内容整体居中
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             // 不透明背景遮住下层内容
@@ -120,21 +129,24 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
             .padding(32.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // 环尺寸按可用空间收缩（横屏/小屏防溢出），上限 280dp、下限 160dp
+        val ringSize = minOf(280.dp, maxWidth * 0.85f, maxHeight * 0.5f).coerceAtLeast(160.dp)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = stringResource(if (isRest) R.string.focus_rest_title else R.string.focus_lock_title),
-                style = MiuixTheme.textStyles.title2,
+                style = MiuixTheme.textStyles.title4,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
-            Spacer(Modifier.height(24.dp))
-            // 大号倒计时：title1 放大，等宽字体保证数字跳动时不抖动
-            Text(
-                text = FocusManager.countdownText(remaining),
-                style = MiuixTheme.textStyles.title1.copy(fontSize = 56.sp),
-                color = MiuixTheme.colorScheme.onBackground,
-                fontFamily = FontFamily.Monospace,
+            Spacer(Modifier.height(28.dp))
+            // 大圆环：蓝弧 = 本段剩余比例，环心等宽倒计时 + 本段/整场说明
+            FocusRingMiuix(
+                remaining = remaining,
+                segmentStartMillis = segmentStartMillis,
+                segmentEndMillis = segmentEndMillis,
+                subLabel = ringSubLabel,
+                preferredRingSize = ringSize,
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
             Text(
                 text = context.resources.getQuantityString(R.plurals.focus_apps_paused, pausedCount, pausedCount),
                 style = MiuixTheme.textStyles.body1,
