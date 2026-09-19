@@ -387,7 +387,9 @@ fun FocusScreenMiuix(
             ) {
                 Button(
                     onClick = { showDurationDialog = true },
-                    modifier = Modifier.padding(bottom = bottomInnerPadding),
+                    // miuix Scaffold 给 FAB 的右/下默认边距是 12dp，页面内容白边为 16dp：
+                    // 补 5dp 让按钮右缘略微超过白边一点（用户定稿）
+                    modifier = Modifier.padding(bottom = bottomInnerPadding).padding(end = 5.dp),
                     // HyperOS 观感：主操作用中性胶囊（同应用集 chip 未选中态），避免大块主色
                     colors = ButtonDefaults.buttonColors(),
                     insideMargin = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
