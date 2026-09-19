@@ -1235,7 +1235,8 @@ private fun FocusTimeDialogMiuix(
 
 /** 预设快捷选择 chips：显示「名称」（保存时必填；旧数据空名回退段序列）；
  *  固定两行、每行横向滑动（预设多时对话框高度恒定，不再被 FlowRow 撑乱）；
- *  两行按显示名字符数贪心均分（保持原顺序，依次放入累计字符较少的行），使两行长度接近（用户定稿）；
+ *  分行在**保持预设顺序**的前提下取累计字符数最接近均分的分割点（第一行前 k 个、第二行其余），
+ *  两行长度接近且显示顺序 = 预设顺序——不能按字符交替均分，那会把管理预设拖好的顺序打乱（真机反馈）；
  *  与当前分段完全一致时高亮 */
 @Composable
 private fun FocusPresetChipsMiuix(
@@ -1244,15 +1245,24 @@ private fun FocusPresetChipsMiuix(
     onSelect: (FocusStore.FocusPreset) -> Unit,
 ) {
     val rows = remember(presets) {
-        val lists = List(2) { mutableListOf<FocusStore.FocusPreset>() }
-        val totals = intArrayOf(0, 0)
-        presets.forEach { preset ->
-            val length = preset.name.ifBlank { preset.sequenceText }.length
-            val target = if (totals[0] <= totals[1]) 0 else 1
-            lists[target].add(preset)
-            totals[target] += length
+        val lengths = presets.map { it.name.ifBlank { it.sequenceText }.length }
+        val total = lengths.sum()
+        // 遍历分割点 k：前 k 个的字符和与剩余的差值最小者，即两行最平衡且保持顺序
+        var best = 0
+        var bestDiff = Int.MAX_VALUE
+        var prefix = 0
+        for (k in 0..presets.size) {
+            val diff = Math.abs(total - 2 * prefix)
+            if (diff < bestDiff) {
+                bestDiff = diff
+                best = k
+            }
+            if (k < presets.size) prefix += lengths[k]
         }
-        lists.filter { it.isNotEmpty() }
+        listOf(
+            presets.subList(0, best),
+            presets.subList(best, presets.size),
+        ).filter { it.isNotEmpty() }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { rowPresets ->

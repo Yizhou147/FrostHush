@@ -84,7 +84,7 @@ fun SegmentRowMiuix(
         contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
     ) {
         Row(
-            Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(accent))
