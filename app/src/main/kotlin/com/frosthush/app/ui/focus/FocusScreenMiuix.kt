@@ -25,8 +25,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1235,36 +1233,51 @@ private fun FocusTimeDialogMiuix(
         )
 }
 
-/** 预设快捷选择 chips：显示「名称 段序列」（如「午休 30」「番茄 25+5+25」）；
- *  点击应用整个分段列表；与当前分段完全一致时高亮 */
-@OptIn(ExperimentalLayoutApi::class)
+/** 预设快捷选择 chips：显示「名称」（保存时必填；旧数据空名回退段序列）；
+ *  固定两行、每行横向滑动（预设多时对话框高度恒定，不再被 FlowRow 撑乱）；
+ *  两行按显示名字符数贪心均分（保持原顺序，依次放入累计字符较少的行），使两行长度接近（用户定稿）；
+ *  与当前分段完全一致时高亮 */
 @Composable
 private fun FocusPresetChipsMiuix(
     segments: List<FocusStore.Segment>,
     presets: List<FocusStore.FocusPreset>,
     onSelect: (FocusStore.FocusPreset) -> Unit,
 ) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    val rows = remember(presets) {
+        val lists = List(2) { mutableListOf<FocusStore.FocusPreset>() }
+        val totals = intArrayOf(0, 0)
         presets.forEach { preset ->
-            Button(
-                onClick = { onSelect(preset) },
-                // 选中态用 miuix 下拉选中语义色（tertiaryContainer 浅蓝底 + onTertiaryContainer 深字），
-                // 不用饱和蓝 buttonColorsPrimary（规范：primary 不作选中底色）
-                colors = if (preset.segmentList == segments) ButtonDefaults.buttonColors(
-                    color = MiuixTheme.colorScheme.tertiaryContainer,
-                    contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
-                ) else ButtonDefaults.buttonColors(),
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            val length = preset.name.ifBlank { preset.sequenceText }.length
+            val target = if (totals[0] <= totals[1]) 0 else 1
+            lists[target].add(preset)
+            totals[target] += length
+        }
+        lists.filter { it.isNotEmpty() }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { rowPresets ->
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
-                    text = preset.name.ifBlank { preset.sequenceText },
-                    style = MiuixTheme.textStyles.button,
-                )
+                rowPresets.forEach { preset ->
+                    Button(
+                        onClick = { onSelect(preset) },
+                        // 选中态用 miuix 下拉选中语义色（tertiaryContainer 浅蓝底 + onTertiaryContainer 深字），
+                        // 不用饱和蓝 buttonColorsPrimary（规范：primary 不作选中底色）
+                        colors = if (preset.segmentList == segments) ButtonDefaults.buttonColors(
+                            color = MiuixTheme.colorScheme.tertiaryContainer,
+                            contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
+                        ) else ButtonDefaults.buttonColors(),
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                            text = preset.name.ifBlank { preset.sequenceText },
+                            style = MiuixTheme.textStyles.button,
+                        )
+                    }
+                }
             }
         }
     }

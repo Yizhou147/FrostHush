@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,7 +50,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 供 miuix 页面的「开始专注 / 计划编辑」使用，避免对话框里出现原生 Android 样式。
  */
 
-/** 分段编辑器单行（miuix）：类型色点 + 标签 +（可选）起止时间 + 时长胶囊 + 删除 */
+/**
+ * 分段编辑器单行（miuix）：类型色点 + 标签 +（可选）起止时间 + 时长胶囊 + 删除。
+ * 对齐约定（用户反馈改进）：类型标签固定 44dp 列；时间数字用等宽数字（tnum）保证各行同宽；
+ * 时长胶囊最小 88dp、右对齐成一列，数字位数变化不挪位；删除按钮与无删除占位统一 44dp，
+ * 有无删除按钮的行其余元素位置完全一致。
+ */
 @Composable
 fun SegmentRowMiuix(
     segment: FocusStore.Segment,
@@ -68,6 +74,9 @@ fun SegmentRowMiuix(
     } else {
         MiuixTheme.colorScheme.onSurfaceVariantSummary
     }
+    // 等宽数字：起止时间与时长各行同宽，跨行严格对齐（用户反馈「几点到几点没对齐」的根因之一）
+    val timeStyle = MiuixTheme.textStyles.body1.copy(fontFeatureSettings = "tnum")
+    val pillStyle = MiuixTheme.textStyles.body2.copy(fontFeatureSettings = "tnum")
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         shape = RoundedCornerShape(12.dp),
@@ -75,22 +84,25 @@ fun SegmentRowMiuix(
         contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
     ) {
         Row(
-            Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+            Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(accent))
             Spacer(Modifier.width(10.dp))
-            Text(
-                text = stringResource(if (isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest),
-                style = MiuixTheme.textStyles.subtitle,
-                color = if (isFocus) MiuixTheme.colorScheme.onSurfaceContainer else accent,
-            )
+            // 类型标签固定列宽（中英文标签宽度不同也能对齐）
+            Box(Modifier.width(44.dp)) {
+                Text(
+                    text = stringResource(if (isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest),
+                    style = MiuixTheme.textStyles.body1,
+                    color = if (isFocus) MiuixTheme.colorScheme.onSurfaceContainer else accent,
+                )
+            }
             // 起止时间：结束时间可点 → 弹时间选择器（仅计划页）
             if (startTimeText != null && endTimeText != null) {
                 Spacer(Modifier.width(10.dp))
                 Text(
                     text = "$startTimeText → ",
-                    style = MiuixTheme.textStyles.footnote1,
+                    style = timeStyle,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
                 if (endTimeEditable) {
@@ -102,7 +114,7 @@ fun SegmentRowMiuix(
                     ) {
                         Text(
                             text = endTimeText,
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = pillStyle,
                             maxLines = 1,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                         )
@@ -110,14 +122,14 @@ fun SegmentRowMiuix(
                 } else {
                     Text(
                         text = endTimeText,
-                        style = MiuixTheme.textStyles.footnote1,
+                        style = pillStyle,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
                     )
                 }
             }
             Spacer(Modifier.weight(1f))
-            // 时长胶囊按钮：点击弹数字输入对话框
+            // 时长胶囊按钮：点击弹数字输入对话框；最小 88dp 居中，跨行对齐成一列
             Surface(
                 onClick = onClickDuration,
                 shape = RoundedCornerShape(10.dp),
@@ -125,20 +137,20 @@ fun SegmentRowMiuix(
                 contentColor = MiuixTheme.colorScheme.onSurfaceContainerHigh,
             ) {
                 Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    Modifier.widthIn(min = 88.dp).padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = segment.minutes.toString(), style = MiuixTheme.textStyles.body1)
-                    Spacer(Modifier.width(2.dp))
+                    Text(text = segment.minutes.toString(), style = timeStyle)
+                    Spacer(Modifier.width(3.dp))
                     Text(
                         text = stringResource(R.string.focus_time_unit),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        style = MiuixTheme.textStyles.body2,
                     )
                 }
             }
             if (deletable) {
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(44.dp)) {
                     Icon(
                         imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.action_delete),
@@ -146,8 +158,8 @@ fun SegmentRowMiuix(
                     )
                 }
             } else {
-                // 固定占位，避免出现/隐藏删除按钮时行宽跳动
-                Spacer(Modifier.size(48.dp))
+                // 固定占位（与删除按钮同宽），避免出现/隐藏删除按钮时行宽跳动
+                Spacer(Modifier.size(44.dp))
             }
         }
     }
