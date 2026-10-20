@@ -148,13 +148,20 @@ class FocusService : Service() {
      * cancelStaleFocusNotifications 撤销上一阶段与历史遗留 id，保证通知栏始终只有一条专注通知。
      */
     private fun postFocusNotification(notification: Notification, scene: String) {
+        val previousId = activeNotificationId
         activeNotificationId = nextNotificationId()
-        runCatching { startForeground(activeNotificationId, notification) }
+        val posted = runCatching { startForeground(activeNotificationId, notification) }
             .onFailure { e ->
                 DebugLog.e("Focus", "$scene startForeground 失败 id=$activeNotificationId", e)
                 // 兜底：前台服务启动失败时至少留下普通通知，便于定位问题
                 runCatching { NotificationManagerCompat.from(this).notify(activeNotificationId, notification) }
             }
+            .isSuccess
+        // 显式撤销上一条（启动占位 100 / 上一阶段 id）；startForeground 成功后再撤，避免失败时连旧前台通知也丢掉
+        if (posted && previousId != activeNotificationId) {
+            runCatching { NotificationManagerCompat.from(this).cancel(previousId) }
+                .onFailure { DebugLog.e("Focus", "$scene 撤销上一条通知失败 id=$previousId", it) }
+        }
         cancelStaleFocusNotifications(keepId = activeNotificationId)
     }
 
@@ -174,8 +181,14 @@ class FocusService : Service() {
         runCatching {
             val manager = getSystemService(NotificationManager::class.java)
             val removed = manager.activeNotifications.filter { sbn ->
+                val sameChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    sbn.notification.channelId == channelID
+                } else {
+                    // pre-O 没有 channel，按 id 段识别：旧版阶段通知 100..199 / 新版 >=2_000_000
+                    sbn.id in 100..199 || sbn.id >= PHASE_ID_OFFSET
+                }
                 sbn.packageName == packageName &&
-                    sbn.notification.channelId == channelID &&
+                    sameChannel &&
                     sbn.id != 0 &&
                     (keepId == null || sbn.id != keepId)
             }
