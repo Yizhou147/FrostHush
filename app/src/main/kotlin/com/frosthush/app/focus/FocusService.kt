@@ -1,6 +1,7 @@
 package com.frosthush.app.focus
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -37,6 +38,7 @@ import com.frosthush.app.util.DebugLog
  * - 进入休息段：解除暂停全部应用（锁屏随之隐藏，可自由使用手机）
  * - 进入专注段：重新暂停全部应用（锁屏重新覆盖）
  * - 最后一段专注结束：恢复并结束会话
+ * - 通知：用新 id 发布新 key（岛滑入），发布成功后撤销本频道其余旧通知（始终只有一条）
  * 岛倒计时在每个阶段开始时重新锚定（timerWhen=本阶段结束时间）。
  * 进程被杀后由 START_STICKY / Boot 接收器兜底（恢复逻辑按当前阶段纠正挂起状态）。
  */
@@ -48,6 +50,9 @@ class FocusService : Service() {
 
     /** 上次 tick 的阶段索引：变化时执行暂停/解除切换与提醒 */
     private var lastPhaseIndex = -1
+
+    /** 本进程最近一次发出的阶段通知 id：保证同一毫秒内连续发布也不会撞 key */
+    private var lastIssuedNotificationId = 0
 
     // timerSystemCurrent 锚点：每个阶段开始时固定一次，阶段内岛参数完全一致
     private var islandTimerAnchor = 0L
@@ -88,8 +93,8 @@ class FocusService : Service() {
                 Thread { FocusManager.restoreAndEnd() }.start()
                 return false
             }
-            // 阶段切换：暂停/解除应用 + 重锚定岛 + 换新 ID 重新发布岛通知（新 key → 打断 → 岛滑入）。
-            // 提醒由岛滑入承担，不再发独立 heads-up 通知
+            // 阶段切换：暂停/解除应用 + 重锚定岛 + 换新 ID 重新发布岛通知（新 key → 打断 → 岛滑入），
+            // 发布成功后撤销上一阶段 id。提醒由岛滑入承担，不再发独立 heads-up 通知
             if (phase.index != lastPhaseIndex) {
                 DebugLog.d(
                     "Focus", "tick 阶段切换 index=${phase.index} type=${phase.type} " +
@@ -99,9 +104,7 @@ class FocusService : Service() {
                 islandTimerAnchor = now
                 Thread { FocusManager.applySuspensionByPhase(session) }.start()
                 val notification = buildNotification(phase, session)
-                activeNotificationId++
-                runCatching { startForeground(activeNotificationId, notification) }
-                runCatching { NotificationManagerCompat.from(this@FocusService).notify(activeNotificationId, notification) }
+                postFocusNotification(notification, "阶段切换 index=${phase.index}")
             } else if (!islandEnabled) {
                 // 普通通知：每秒 notify 更新 contentText 倒计时（焦点通知不每秒 notify，岛走原生 chronometer）
                 val notification = buildNotification(phase, session)
@@ -114,8 +117,7 @@ class FocusService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // 前台服务必须成功启动：startForegroundService 后若 5 秒内未调用 startForeground，
         // 系统会抛 ForegroundServiceDidNotStartInTimeException 直接闪退。
-        // 因此 notify（通知权限被拒时会抛 SecurityException）与 startForeground 分开保护，
-        // notify 失败绝不能连带跳过 startForeground。
+        // 发布统一走 postFocusNotification：startForeground 失败时记日志并兜底 notify。
         islandTimerAnchor = System.currentTimeMillis()
         val session = FocusStore.activeSession()
         val phase = session?.phaseAt(System.currentTimeMillis())
@@ -128,10 +130,7 @@ class FocusService : Service() {
         FocusManager.phase.value = phase
         runCatching { createNotificationChannel() }
         val notification = runCatching { buildNotification(phase, session) }.getOrElse { fallbackNotification() }
-        // 新一场专注从 100 号重新开始（与旧实现一致：back-to-back 会话各自首条通知同 id）
-        activeNotificationId = NOTIFICATION_ID
-        runCatching { NotificationManagerCompat.from(this).notify(activeNotificationId, notification) }
-        runCatching { startForeground(activeNotificationId, notification) }
+        postFocusNotification(notification, "onStartCommand")
         // 进程被杀后 START_STICKY 重启：按当前阶段纠正挂起状态（幂等，防止边界状态下状态丢失）
         if (session != null) Thread { FocusManager.applySuspensionByPhase(session) }.start()
         // 同一服务实例可能被重复启动（开机时 App.onCreate 与 BootReceiver 两条后台线程都会走恢复）：
@@ -139,6 +138,55 @@ class FocusService : Service() {
         handler.removeCallbacksAndMessages(null)
         handler.post(tickRunnable)
         return START_STICKY
+    }
+
+    /**
+     * 发布当前阶段的前台通知并清掉本频道其余旧通知。
+     *
+     * 每次发布都重新派生 id（新 key）：HyperOS FocusPlugin 的 hasEverExpandedKeys 按 key 记录
+     * "曾经展开过"且进程内永不清除，复用旧 key 会按更新处理、岛不再滑入/展开。发布成功后立即
+     * cancelStaleFocusNotifications 撤销上一阶段与历史遗留 id，保证通知栏始终只有一条专注通知。
+     */
+    private fun postFocusNotification(notification: Notification, scene: String) {
+        activeNotificationId = nextNotificationId()
+        runCatching { startForeground(activeNotificationId, notification) }
+            .onFailure { e ->
+                DebugLog.e("Focus", "$scene startForeground 失败 id=$activeNotificationId", e)
+                // 兜底：前台服务启动失败时至少留下普通通知，便于定位问题
+                runCatching { NotificationManagerCompat.from(this).notify(activeNotificationId, notification) }
+            }
+        cancelStaleFocusNotifications(keepId = activeNotificationId)
+    }
+
+    /**
+     * 阶段通知 id：从 2_000_000 起，避开结束通知的 1000..1_000_999 区间；
+     * 按毫秒时间戳派生，跨会话不会复用同一个 key。
+     */
+    private fun nextNotificationId(): Int {
+        val candidate = PHASE_ID_OFFSET + (System.currentTimeMillis() % PHASE_ID_MODULUS).toInt()
+        val id = if (candidate <= lastIssuedNotificationId) lastIssuedNotificationId + 1 else candidate
+        lastIssuedNotificationId = id
+        return id
+    }
+
+    /** 清掉本应用 FocusService 频道下的遗留通知（旧版本阶段切换未撤销的 100..10N、进程重启残留等） */
+    private fun cancelStaleFocusNotifications(keepId: Int? = null) {
+        runCatching {
+            val manager = getSystemService(NotificationManager::class.java)
+            val removed = manager.activeNotifications.filter { sbn ->
+                sbn.packageName == packageName &&
+                    sbn.notification.channelId == channelID &&
+                    sbn.id != 0 &&
+                    (keepId == null || sbn.id != keepId)
+            }
+            removed.forEach { manager.cancel(it.tag, it.id) }
+            if (removed.isNotEmpty()) {
+                DebugLog.d(
+                    "Focus",
+                    "清理残留专注通知 keep=$keepId removed=${removed.joinToString(",") { it.id.toString() }}"
+                )
+            }
+        }.onFailure { DebugLog.e("Focus", "清理残留专注通知失败", it) }
     }
 
     /** 更新前台服务通知。普通通知与焦点通知（超级岛）严格分开处理：
@@ -227,21 +275,28 @@ class FocusService : Service() {
     }
 
     companion object {
-        private const val NOTIFICATION_ID = 100
+        /** 服务发布首条通知前的占位 id；真正发布时由 nextNotificationId() 派生 */
+        private const val INITIAL_NOTIFICATION_ID = 100
+        /** 阶段通知 id 基址：避开结束通知的 1000..1_000_999 区间 */
+        private const val PHASE_ID_OFFSET = 2_000_000
+        /** 毫秒时间戳取模，约 11.6 天一轮；每场开始都会清理旧 key，不会跨轮复用 */
+        private const val PHASE_ID_MODULUS = 1_000_000_000L
         private const val FINISH_CHANNEL_ID = "focus_finished"
 
         const val ACTION_SKIP_REST = "com.frosthush.app.focus.SKIP_REST"
         const val REQUEST_SKIP_REST = 5001
 
         /**
-         * 当前前台服务通知 id：阶段切换时递增换新 ID 重新发布 → 新 key → 岛展开态滑入（对齐番茄Todo）；
-         * 不能用 cancel+旧 ID 重建（HyperOS 焦点通知对同 key 重建会过滤导致岛消失）。
-         * 会话结束时 FocusManager 要显式 cancel 掉这条"专注中"岛再发结束岛：焦点通知不响应 autoCancel，
+         * 当前前台服务通知 id：每次发布（会话开始/阶段切换/进程重启）都派生新 id → 新 key → 岛滑入。
+         * 不能复用旧 id：HyperOS FocusPlugin 的 hasEverExpandedKeys 按 key 记录展开状态且永不清除，
+         * 同 key 再次发布会按"更新"处理，岛不再浮动（结束通知早已采用同样策略）。
+         * 发布成功后由 cancelStaleFocusNotifications 撤销上一阶段 id，保证通知栏始终只有一条。
+         * 会话结束时 FocusManager 显式 cancel 该 id 再发结束岛：焦点通知不响应 autoCancel，
          * 只等服务 onDestroy 的 stopForeground(REMOVE) 会晚到，期间两条焦点通知同时挂着
          * （2026-09-14 日志实测共存约 6s）。写入方仍只有本服务。
          */
         @Volatile
-        var activeNotificationId: Int = NOTIFICATION_ID
+        var activeNotificationId: Int = INITIAL_NOTIFICATION_ID
             private set
     }
 }
