@@ -37,11 +37,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import com.frosthush.app.ui.component.NumberPickerMiuix
 import com.frosthush.app.ui.settings.NumberFieldMiuix
 import com.frosthush.app.data.FocusStore
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -296,6 +296,10 @@ fun MiuixTimePickerDialog(
     // 复用同一对话框调不同段的时间时会显示上一次的值——同 SegmentMinutesDialogMiuix 的做法）
     var hour by remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
     var minute by remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
+    // 确认时取「当前正对项」：滚轮还在惯性滑动时点确定也能指哪打哪。picked* 只在回调/点击里
+    // 读写、不参与组合读取，滚动中写入不会触发对话框重组；hour/minute 仍是滚轮停稳后的锚点值。
+    val pickedHour = remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
+    val pickedMinute = remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
     OverlayDialog(
         show = show,
         title = stringResource(R.string.plan_time_title),
@@ -307,18 +311,20 @@ fun MiuixTimePickerDialog(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                NumberPicker(
+                NumberPickerMiuix(
                     value = hour,
-                    onValueChange = { hour = it },
+                    onValueChange = { hour = it; pickedHour.intValue = it },
+                    onScrollValueChange = { pickedHour.intValue = it },
                     range = 0..23,
                     label = { it.toString().padStart(2, '0') },
                     wrapAround = true,
                     modifier = Modifier.weight(1f),
                 )
                 Text(text = ":", style = MiuixTheme.textStyles.title3)
-                NumberPicker(
+                NumberPickerMiuix(
                     value = minute,
-                    onValueChange = { minute = it },
+                    onValueChange = { minute = it; pickedMinute.intValue = it },
+                    onScrollValueChange = { pickedMinute.intValue = it },
                     range = 0..59,
                     label = { it.toString().padStart(2, '0') },
                     wrapAround = true,
@@ -334,7 +340,7 @@ fun MiuixTimePickerDialog(
                 )
                 TextButton(
                     text = stringResource(R.string.action_confirm),
-                    onClick = { onConfirm(hour, minute) },
+                    onClick = { onConfirm(pickedHour.intValue, pickedMinute.intValue) },
                     modifier = Modifier.weight(1f),
                 )
             }
