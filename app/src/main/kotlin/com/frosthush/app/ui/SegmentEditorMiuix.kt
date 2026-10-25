@@ -58,9 +58,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 分段编辑器单行（miuix）：类型色点 + 标签 +（可选）起止时间 + 时长胶囊 + 删除。
- * 对齐约定（用户反馈改进）：类型标签固定 44dp 列；时间数字用等宽数字（tnum）保证各行同宽；
- * 时长胶囊最小 88dp、右对齐成一列，数字位数变化不挪位；删除按钮与无删除占位统一 44dp，
- * 有无删除按钮的行其余元素位置完全一致。
+ * 对齐约定（用户反馈改进）：类型标签固定 40dp 列；时间数字用等宽数字（tnum）保证各行同宽；
+ * 时长胶囊最小 80dp、右对齐成一列，数字位数变化不挪位；删除按钮与无删除占位统一 40dp，
+ * 有无删除按钮的行其余元素位置完全一致；结束时间与时长胶囊之间保留固定 8dp（手机宽度下
+ * weight 会被挤成 0，两胶囊会贴在一起）。
  */
 @Composable
 fun SegmentRowMiuix(
@@ -90,13 +91,13 @@ fun SegmentRowMiuix(
         contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
     ) {
         Row(
-            Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+            Modifier.padding(start = 10.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(accent))
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             // 类型标签固定列宽（中英文标签宽度不同也能对齐）
-            Box(Modifier.width(44.dp)) {
+            Box(Modifier.width(40.dp)) {
                 Text(
                     text = stringResource(if (isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest),
                     style = MiuixTheme.textStyles.body1,
@@ -105,7 +106,7 @@ fun SegmentRowMiuix(
             }
             // 起止时间：结束时间可点 → 弹时间选择器（仅计划页）
             if (startTimeText != null && endTimeText != null) {
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = "$startTimeText → ",
                     style = timeStyle,
@@ -134,8 +135,11 @@ fun SegmentRowMiuix(
                     )
                 }
             }
+            // 结束时间与时长胶囊之间保留固定 8dp：手机宽度下 weight 会被挤成 0，
+            // 若只靠 weight 两个胶囊会贴在一起（真机反馈）
+            Spacer(Modifier.width(8.dp))
             Spacer(Modifier.weight(1f))
-            // 时长胶囊按钮：点击弹数字输入对话框；最小 88dp 居中，跨行对齐成一列
+            // 时长胶囊按钮：点击弹数字输入对话框；最小 80dp 居中，跨行对齐成一列
             Surface(
                 onClick = onClickDuration,
                 shape = RoundedCornerShape(10.dp),
@@ -143,7 +147,7 @@ fun SegmentRowMiuix(
                 contentColor = MiuixTheme.colorScheme.onSurfaceContainerHigh,
             ) {
                 Row(
-                    Modifier.widthIn(min = 88.dp).padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier.widthIn(min = 80.dp).padding(horizontal = 10.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -156,7 +160,7 @@ fun SegmentRowMiuix(
                 }
             }
             if (deletable) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.action_delete),
@@ -165,7 +169,7 @@ fun SegmentRowMiuix(
                 }
             } else {
                 // 固定占位（与删除按钮同宽），避免出现/隐藏删除按钮时行宽跳动
-                Spacer(Modifier.size(44.dp))
+                Spacer(Modifier.size(40.dp))
             }
         }
     }
