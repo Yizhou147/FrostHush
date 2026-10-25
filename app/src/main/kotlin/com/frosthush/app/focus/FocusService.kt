@@ -238,7 +238,14 @@ class FocusService : Service() {
             runCatching {
                 val endMillis = phase?.segmentEnd ?: session?.endMillis ?: System.currentTimeMillis()
                 val anchor = if (islandTimerAnchor > 0L) islandTimerAnchor else System.currentTimeMillis()
-                builder.addExtras(MiuiIsland.buildIslandExtras(this, frontTitle, frontTitle, endMillis, anchor))
+                // islandTimeout 用 Int.MAX_VALUE：单段专注可超过 1 小时，而阶段内不重复 notify，
+                // 沿用番茄Todo 的 3600s 会在第 60 分钟被 SystemUI 按时撤岛（超 1h 会话岛消失）。
+                builder.addExtras(
+                    MiuiIsland.buildIslandExtras(
+                        this, frontTitle, frontTitle, endMillis, anchor,
+                        islandTimeoutSecs = Int.MAX_VALUE,
+                    )
+                )
             }
         } else {
             // 普通通知：下行 contentText=格式化倒计时（每秒 notify 更新），setOnlyAlertOnce 防每秒提醒
