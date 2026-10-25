@@ -33,6 +33,7 @@ import com.frosthush.app.data.QuickFocusStore
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.FocusWidgetProvider
 import com.frosthush.app.focus.QuickFocus
+import com.frosthush.app.ui.DisableWindowImePanEffect
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -282,6 +283,7 @@ private fun MiuixWidgetDurationsDialog(
         if (wide) QuickFocusStore.widgetWideMinutes() else QuickFocusStore.widgetSmallMinutes()
     }
     var inputs by remember(show, wide) { mutableStateOf(initial.map { it.toString() }) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(show = show, title = title, onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth()) {
             Text(
@@ -339,6 +341,7 @@ private fun MiuixQuickShortcutsDialog(
     var labels by remember(show) { mutableStateOf(initial.map { it.label }) }
     var minutes by remember(show) { mutableStateOf(initial.map { it.minutes.toString() }) }
     var enabled by remember(show) { mutableStateOf(initial.map { it.enabled }) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = stringResource(R.string.settings_quick_entry_title),
@@ -441,6 +444,7 @@ private fun MiuixDurationDialog(
 ) {
     val context = LocalContext.current
     var input by remember(show) { mutableStateOf(selected.toString()) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = title,
@@ -487,6 +491,7 @@ private fun MiuixRemindDialog(
 ) {
     val context = LocalContext.current
     var input by remember(show) { mutableStateOf(selected.toString()) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = stringResource(R.string.settings_plan_remind),

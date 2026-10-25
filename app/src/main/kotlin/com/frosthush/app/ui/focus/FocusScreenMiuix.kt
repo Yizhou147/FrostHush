@@ -87,6 +87,7 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.ui.DisableWindowImePanEffect
 import com.frosthush.app.ui.WarningDefaults
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
@@ -1307,6 +1308,7 @@ private fun PresetSaveDialogMiuix(show: Boolean, segments: List<FocusStore.Segme
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     val total = segments.sumOf { it.minutes }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = stringResource(R.string.action_save_preset),
