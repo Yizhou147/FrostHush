@@ -1,5 +1,9 @@
 package com.frosthush.app.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -193,6 +199,33 @@ fun SegmentRatioBarMiuix(segments: List<FocusStore.Segment>) {
     }
 }
 
+/**
+ * miuix OverlayDialog 与页面共用 Activity 窗口（不是独立 Dialog），而窗口默认 softInputMode
+ * 是 adjustPan：键盘弹出时系统先把整个窗口上移一次，DialogContentLayout 自己的 imePadding
+ * 又按键盘高度抬一次 → 打开数字输入框瞬间整页「异常抬高」，随便输入一个字触发 pan 重算才回位。
+ * 该对话框显示期间临时关掉窗口平移，只保留 imePadding 定位；关闭时恢复原 softInputMode。
+ */
+@Composable
+internal fun DisableWindowImePanEffect(show: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(show, view) {
+        val window = view.context.findActivity()?.window
+        val original = window?.attributes?.softInputMode
+        if (show) {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        }
+        onDispose {
+            if (original != null) window?.setSoftInputMode(original)
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 /** 分段时长数字输入对话框（miuix）：title 传段类型标题，range 校验范围 */
 @Composable
 fun SegmentMinutesDialogMiuix(
@@ -205,6 +238,7 @@ fun SegmentMinutesDialogMiuix(
 ) {
     val context = LocalContext.current
     var input by remember(show) { mutableStateOf(selected.toString()) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = title,
