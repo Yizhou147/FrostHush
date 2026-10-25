@@ -12,13 +12,22 @@ import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.FocusWidgetProvider
 import com.frosthush.app.focus.QuickFocus
 import com.frosthush.app.util.DebugLog
+import androidx.compose.ui.AndroidComposeUiFlags
+import androidx.compose.ui.ExperimentalComposeUiApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
+@OptIn(ExperimentalComposeUiApi::class)
 class FrostHushApp : Application() {
 
     override fun onCreate() {
+        // Compose 1.12 默认把文本输入命令交给「帧外调度器」立即处理：切换输入框时旧编辑器的
+        // stopInput(hide) 与新编辑器的 startInput(show) 会被拆成两次，IME 收到 hide+show
+        // 就会重播弹出动画（微信输入法实测每次切换都重播，dumpsys input_method 可见
+        // HIDE_SOFT_INPUT → 数毫秒后 SHOW_SOFT_INPUT）。关掉后回到帧内 postOnAnimation 合并，
+        // 同一帧的 stop+start 变成一次 restart+show，不再收起键盘。
+        AndroidComposeUiFlags.isOutOfFrameSchedulerForTextInputEventsEnabled = false
         super.onCreate()
         app = this
         DebugLog.d("Lifecycle", "Application.onCreate 进程启动 now=${System.currentTimeMillis()}")
