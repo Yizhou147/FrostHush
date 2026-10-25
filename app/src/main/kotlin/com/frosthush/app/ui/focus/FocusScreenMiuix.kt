@@ -169,6 +169,8 @@ fun FocusScreenMiuix(
     // 空闲时仍处于暂停状态的应用数（Shizuku 崩溃等导致专注结束后未能解冻，>0 时显示恢复横幅）
     var suspendedCount by remember { mutableStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // 每次回到前台自增：环形据此无条件落位到当前进度（禁止进入时缓慢扫到当前值）
+    var entryToken by remember { mutableIntStateOf(0) }
     var pendingSegments by remember {
         mutableStateOf(listOf(FocusStore.Segment(FocusStore.SEGMENT_FOCUS, defaultMinutes)))
     }
@@ -260,6 +262,7 @@ fun FocusScreenMiuix(
     // 不会执行，界面会停在冻结前那一帧（实测卡在 00:06），须在恢复瞬间纠正
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         now = System.currentTimeMillis()
+        entryToken++
     }
 
     // 开始专注后退出多选状态
@@ -423,6 +426,7 @@ fun FocusScreenMiuix(
                     isResting = isResting,
                     pausedCount = activeSession?.packages?.size ?: 0,
                     shizukuReady = shizukuReady,
+                    entryToken = entryToken,
                     onConnectShizuku = {
                         if (shizukuState == ShizukuManager.State.NOT_CONNECTED) ShizukuManager.openShizukuApp(context)
                         else ShizukuManager.requestPermission()
@@ -734,6 +738,7 @@ private fun ActiveFocusContentMiuix(
     isResting: Boolean,
     pausedCount: Int,
     shizukuReady: Boolean,
+    entryToken: Int,
     onConnectShizuku: () -> Unit,
     onSkipRest: () -> Unit,
     bottomInnerPadding: Dp = 0.dp,
@@ -759,6 +764,7 @@ private fun ActiveFocusContentMiuix(
                 segmentEndMillis = segmentEndMillis,
                 subLabel = subLabel,
                 preferredRingSize = ringSize,
+                entryToken = entryToken,
             )
             Spacer(Modifier.height(28.dp))
             Text(
