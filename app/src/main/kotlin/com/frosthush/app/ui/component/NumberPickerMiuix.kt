@@ -139,7 +139,12 @@ fun NumberPickerMiuix(
         snapshotFlow { effectiveIndex }
             .distinctUntilChanged()
             .collect { index ->
-                currentOnScrollValueChange?.invoke(range.first + index)
+                // 只在用户滚动/惯性期间上报：停稳时 onValueChange 已把最终值写给调用方，
+                // 随后 snapTo(0f) 会让 effectiveIndex 用尚未重组的新锚点前的旧 index 再发一次，
+                // 若继续上报会把调用方刚拿到的正确值覆盖回旧值（真机实测：停稳后确定反而锁旧值）。
+                if (isUserScrolling) {
+                    currentOnScrollValueChange?.invoke(range.first + index)
+                }
                 if (index != lastHapticIndex) {
                     if (isUserScrolling) {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)

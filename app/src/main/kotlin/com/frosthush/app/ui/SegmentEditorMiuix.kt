@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -300,6 +301,9 @@ fun MiuixTimePickerDialog(
     // 读写、不参与组合读取，滚动中写入不会触发对话框重组；hour/minute 仍是滚轮停稳后的锚点值。
     val pickedHour = remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
     val pickedMinute = remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
+    // 停稳后以锚点为准：onValueChange 更新 hour/minute 时同步 picked，避免滚动回调的残留值
+    LaunchedEffect(hour) { pickedHour.intValue = hour }
+    LaunchedEffect(minute) { pickedMinute.intValue = minute }
     OverlayDialog(
         show = show,
         title = stringResource(R.string.plan_time_title),
