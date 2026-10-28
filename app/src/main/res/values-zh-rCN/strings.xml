@@ -75,6 +75,9 @@
     <string name="focus_segments_summary">专注共 %1$s · 休息 %2$s · 总计 %3$s</string>
     <string name="focus_segments_summary_no_rest">总计 %1$s</string>
     <string name="focus_skip_rest">跳过休息</string>
+    <string name="focus_ring_total">共 %1$d 分钟</string>
+    <string name="focus_ring_segment_total">第 %1$d/%2$d 段 · 共 %3$d 分钟</string>
+    <string name="focus_ring_rest_total">休息 %1$d 分钟</string>
     <string name="focus_started">专注模式已开始</string>
     <string name="focus_shizuku_unavailable">Shizuku 不可用，请先完成授权</string>
     <string name="focus_no_apps">请先选择要暂停的应用</string>

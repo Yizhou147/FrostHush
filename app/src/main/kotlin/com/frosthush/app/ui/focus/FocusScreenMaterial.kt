@@ -130,6 +130,7 @@ import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -162,6 +163,11 @@ fun FocusScreenMaterial(
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
 
     var session by remember { mutableStateOf(FocusStore.activeSession()) }
+    // 会话清空立即同步到界面：结束流程会先清会话、再逐个恢复应用（慢），最后才 bumpVersion；
+    // 只靠 version 刷新会让锁屏退出后本页继续用旧 session 渲染「专注进行中 00:00」几帧。
+    LaunchedEffect(Unit) {
+        FocusStore.activeSessionFlow.collect { session = it }
+    }
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
     var history by remember { mutableStateOf(FocusStore.history()) }
     // 空闲时仍处于暂停状态的应用数（Shizuku 崩溃等导致专注结束后未能解冻，>0 时显示恢复横幅）

@@ -23,9 +23,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,7 +71,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,6 +87,7 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.AppIcon
+import com.frosthush.app.ui.DisableWindowImePanEffect
 import com.frosthush.app.ui.WarningDefaults
 import com.frosthush.app.ui.DEFAULT_FOCUS_MINUTES
 import com.frosthush.app.ui.MAX_SEGMENTS
@@ -104,6 +103,7 @@ import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -166,11 +166,18 @@ fun FocusScreenMiuix(
         .collectAsState(initial = SettingsStore.cache.defaultFocusMinutes)
 
     var session by remember { mutableStateOf(FocusStore.activeSession()) }
+    // 会话清空立即同步到界面：结束流程会先清会话、再逐个恢复应用（慢），最后才 bumpVersion；
+    // 只靠 version 刷新会让锁屏退出后本页继续用旧 session 渲染「专注进行中 00:00」几帧。
+    LaunchedEffect(Unit) {
+        FocusStore.activeSessionFlow.collect { session = it }
+    }
     var blacklist by remember { mutableStateOf(FocusStore.blacklist()) }
     var history by remember { mutableStateOf(FocusStore.history()) }
     // 空闲时仍处于暂停状态的应用数（Shizuku 崩溃等导致专注结束后未能解冻，>0 时显示恢复横幅）
     var suspendedCount by remember { mutableStateOf(0) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    // 每次回到前台自增：环形据此无条件落位到当前进度（禁止进入时缓慢扫到当前值）
+    var entryToken by remember { mutableIntStateOf(0) }
     var pendingSegments by remember {
         mutableStateOf(listOf(FocusStore.Segment(FocusStore.SEGMENT_FOCUS, defaultMinutes)))
     }
@@ -262,6 +269,7 @@ fun FocusScreenMiuix(
     // 不会执行，界面会停在冻结前那一帧（实测卡在 00:06），须在恢复瞬间纠正
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         now = System.currentTimeMillis()
+        entryToken++
     }
 
     // 开始专注后退出多选状态
@@ -282,8 +290,15 @@ fun FocusScreenMiuix(
     }
 
     val activeSession = session
-    val remaining = activeSession?.phaseAt(now)?.remainingAt(now) ?: 0L
-    val isResting = activeSession != null && activeSession.phaseAt(now).type == FocusStore.SEGMENT_REST
+    val activePhase = activeSession?.phaseAt(now)
+    val remaining = activePhase?.remainingAt(now) ?: 0L
+    val isResting = activePhase != null && !activePhase.isFocus
+    // 环内说明文案：共 X 分钟 / 第 N/M 段 · 共 X 分钟 / 休息 X 分钟
+    val ringSubLabel = if (activeSession != null && activePhase != null) {
+        focusRingSubLabel(context, isResting, activeSession, activePhase.index)
+    } else {
+        ""
+    }
     val shizukuReady = shizukuState == ShizukuManager.State.AUTHORIZED
 
     val scrollBehavior = MiuixScrollBehavior()
@@ -382,7 +397,9 @@ fun FocusScreenMiuix(
             ) {
                 Button(
                     onClick = { showDurationDialog = true },
-                    modifier = Modifier.padding(bottom = bottomInnerPadding),
+                    // miuix Scaffold 给 FAB 的右/下默认边距是 12dp，页面内容白边为 16dp：
+                    // 补 5dp 让按钮右缘略微超过白边一点（用户定稿）
+                    modifier = Modifier.padding(bottom = bottomInnerPadding).padding(end = 5.dp),
                     // HyperOS 观感：主操作用中性胶囊（同应用集 chip 未选中态），避免大块主色
                     colors = ButtonDefaults.buttonColors(),
                     insideMargin = PaddingValues(horizontal = 20.dp, vertical = 14.dp),
@@ -410,9 +427,13 @@ fun FocusScreenMiuix(
                 // ---------- 专注进行中 ----------
                 ActiveFocusContentMiuix(
                     remaining = remaining,
+                    segmentStartMillis = activePhase?.segmentStart ?: 0L,
+                    segmentEndMillis = activePhase?.segmentEnd ?: 0L,
+                    subLabel = ringSubLabel,
                     isResting = isResting,
-                    pausedCount = session!!.packages.size,
+                    pausedCount = activeSession?.packages?.size ?: 0,
                     shizukuReady = shizukuReady,
+                    entryToken = entryToken,
                     onConnectShizuku = {
                         if (shizukuState == ShizukuManager.State.NOT_CONNECTED) ShizukuManager.openShizukuApp(context)
                         else ShizukuManager.requestPermission()
@@ -421,6 +442,7 @@ fun FocusScreenMiuix(
                     onSkipRest = {
                         if (isResting) Thread { FocusManager.skipRest() }.start()
                     },
+                    bottomInnerPadding = bottomInnerPadding,
                 )
             } else {
                 // ---------- 空闲 ----------
@@ -711,56 +733,69 @@ private fun AppGroupChip(label: String, selected: Boolean, onClick: () -> Unit) 
     }
 }
 
-/** 专注进行中：当前阶段（专注/休息）+ 剩余时间 + 已暂停应用数（不可打断，无退出入口）。
- *  休息阶段提供「跳过休息」按钮（应用内入口，立即恢复下一段专注）。 */
+/** 专注进行中：阶段标题 + 大圆环（蓝弧 = 本段剩余比例、平滑走动，环心倒计时与说明，见 [FocusRingMiuix]）
+ *  + 已暂停应用数 + 「跳过休息」（仅休息段）。内容垂直居中，并按底栏高度上移避让悬浮底栏。
+ *  业务规则：专注不可打断，无退出入口。 */
 @Composable
 private fun ActiveFocusContentMiuix(
     remaining: Long,
+    segmentStartMillis: Long,
+    segmentEndMillis: Long,
+    subLabel: String,
     isResting: Boolean,
     pausedCount: Int,
     shizukuReady: Boolean,
+    entryToken: Int,
     onConnectShizuku: () -> Unit,
     onSkipRest: () -> Unit,
+    bottomInnerPadding: Dp = 0.dp,
 ) {
     val context = LocalContext.current
-    Column(
-        Modifier.fillMaxSize().padding(vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
-            style = MiuixTheme.textStyles.title4,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = FocusManager.countdownText(remaining),
-            style = MiuixTheme.textStyles.title1,
-            fontFamily = FontFamily.Monospace,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = if (isResting) stringResource(R.string.focus_rest_apps_restored)
-            else context.resources.getQuantityString(
-                R.plurals.focus_apps_paused, pausedCount, pausedCount
-            ),
-            style = MiuixTheme.textStyles.body1,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-        )
-        if (isResting) {
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = onSkipRest) {
-                Text(stringResource(R.string.focus_skip_rest))
-            }
-        }
-        if (!shizukuReady) {
-            Spacer(Modifier.height(32.dp))
-            ShizukuBannerMiuix(
-                text = stringResource(R.string.focus_restore_prompt),
-                actionText = stringResource(R.string.focus_connect_shizuku),
-                onAction = onConnectShizuku,
+    BoxWithConstraints(Modifier.fillMaxSize().padding(bottom = bottomInnerPadding)) {
+        // 环尺寸按可用空间收缩（横屏/小屏防溢出），上限 240dp、下限 150dp
+        val ringSize = minOf(240.dp, maxWidth * 0.8f, maxHeight * 0.45f).coerceAtLeast(150.dp)
+        Column(
+            Modifier.fillMaxSize().padding(vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = stringResource(if (isResting) R.string.focus_rest_title else R.string.focus_active_title),
+                style = MiuixTheme.textStyles.title4,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             )
+            Spacer(Modifier.height(28.dp))
+            FocusRingMiuix(
+                remaining = remaining,
+                segmentStartMillis = segmentStartMillis,
+                segmentEndMillis = segmentEndMillis,
+                subLabel = subLabel,
+                preferredRingSize = ringSize,
+                entryToken = entryToken,
+            )
+            Spacer(Modifier.height(28.dp))
+            Text(
+                text = if (isResting) stringResource(R.string.focus_rest_apps_restored)
+                else context.resources.getQuantityString(
+                    R.plurals.focus_apps_paused, pausedCount, pausedCount
+                ),
+                style = MiuixTheme.textStyles.body1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
+            if (isResting) {
+                Spacer(Modifier.height(28.dp))
+                Button(onClick = onSkipRest) {
+                    Text(stringResource(R.string.focus_skip_rest))
+                }
+            }
+            if (!shizukuReady) {
+                Spacer(Modifier.height(32.dp))
+                ShizukuBannerMiuix(
+                    text = stringResource(R.string.focus_restore_prompt),
+                    actionText = stringResource(R.string.focus_connect_shizuku),
+                    onAction = onConnectShizuku,
+                )
+            }
         }
     }
 }
@@ -1213,36 +1248,61 @@ private fun FocusTimeDialogMiuix(
         )
 }
 
-/** 预设快捷选择 chips：显示「名称 段序列」（如「午休 30」「番茄 25+5+25」）；
- *  点击应用整个分段列表；与当前分段完全一致时高亮 */
-@OptIn(ExperimentalLayoutApi::class)
+/** 预设快捷选择 chips：显示「名称」（保存时必填；旧数据空名回退段序列）；
+ *  固定两行、每行横向滑动（预设多时对话框高度恒定，不再被 FlowRow 撑乱）；
+ *  分行在**保持预设顺序**的前提下取累计字符数最接近均分的分割点（第一行前 k 个、第二行其余），
+ *  两行长度接近且显示顺序 = 预设顺序——不能按字符交替均分，那会把管理预设拖好的顺序打乱（真机反馈）；
+ *  与当前分段完全一致时高亮 */
 @Composable
 private fun FocusPresetChipsMiuix(
     segments: List<FocusStore.Segment>,
     presets: List<FocusStore.FocusPreset>,
     onSelect: (FocusStore.FocusPreset) -> Unit,
 ) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        presets.forEach { preset ->
-            Button(
-                onClick = { onSelect(preset) },
-                // 选中态用 miuix 下拉选中语义色（tertiaryContainer 浅蓝底 + onTertiaryContainer 深字），
-                // 不用饱和蓝 buttonColorsPrimary（规范：primary 不作选中底色）
-                colors = if (preset.segmentList == segments) ButtonDefaults.buttonColors(
-                    color = MiuixTheme.colorScheme.tertiaryContainer,
-                    contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
-                ) else ButtonDefaults.buttonColors(),
-                insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+    val rows = remember(presets) {
+        val lengths = presets.map { it.name.ifBlank { it.sequenceText }.length }
+        val total = lengths.sum()
+        // 遍历分割点 k：前 k 个的字符和与剩余的差值最小者，即两行最平衡且保持顺序
+        var best = 0
+        var bestDiff = Int.MAX_VALUE
+        var prefix = 0
+        for (k in 0..presets.size) {
+            val diff = Math.abs(total - 2 * prefix)
+            if (diff < bestDiff) {
+                bestDiff = diff
+                best = k
+            }
+            if (k < presets.size) prefix += lengths[k]
+        }
+        listOf(
+            presets.subList(0, best),
+            presets.subList(best, presets.size),
+        ).filter { it.isNotEmpty() }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        rows.forEach { rowPresets ->
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
-                    text = preset.name.ifBlank { preset.sequenceText },
-                    style = MiuixTheme.textStyles.button,
-                )
+                rowPresets.forEach { preset ->
+                    Button(
+                        onClick = { onSelect(preset) },
+                        // 选中态用 miuix 下拉选中语义色（tertiaryContainer 浅蓝底 + onTertiaryContainer 深字），
+                        // 不用饱和蓝 buttonColorsPrimary（规范：primary 不作选中底色）
+                        colors = if (preset.segmentList == segments) ButtonDefaults.buttonColors(
+                            color = MiuixTheme.colorScheme.tertiaryContainer,
+                            contentColor = MiuixTheme.colorScheme.onTertiaryContainer,
+                        ) else ButtonDefaults.buttonColors(),
+                        insideMargin = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            // 只显示名称（保存时必填）；旧数据空名回退段序列避免空白
+                            text = preset.name.ifBlank { preset.sequenceText },
+                            style = MiuixTheme.textStyles.button,
+                        )
+                    }
+                }
             }
         }
     }
@@ -1254,6 +1314,7 @@ private fun PresetSaveDialogMiuix(show: Boolean, segments: List<FocusStore.Segme
     val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     val total = segments.sumOf { it.minutes }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = stringResource(R.string.action_save_preset),

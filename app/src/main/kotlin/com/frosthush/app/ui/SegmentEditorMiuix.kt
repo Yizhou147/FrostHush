@@ -1,5 +1,9 @@
 package com.frosthush.app.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,10 +17,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -26,15 +33,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.R
+import com.frosthush.app.ui.component.NumberPickerMiuix
 import com.frosthush.app.ui.settings.NumberFieldMiuix
 import com.frosthush.app.data.FocusStore
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.NumberPicker
 import top.yukonga.miuix.kmp.basic.Surface
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -49,7 +57,13 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
  * 供 miuix 页面的「开始专注 / 计划编辑」使用，避免对话框里出现原生 Android 样式。
  */
 
-/** 分段编辑器单行（miuix）：类型色点 + 标签 +（可选）起止时间 + 时长胶囊 + 删除 */
+/**
+ * 分段编辑器单行（miuix）：类型色点 + 标签 +（可选）起止时间 + 时长胶囊 + 删除。
+ * 对齐约定（用户反馈改进）：类型标签固定 40dp 列；时间数字用等宽数字（tnum）保证各行同宽；
+ * 时长胶囊最小 80dp、右对齐成一列，数字位数变化不挪位；删除按钮与无删除占位统一 40dp，
+ * 有无删除按钮的行其余元素位置完全一致；结束时间与时长胶囊之间保留固定 8dp（手机宽度下
+ * weight 会被挤成 0，两胶囊会贴在一起）。
+ */
 @Composable
 fun SegmentRowMiuix(
     segment: FocusStore.Segment,
@@ -68,6 +82,9 @@ fun SegmentRowMiuix(
     } else {
         MiuixTheme.colorScheme.onSurfaceVariantSummary
     }
+    // 等宽数字：起止时间与时长各行同宽，跨行严格对齐（用户反馈「几点到几点没对齐」的根因之一）
+    val timeStyle = MiuixTheme.textStyles.body1.copy(fontFeatureSettings = "tnum")
+    val pillStyle = MiuixTheme.textStyles.body2.copy(fontFeatureSettings = "tnum")
     Surface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         shape = RoundedCornerShape(12.dp),
@@ -75,22 +92,25 @@ fun SegmentRowMiuix(
         contentColor = MiuixTheme.colorScheme.onSurfaceContainer,
     ) {
         Row(
-            Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
+            Modifier.padding(start = 10.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(accent))
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = stringResource(if (isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest),
-                style = MiuixTheme.textStyles.subtitle,
-                color = if (isFocus) MiuixTheme.colorScheme.onSurfaceContainer else accent,
-            )
+            Spacer(Modifier.width(8.dp))
+            // 类型标签固定列宽（中英文标签宽度不同也能对齐）
+            Box(Modifier.width(40.dp)) {
+                Text(
+                    text = stringResource(if (isFocus) R.string.focus_segment_focus else R.string.focus_segment_rest),
+                    style = MiuixTheme.textStyles.body1,
+                    color = if (isFocus) MiuixTheme.colorScheme.onSurfaceContainer else accent,
+                )
+            }
             // 起止时间：结束时间可点 → 弹时间选择器（仅计划页）
             if (startTimeText != null && endTimeText != null) {
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = "$startTimeText → ",
-                    style = MiuixTheme.textStyles.footnote1,
+                    style = timeStyle,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 )
                 if (endTimeEditable) {
@@ -102,7 +122,7 @@ fun SegmentRowMiuix(
                     ) {
                         Text(
                             text = endTimeText,
-                            style = MiuixTheme.textStyles.footnote1,
+                            style = pillStyle,
                             maxLines = 1,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                         )
@@ -110,14 +130,17 @@ fun SegmentRowMiuix(
                 } else {
                     Text(
                         text = endTimeText,
-                        style = MiuixTheme.textStyles.footnote1,
+                        style = pillStyle,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         maxLines = 1,
                     )
                 }
             }
+            // 结束时间与时长胶囊之间保留固定 8dp：手机宽度下 weight 会被挤成 0，
+            // 若只靠 weight 两个胶囊会贴在一起（真机反馈）
+            Spacer(Modifier.width(8.dp))
             Spacer(Modifier.weight(1f))
-            // 时长胶囊按钮：点击弹数字输入对话框
+            // 时长胶囊按钮：点击弹数字输入对话框；最小 80dp 居中，跨行对齐成一列
             Surface(
                 onClick = onClickDuration,
                 shape = RoundedCornerShape(10.dp),
@@ -125,20 +148,20 @@ fun SegmentRowMiuix(
                 contentColor = MiuixTheme.colorScheme.onSurfaceContainerHigh,
             ) {
                 Row(
-                    Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    Modifier.widthIn(min = 80.dp).padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = segment.minutes.toString(), style = MiuixTheme.textStyles.body1)
-                    Spacer(Modifier.width(2.dp))
+                    Text(text = segment.minutes.toString(), style = timeStyle)
+                    Spacer(Modifier.width(3.dp))
                     Text(
                         text = stringResource(R.string.focus_time_unit),
-                        style = MiuixTheme.textStyles.footnote1,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                        style = MiuixTheme.textStyles.body2,
                     )
                 }
             }
             if (deletable) {
-                IconButton(onClick = onDelete) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = MiuixIcons.Delete,
                         contentDescription = stringResource(R.string.action_delete),
@@ -146,8 +169,8 @@ fun SegmentRowMiuix(
                     )
                 }
             } else {
-                // 固定占位，避免出现/隐藏删除按钮时行宽跳动
-                Spacer(Modifier.size(48.dp))
+                // 固定占位（与删除按钮同宽），避免出现/隐藏删除按钮时行宽跳动
+                Spacer(Modifier.size(40.dp))
             }
         }
     }
@@ -181,6 +204,33 @@ fun SegmentRatioBarMiuix(segments: List<FocusStore.Segment>) {
     }
 }
 
+/**
+ * miuix OverlayDialog 与页面共用 Activity 窗口（不是独立 Dialog），而窗口默认 softInputMode
+ * 是 adjustPan：键盘弹出时系统先把整个窗口上移一次，DialogContentLayout 自己的 imePadding
+ * 又按键盘高度抬一次 → 打开数字输入框瞬间整页「异常抬高」，随便输入一个字触发 pan 重算才回位。
+ * 该对话框显示期间临时关掉窗口平移，只保留 imePadding 定位；关闭时恢复原 softInputMode。
+ */
+@Composable
+internal fun DisableWindowImePanEffect(show: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(show, view) {
+        val window = view.context.findActivity()?.window
+        val original = window?.attributes?.softInputMode
+        if (show) {
+            window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        }
+        onDispose {
+            if (original != null) window?.setSoftInputMode(original)
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
 /** 分段时长数字输入对话框（miuix）：title 传段类型标题，range 校验范围 */
 @Composable
 fun SegmentMinutesDialogMiuix(
@@ -193,6 +243,7 @@ fun SegmentMinutesDialogMiuix(
 ) {
     val context = LocalContext.current
     var input by remember(show) { mutableStateOf(selected.toString()) }
+    DisableWindowImePanEffect(show)
     OverlayDialog(
         show = show,
         title = title,
@@ -246,6 +297,13 @@ fun MiuixTimePickerDialog(
     // 复用同一对话框调不同段的时间时会显示上一次的值——同 SegmentMinutesDialogMiuix 的做法）
     var hour by remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
     var minute by remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
+    // 确认时取「当前正对项」：滚轮还在惯性滑动时点确定也能指哪打哪。picked* 只在回调/点击里
+    // 读写、不参与组合读取，滚动中写入不会触发对话框重组；hour/minute 仍是滚轮停稳后的锚点值。
+    val pickedHour = remember(show) { mutableIntStateOf(initialHour.coerceIn(0, 23)) }
+    val pickedMinute = remember(show) { mutableIntStateOf(initialMinute.coerceIn(0, 59)) }
+    // 停稳后以锚点为准：onValueChange 更新 hour/minute 时同步 picked，避免滚动回调的残留值
+    LaunchedEffect(hour) { pickedHour.intValue = hour }
+    LaunchedEffect(minute) { pickedMinute.intValue = minute }
     OverlayDialog(
         show = show,
         title = stringResource(R.string.plan_time_title),
@@ -257,18 +315,20 @@ fun MiuixTimePickerDialog(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                NumberPicker(
+                NumberPickerMiuix(
                     value = hour,
-                    onValueChange = { hour = it },
+                    onValueChange = { hour = it; pickedHour.intValue = it },
+                    onScrollValueChange = { pickedHour.intValue = it },
                     range = 0..23,
                     label = { it.toString().padStart(2, '0') },
                     wrapAround = true,
                     modifier = Modifier.weight(1f),
                 )
                 Text(text = ":", style = MiuixTheme.textStyles.title3)
-                NumberPicker(
+                NumberPickerMiuix(
                     value = minute,
-                    onValueChange = { minute = it },
+                    onValueChange = { minute = it; pickedMinute.intValue = it },
+                    onScrollValueChange = { pickedMinute.intValue = it },
                     range = 0..59,
                     label = { it.toString().padStart(2, '0') },
                     wrapAround = true,
@@ -284,7 +344,7 @@ fun MiuixTimePickerDialog(
                 )
                 TextButton(
                     text = stringResource(R.string.action_confirm),
-                    onClick = { onConfirm(hour, minute) },
+                    onClick = { onConfirm(pickedHour.intValue, pickedMinute.intValue) },
                     modifier = Modifier.weight(1f),
                 )
             }

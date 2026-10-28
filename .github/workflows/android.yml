@@ -7,6 +7,11 @@ on:
       - '**.md'
   pull_request:
   workflow_dispatch:
+    inputs:
+      official:
+        description: 'Official release build (hide build time in About)'
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -45,7 +50,11 @@ jobs:
             echo ${{ secrets.KEYSTORE }} | base64 --decode > keystore.jks
           fi
           # 无签名 secrets 时 build.gradle.kts 自动回退 debug 签名
-          ./gradlew assembleRelease
+          OFFICIAL_FLAG=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.official }}" = "true" ]; then
+            OFFICIAL_FLAG="-PisOfficialBuild=true"
+          fi
+          ./gradlew assembleRelease $OFFICIAL_FLAG
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

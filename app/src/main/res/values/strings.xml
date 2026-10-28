@@ -75,6 +75,9 @@
     <string name="focus_segments_summary">Focus %1$s · Rest %2$s · Total %3$s</string>
     <string name="focus_segments_summary_no_rest">Total %1$s</string>
     <string name="focus_skip_rest">Skip break</string>
+    <string name="focus_ring_total">Total %1$d min</string>
+    <string name="focus_ring_segment_total">Segment %1$d of %2$d · Total %3$d min</string>
+    <string name="focus_ring_rest_total">%1$d min break</string>
     <string name="focus_started">Focus mode started</string>
     <string name="focus_shizuku_unavailable">Shizuku is unavailable, please grant permission first</string>
     <string name="focus_no_apps">Please select apps to suspend first</string>

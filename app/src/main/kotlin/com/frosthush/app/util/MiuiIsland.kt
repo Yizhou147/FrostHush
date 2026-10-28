@@ -30,17 +30,22 @@ object MiuiIsland {
      *   番茄Todo 即此行为；配合"仅阶段切换时 notify"（不走秒），不会每秒弹出
      * - 卡片文案静态（ticker/aodTitle/chatInfo.title），倒计时由系统 timerInfo 原生渲染
      *   + 通知 chronometer 倒计时走秒，无需每秒 notify
-     * - islandTimeout=3600：岛展开态超时（秒）
+     * - islandTimeout：岛在 SystemUI 的展示时长（秒）。默认 3600 对齐番茄Todo，
+     *   但番茄单次专注只有 25 分钟；霜息单段可超过 1 小时，而会话中途不重复 notify，
+     *   沿用 3600 会让长单段专注在第 60 分钟被系统按时撤岛（见工作总结「超 1h 会话岛消失」）。
+     *   进行中的专注岛传 Int.MAX_VALUE（同 HyperIsland 常驻岛），结束岛保持默认值避免长期驻留。
      * - turnAnim 省略（番茄Todo 无此字段，用系统默认翻页动画）
      *
      * @param title 状态标题（如"专注中"/"休息中"）
      * @param contentText 卡片文案（同样静态，与 title 一致即可）
      * @param endMillis 本阶段结束时间戳：岛倒计时由系统根据 timerInfo 原生渲染
      * @param timerSystemCurrent 计时锚点：阶段内固定不变
+     * @param islandTimeoutSecs 岛展示时长（秒），默认 3600
      */
     fun buildIslandExtras(
         context: Context, title: String, contentText: String,
         endMillis: Long?, timerSystemCurrent: Long?,
+        islandTimeoutSecs: Int = 3600,
     ): Bundle {
         // 番茄结构（大岛倒计时正常）+ 图标槽位统一为秒表：
         // - 小岛图标跟随 imageTextInfoLeft（此前设 logo → 小岛变 logo；设秒表 → 小岛秒表）
@@ -93,7 +98,7 @@ object MiuiIsland {
                 .put(
                     "param_island", JSONObject()
                         .put("islandProperty", 1)
-                        .put("islandTimeout", 3600)
+                        .put("islandTimeout", islandTimeoutSecs)
                         .put("bigIslandArea", bigIslandArea)
                         // 小岛：秒表图标
                         .put(

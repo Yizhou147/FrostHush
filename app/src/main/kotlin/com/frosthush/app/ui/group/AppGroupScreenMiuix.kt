@@ -319,6 +319,8 @@ val reorderableState = rememberReorderableLazyListState(listState) { from, to ->
 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    // 卡片间 12dp 独立分卡间距（用户定稿方案 A）；Reorderable 拖拽对带间距列表完全支持
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(groups, key = { it.id }) { group ->
                         ReorderableItem(reorderableState, key = group.id) { isDragging ->

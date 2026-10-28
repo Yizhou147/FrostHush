@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.frosthush.app.BuildConfig
 import com.frosthush.app.R
+import com.frosthush.app.ui.DisableWindowImePanEffect
 import com.frosthush.app.ui.component.MarkdownText
 import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.ui.about.openUrl
@@ -234,6 +235,7 @@ private fun UpdateSettingsMiuix(onBack: () -> Unit) {
             )
 
             // 自定义镜像前缀输入
+            DisableWindowImePanEffect(showCustomMirrorDialog)
             OverlayDialog(
                 show = showCustomMirrorDialog,
                 title = stringResource(R.string.custom_mirror_title),

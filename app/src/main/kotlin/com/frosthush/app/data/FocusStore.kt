@@ -3,6 +3,9 @@ package com.frosthush.app.data
 import android.os.Process
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.focus.HShizuku
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -145,6 +148,12 @@ object FocusStore {
     @Volatile
     private var activeSessionCache: ActiveSession? = null
 
+    // 会话的可观察副本：clearActiveSession 后 UI 必须立刻回到空闲态。结束流程会先清会话、
+    // 再逐个恢复应用（可能几十个、耗时数秒），最后才 bumpVersion；只靠 version 刷新会让
+    // 锁屏退出后专注页继续用旧 session 渲染「专注进行中 00:00」几帧。
+    private val _activeSessionFlow = MutableStateFlow<ActiveSession?>(null)
+    val activeSessionFlow: StateFlow<ActiveSession?> = _activeSessionFlow.asStateFlow()
+
     fun activeSession(): ActiveSession? {
         activeSessionCache?.let { return it }
         val loaded = runCatching {
@@ -164,7 +173,10 @@ object FocusStore {
                 },
             )
         }.getOrNull()
-        if (loaded != null) activeSessionCache = loaded
+        if (loaded != null) {
+            activeSessionCache = loaded
+            _activeSessionFlow.value = loaded
+        }
         return loaded
     }
 
@@ -182,6 +194,7 @@ object FocusStore {
             }
         }.toString())
         activeSessionCache = session
+        _activeSessionFlow.value = session
     }
 
     fun clearActiveSession() {
@@ -189,6 +202,7 @@ object FocusStore {
         // 先删文件再清缓存：两步之间读到的调用方最多拿到即将删除的旧会话（与原行为一致）；
         // 反过来先清缓存的话，间隙里的读取会把文件重新载入缓存，删除后残留脏缓存
         activeSessionCache = null
+        _activeSessionFlow.value = null
     }
 
     // ---------- 会话记录 ----------
