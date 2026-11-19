@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,7 +32,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.frosthush.app.R
-import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.ui.theme.LocalUiMode
 import com.frosthush.app.ui.theme.UiMode
@@ -67,14 +67,21 @@ private fun PlanReliabilityDialogMiuix(show: Boolean, onDismiss: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) checkKey++
+            if (event == Lifecycle.Event.ON_RESUME) {
+                checkKey++
+                // 回到前台后在后台重探 Shizuku 状态（用户可能刚从 Shizuku 应用授权回来）
+                ShizukuManager.refreshAsync("reliability-resume")
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val batteryOk = remember(checkKey) { checkBatteryOptimization(context) }
-    val shizukuOk = remember(checkKey) { FocusManager.shizukuReady() }
+    // Shizuku 状态读已探测的 StateFlow：组合期不能同步调 checkSelfPermission()（binder 调用，
+    // Shizuku 本体在后台被冻结时会阻塞 UI 线程数秒）
+    val shizukuState by ShizukuManager.state.collectAsState()
+    val shizukuOk = shizukuState == ShizukuManager.State.AUTHORIZED
     val allOk = batteryOk && shizukuOk
 
     OverlayDialog(

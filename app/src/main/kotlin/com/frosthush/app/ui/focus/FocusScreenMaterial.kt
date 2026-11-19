@@ -220,20 +220,13 @@ fun FocusScreenMaterial(
         }
     }
 
-    val repo = remember { AppRepository(context) }
     // 优先使用缓存的应用名称（内存/磁盘），避免进入页面时因分身跨用户读取慢而闪现包名
     val appNames = remember { mutableStateOf(AppRepository.cachedAppNames()) }
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.Default) {
-            // 直接查询全量（含分身）一次到位；不再用不含分身的中间结果覆盖缓存，
-            // 否则查询期间分身会闪现裸包名（pkg@999）
-            val full = runCatching { repo.queryApps().associate { it.entry to it.displayName } }
-                .getOrDefault(emptyMap())
-            if (full.isNotEmpty()) {
-                appNames.value = full
-                AppRepository.updateAppNameCache(full)
-            }
-        }
+        // 全量查询统一走后台 + 进程内去重：queryApps 含 loadLabel/拼音排序/分身 Shizuku shell，
+        // 直接在 UI 线程执行会把首帧后的界面卡死数秒（AppRoot 的预加载也复用同一份结果）
+        val full = AppRepository.ensureAppNamesLoaded(context)
+        if (full.isNotEmpty()) appNames.value = full
     }
 
     // 数据变化（导入/移除/开始/结束）时刷新

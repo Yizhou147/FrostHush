@@ -81,7 +81,9 @@ import com.frosthush.app.ui.theme.LocalUiMode
 import com.frosthush.app.ui.theme.UiMode
 import com.frosthush.app.ui.util.rememberBlurBackdrop
 import java.util.Calendar
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -294,30 +296,48 @@ private fun PlanReminderDialog(show: Boolean, planId: Long, onDismiss: () -> Uni
 private fun PlanReminderDialogMiuix(show: Boolean, planId: Long, onDismiss: () -> Unit) {
     top.yukonga.miuix.kmp.basic.Scaffold(containerColor = androidx.compose.ui.graphics.Color.Transparent) {
         val context = LocalContext.current
-        val plan = FocusStore.focusPlans().firstOrNull { it.id == planId }
-        val alreadyStarted = FocusStore.activeSession()?.planId == planId
+        // 本组件常驻组合（AppRoot 顶层），而专注中 phase 每秒变化都会让 AppRoot 重组：
+        // 旧实现在组合期直读 focusPlans()，等于每秒一次主线程磁盘 IO + JSON 解析。
+        // 改为只在弹框时读一次，且放到后台线程。
+        var plan by remember(planId) { mutableStateOf<FocusStore.FocusPlan?>(null) }
+        var planLoaded by remember(planId) { mutableStateOf(false) }
+        LaunchedEffect(show, planId) {
+            if (!show) {
+                planLoaded = false
+                return@LaunchedEffect
+            }
+            plan = withContext(Dispatchers.IO) {
+                FocusStore.focusPlans().firstOrNull { it.id == planId }
+            }
+            planLoaded = true
+        }
+        val alreadyStarted = show && FocusStore.activeSession()?.planId == planId
+        // 局部 val：plan 是委托属性，直接 if (plan != null) 无法智能转换
+        val currentPlan = plan
         // 计划已被删除 / 专注已由该计划开始 → 自动关闭
-        LaunchedEffect(show, plan?.id, alreadyStarted) {
-            if (show && (plan == null || alreadyStarted)) onDismiss()
+        LaunchedEffect(show, planLoaded, currentPlan?.id, alreadyStarted) {
+            if (show && planLoaded && (currentPlan == null || alreadyStarted)) onDismiss()
         }
         OverlayDialog(
-            show = show && plan != null && !alreadyStarted,
-            title = if (plan != null) stringResource(R.string.plan_remind_dialog_title, plan.name) else "",
+            show = show && planLoaded && currentPlan != null && !alreadyStarted,
+            title = if (currentPlan != null) {
+                stringResource(R.string.plan_remind_dialog_title, currentPlan.name)
+            } else "",
             onDismissRequest = onDismiss,
         ) {
-            if (plan != null) {
-                val startMillis = remember(plan.id, plan.startMinute) {
+            if (currentPlan != null) {
+                val startMillis = remember(currentPlan.id, currentPlan.startMinute) {
                     Calendar.getInstance().apply {
-                        set(Calendar.HOUR_OF_DAY, plan.startMinute / 60)
-                        set(Calendar.MINUTE, plan.startMinute % 60)
+                        set(Calendar.HOUR_OF_DAY, currentPlan.startMinute / 60)
+                        set(Calendar.MINUTE, currentPlan.startMinute % 60)
                         set(Calendar.SECOND, 0)
                         set(Calendar.MILLISECOND, 0)
                     }.timeInMillis
                 }
-                var remaining by remember(plan.id, plan.startMinute) {
+                var remaining by remember(currentPlan.id, currentPlan.startMinute) {
                     mutableStateOf(((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt())
                 }
-                LaunchedEffect(plan.id, plan.startMinute) {
+                LaunchedEffect(currentPlan.id, currentPlan.startMinute) {
                     while (remaining > 0) {
                         delay(1000)
                         remaining = ((startMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0).toInt()
