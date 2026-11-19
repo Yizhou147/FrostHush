@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -57,6 +58,13 @@ class FocusService : Service() {
     // timerSystemCurrent 锚点：每个阶段开始时固定一次，阶段内岛参数完全一致
     private var islandTimerAnchor = 0L
 
+    // 上次发布时的（会话开始时刻, 阶段索引, 时刻）：用于识别「同一会话同一阶段的重复启动」。
+    // 进程被杀后常有两路几乎同时把服务拉起来（系统按 START_STICKY 重建 + Application 恢复线程的
+    // resumeAfterRestart），若两次都派生新 id，超级岛会以两个新 key 连续滑入两次。
+    private var lastPostedSessionStart = 0L
+    private var lastPostedPhaseIndex = Int.MIN_VALUE
+    private var lastPostedAtMs = 0L
+
     private val tickRunnable = object : Runnable {
         override fun run() {
             // 全程 try/catch：任何一步抛异常都不能让 tick 停表（否则 phase 停止更新，
@@ -104,7 +112,10 @@ class FocusService : Service() {
                 islandTimerAnchor = now
                 Thread { FocusManager.applySuspensionByPhase(session) }.start()
                 val notification = buildNotification(phase, session)
-                postFocusNotification(notification, "阶段切换 index=${phase.index}")
+                postFocusNotification(
+                    notification, "阶段切换 index=${phase.index}",
+                    sessionStart = session.startMillis, phaseIndex = phase.index,
+                )
             } else if (!islandEnabled) {
                 // 普通通知：每秒 notify 更新 contentText 倒计时（焦点通知不每秒 notify，岛走原生 chronometer）
                 val notification = buildNotification(phase, session)
@@ -130,7 +141,30 @@ class FocusService : Service() {
         FocusManager.phase.value = phase
         runCatching { createNotificationChannel() }
         val notification = runCatching { buildNotification(phase, session) }.getOrElse { fallbackNotification() }
-        postFocusNotification(notification, "onStartCommand")
+        // 重复启动去重：系统 STICKY 重启与 Application 恢复线程双拉时，第二次不再派生新 id
+        // （新 id = 新 key → 超级岛会再滑入一次），只沿用现有 id 重新上报前台。
+        val phaseIndex = phase?.index ?: -1
+        val sessionStart = session?.startMillis ?: 0L
+        val duplicateStart = sessionStart != 0L &&
+            sessionStart == lastPostedSessionStart &&
+            phaseIndex == lastPostedPhaseIndex &&
+            SystemClock.elapsedRealtime() - lastPostedAtMs < RESTART_DEDUPE_MS
+        if (duplicateStart) {
+            DebugLog.d(
+                "Focus",
+                "onStartCommand 重复启动（${SystemClock.elapsedRealtime() - lastPostedAtMs}ms 内同会话同阶段），" +
+                    "沿用 id=$activeNotificationId 不派生新 key"
+            )
+            postFocusNotification(
+                notification, "onStartCommand(dup)",
+                sessionStart = sessionStart, phaseIndex = phaseIndex, reuseCurrentId = true,
+            )
+        } else {
+            postFocusNotification(
+                notification, "onStartCommand",
+                sessionStart = sessionStart, phaseIndex = phaseIndex,
+            )
+        }
         // 进程被杀后 START_STICKY 重启：按当前阶段纠正挂起状态（幂等，防止边界状态下状态丢失）
         if (session != null) Thread { FocusManager.applySuspensionByPhase(session) }.start()
         // 同一服务实例可能被重复启动（开机时 App.onCreate 与 BootReceiver 两条后台线程都会走恢复）：
@@ -143,13 +177,21 @@ class FocusService : Service() {
     /**
      * 发布当前阶段的前台通知并清掉本频道其余旧通知。
      *
-     * 每次发布都重新派生 id（新 key）：HyperOS FocusPlugin 的 hasEverExpandedKeys 按 key 记录
+     * 会话开始/阶段切换都派生新 id（新 key）：HyperOS FocusPlugin 的 hasEverExpandedKeys 按 key 记录
      * "曾经展开过"且进程内永不清除，复用旧 key 会按更新处理、岛不再滑入/展开。发布成功后立即
      * cancelStaleFocusNotifications 撤销上一阶段与历史遗留 id，保证通知栏始终只有一条专注通知。
+     *
+     * @param reuseCurrentId 重复启动去重用：沿用当前 id（不派生新 key），避免岛二次滑入
      */
-    private fun postFocusNotification(notification: Notification, scene: String) {
+    private fun postFocusNotification(
+        notification: Notification,
+        scene: String,
+        sessionStart: Long = 0L,
+        phaseIndex: Int = -1,
+        reuseCurrentId: Boolean = false,
+    ) {
         val previousId = activeNotificationId
-        activeNotificationId = nextNotificationId()
+        if (!reuseCurrentId) activeNotificationId = nextNotificationId()
         val posted = runCatching { startForeground(activeNotificationId, notification) }
             .onFailure { e ->
                 DebugLog.e("Focus", "$scene startForeground 失败 id=$activeNotificationId", e)
@@ -163,6 +205,9 @@ class FocusService : Service() {
                 .onFailure { DebugLog.e("Focus", "$scene 撤销上一条通知失败 id=$previousId", it) }
         }
         cancelStaleFocusNotifications(keepId = activeNotificationId)
+        lastPostedSessionStart = sessionStart
+        lastPostedPhaseIndex = phaseIndex
+        lastPostedAtMs = SystemClock.elapsedRealtime()
     }
 
     /**
@@ -301,6 +346,9 @@ class FocusService : Service() {
         private const val PHASE_ID_OFFSET = 2_000_000
         /** 毫秒时间戳取模，约 11.6 天一轮；每场开始都会清理旧 key，不会跨轮复用 */
         private const val PHASE_ID_MODULUS = 1_000_000_000L
+
+        /** 重复启动判定窗口：进程重启两路拉服务的间隔实测 0.7~2.3s，留 5s 余量 */
+        private const val RESTART_DEDUPE_MS = 5_000L
         private const val FINISH_CHANNEL_ID = "focus_finished"
 
         const val ACTION_SKIP_REST = "com.frosthush.app.focus.SKIP_REST"
