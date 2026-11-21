@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
@@ -168,7 +169,7 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
                 val now = SystemClock.elapsedRealtime()
                 val interactive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
                     ?.isInteractive == true
-                val resumed = hostActivity?.lifecycle?.currentState
+                val resumed = (hostActivity as? LifecycleOwner)?.lifecycle?.currentState
                     ?.isAtLeast(Lifecycle.State.RESUMED) == true
                 if (!interactive || !resumed || FocusStore.activeSession() == null) {
                     staleSince = 0L
