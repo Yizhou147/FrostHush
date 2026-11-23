@@ -1,5 +1,13 @@
 package com.frosthush.app.ui.focus
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.os.SystemClock
+import android.view.Choreographer
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,7 +21,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -27,11 +37,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.frosthush.app.R
 import com.frosthush.app.data.FocusStore
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.util.DebugLog
+import com.frosthush.app.util.StallWatch
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -97,6 +109,7 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
                     "session=${phaseInfo.index} now=$now"
             )
         }
+        StallWatch.markTick()
         // 仅当已过本段结束 2 秒以上仍为 0 才算异常（正常到点瞬间 tick 未切换时也会短暂归 0）
         if (remaining <= 0L && now - phaseInfo.segmentEnd > 2000L) {
             DebugLog.d(
@@ -107,10 +120,94 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
         return true
     }
 
-    // 每秒刷新剩余时间与暂停应用数；会话被清理（服务已结束）时退出锁屏
-    LaunchedEffect(Unit) {
+    // 卡死现场实证（2026-11-21）：进程 TOP、主线程空闲、SurfaceFlinger 每 16.6ms 收到新 buffer
+    // （App 一直在以 60fps 重绘同一帧），但页面数值几秒~几分钟不更新；切一次配置变更（Activity
+    // 重建）立刻恢复。即 vsync/绘制链路活着，死的是 Handler/delay 驱动的每秒刷新。
+    // 因此倒计时改为双通道：① Choreographer 帧回调（与绘制同源，卡死时实测仍在跑）；
+    // ② delay 循环（保留为第二通道）。两者都调用幂等的 refresh()，谁活着谁驱动界面。
+    var healGeneration by remember { mutableIntStateOf(0) }
+
+    DisposableEffect(healGeneration) {
+        val choreographer = Choreographer.getInstance()
+        var lastFrameNanos = 0L
+        val callback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (frameTimeNanos - lastFrameNanos >= 500_000_000L) {
+                    lastFrameNanos = frameTimeNanos
+                    if (!refresh()) {
+                        onFinished()
+                        return
+                    }
+                }
+                choreographer.postFrameCallback(this)
+            }
+        }
+        choreographer.postFrameCallback(callback)
+        onDispose { choreographer.removeFrameCallback(callback) }
+    }
+
+    LaunchedEffect(healGeneration) {
         while (refresh()) delay(1000L)
         onFinished()
+    }
+
+    // 停更看门狗：写入还在、子组合持续拿不到新值 → 先换一代通道（重建两条 ticker），
+    // 仍停更则重建 Activity（等价于用户手动切一次深色模式，实测可恢复）。
+    // 仅在会话进行中、亮屏、页面处于 RESUMED 时生效，避免息屏/后台误触发。
+    val hostActivity = context.findActivity()
+    DisposableEffect(hostActivity) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val attempts = intArrayOf(0)
+        val thread = Thread {
+            var staleSince = 0L
+            while (true) {
+                try {
+                    Thread.sleep(3000L)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+                val now = SystemClock.elapsedRealtime()
+                val interactive = (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+                    ?.isInteractive == true
+                val resumed = (hostActivity as? LifecycleOwner)?.lifecycle?.currentState
+                    ?.isAtLeast(Lifecycle.State.RESUMED) == true
+                if (!interactive || !resumed || FocusStore.activeSession() == null) {
+                    staleSince = 0L
+                    attempts[0] = 0
+                    continue
+                }
+                val lastRender = StallWatch.lastRenderAt
+                if (lastRender != 0L && now - lastRender > 8_000L) {
+                    if (staleSince == 0L) {
+                        staleSince = now
+                        StallWatch.log(
+                            context,
+                            "STALL render 停更 ${now - lastRender}ms tickAt=${StallWatch.lastTickAt} " +
+                                "attempt=${attempts[0]}",
+                        )
+                        if (attempts[0] < 2) {
+                            attempts[0]++
+                            mainHandler.post { healGeneration++ }
+                        }
+                    } else if (now - staleSince > 12_000L) {
+                        StallWatch.log(context, "STALL 持续 24s，重建 Activity")
+                        staleSince = 0L
+                        mainHandler.post { hostActivity?.recreate() }
+                    }
+                } else {
+                    if (staleSince != 0L) {
+                        StallWatch.log(context, "RECOVER render 恢复（attempt=${attempts[0]}）")
+                    }
+                    staleSince = 0L
+                    attempts[0] = 0
+                }
+            }
+        }.apply {
+            isDaemon = true
+            name = "fh-stall-watch"
+            start()
+        }
+        onDispose { thread.interrupt() }
     }
 
     // 回到前台（小窗切全屏、系统解冻后恢复）立即重算一次，并让环形直接落位：
@@ -119,6 +216,10 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         refresh()
         entryToken++
+        // 息屏唤醒是实测的卡死触发点（2026-11-23 11:33：屏幕 off→指纹唤醒后 App 只渲染了一次
+        // 就停住约 18s，看门狗 12s 介入、3s 后恢复；2026-11-21 那次同理）。唤醒时直接重启
+        // 两条 ticker，不等看门狗，把恢复时间从秒级压到一帧内。
+        healGeneration++
     }
 
     // 专注期间拦截返回键，禁止退出
@@ -144,6 +245,14 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
     ) {
         // 环尺寸按可用空间收缩（横屏/小屏防溢出），上限 280dp、下限 160dp
         val ringSize = minOf(280.dp, maxWidth * 0.85f, maxHeight * 0.5f).coerceAtLeast(160.dp)
+        // 停更看门狗的在渲染侧信号：只有子组合真的拿到新值才记一次
+        val lastMarkedRemaining = remember { longArrayOf(Long.MIN_VALUE) }
+        SideEffect {
+            if (remaining != lastMarkedRemaining[0]) {
+                lastMarkedRemaining[0] = remaining
+                StallWatch.markRender()
+            }
+        }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = stringResource(if (isRest) R.string.focus_rest_title else R.string.focus_lock_title),
@@ -168,4 +277,11 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
             )
         }
     }
+}
+
+/** 找到承载当前 Compose 内容的 Activity（看门狗需要判断是否 RESUMED、必要时重建）。 */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
