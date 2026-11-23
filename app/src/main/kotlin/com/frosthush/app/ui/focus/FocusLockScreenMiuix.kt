@@ -177,7 +177,7 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
                     continue
                 }
                 val lastRender = StallWatch.lastRenderAt
-                if (lastRender != 0L && now - lastRender > 12_000L) {
+                if (lastRender != 0L && now - lastRender > 8_000L) {
                     if (staleSince == 0L) {
                         staleSince = now
                         StallWatch.log(
@@ -216,6 +216,10 @@ fun FocusLockScreenMiuix(onFinished: () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         refresh()
         entryToken++
+        // 息屏唤醒是实测的卡死触发点（2026-11-23 11:33：屏幕 off→指纹唤醒后 App 只渲染了一次
+        // 就停住约 18s，看门狗 12s 介入、3s 后恢复；2026-11-21 那次同理）。唤醒时直接重启
+        // 两条 ticker，不等看门狗，把恢复时间从秒级压到一帧内。
+        healGeneration++
     }
 
     // 专注期间拦截返回键，禁止退出
