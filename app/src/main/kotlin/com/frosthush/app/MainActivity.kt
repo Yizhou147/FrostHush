@@ -4,6 +4,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.Choreographer
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -21,6 +23,7 @@ import com.frosthush.app.data.SettingsStore
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.QuickFocus
 import com.frosthush.app.ui.AppRoot
+import com.frosthush.app.util.DebugLog
 import com.frosthush.app.ui.theme.FrostHushTheme
 import com.frosthush.app.ui.theme.LocalEnableBlur
 import com.frosthush.app.ui.theme.LocalEnableFloatingBottomBar
@@ -29,8 +32,26 @@ import com.frosthush.app.ui.theme.LocalEnablePredictiveBack
 
 /** 单 Activity：欢迎页 / 底栏导航 / 导入页均由 Compose 管理 */
 class MainActivity : ComponentActivity() {
+
+    /**
+     * 已消费的入口 Intent 标记（action + 关键参数），随 savedInstanceState 保存。
+     * 旧实现用 `savedInstanceState == null` 整体跳过：Activity 被系统重建（低内存回收/配置变化）后，
+     * 系统带进来的**新**通知点击也会被一并丢弃——"点通知进应用不弹框"的一个独立成因。
+     * 现在改成按标记去重：同一个 Intent（重建时的原始 launch intent）只消费一次，新点击照常处理。
+     */
+    private var handledEntryToken: String? = null
+
+    private var createdRealtime = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        createdRealtime = SystemClock.elapsedRealtime()
+        handledEntryToken = savedInstanceState?.getString(STATE_HANDLED_ENTRY)
+        DebugLog.d(
+            "Lifecycle",
+            "MainActivity.onCreate savedState=${savedInstanceState != null} " +
+                "action=${intent?.action} pid=${android.os.Process.myPid()}"
+        )
         // 系统栏完全透明且不加对比 scrim（对齐雹的 navigationBarColor transparent +
         // enforceNavigationBarContrast false），让底栏 / 侧边栏背景真正沉浸到手势条区域
         enableEdgeToEdge(
@@ -46,14 +67,9 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
         }
-        // 计划提醒通知点击：冷启动场景（单 Activity 已存在时走 onNewIntent）。
-        // savedInstanceState != null 说明本次是配置变化/进程恢复导致的重建——Intent 仍是启动时那一个，
-        // 重复处理会让对话框再弹一轮，故只在真正的冷启动处理一次。
-        if (savedInstanceState == null) {
-            handlePlanReminderIntent(intent)
-            // 快速专注入口（快捷方式 / 小部件）
-            handleQuickFocusIntent(intent)
-        }
+        // 计划提醒通知点击 / 快速专注入口（快捷方式 / 小部件）：
+        // 冷启动走这里，已存在的 Activity 走 onNewIntent；重建场景由 handledEntryToken 去重
+        handleEntryIntent(intent)
         setContent {
             // 系统栏图标深浅随主题模式：强制浅色→深色图标，强制深色→浅色图标
             val themeMode by SettingsStore.themeMode.collectAsState(initial = SettingsStore.cache.themeMode)
@@ -92,14 +108,52 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // 首帧打点：用来区分「窗口已出现但主线程还在忙」与「首帧本身就慢」
+        Choreographer.getInstance().postFrameCallback {
+            DebugLog.d("Lifecycle", "首帧 距 onCreate ${SystemClock.elapsedRealtime() - createdRealtime}ms")
+        }
     }
 
-    /** 单 Activity（launchMode=singleTask）已存在时，通知点击的 Intent 走这里 */
+    /** 单 Activity（launchMode=singleTask）已存在时，通知点击的 Intent 走这里：始终是新的点击，直接处理 */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        DebugLog.d("Lifecycle", "MainActivity.onNewIntent action=${intent.action}")
+        handleEntryIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        handledEntryToken?.let { outState.putString(STATE_HANDLED_ENTRY, it) }
+    }
+
+    /**
+     * 入口 Intent 去重分发：重建时系统带回来的是原始 launch intent，用标记跳过；
+     * 若是重建期间新送达的点击（token 不同），照常处理——这正是旧实现会丢弃的场景。
+     */
+    private fun handleEntryIntent(intent: Intent?) {
+        val token = entryTokenOf(intent) ?: return
+        if (token == handledEntryToken) {
+            DebugLog.d("Lifecycle", "入口 Intent 已消费过，跳过 token=$token")
+            return
+        }
+        handledEntryToken = token
+        DebugLog.d("Lifecycle", "处理入口 Intent token=$token")
         handlePlanReminderIntent(intent)
         handleQuickFocusIntent(intent)
+    }
+
+    /** 入口 Intent 的唯一标识：只对「一次性入口」返回 token，普通启动返回 null */
+    private fun entryTokenOf(intent: Intent?): String? {
+        if (intent == null) return null
+        return when (intent.action) {
+            PlanScheduler.ACTION_REMIND_CLICK ->
+                "${intent.action}#${intent.getLongExtra(PlanScheduler.EXTRA_PLAN_ID, -1L)}"
+            QuickFocus.ACTION_QUICK_FOCUS ->
+                "${intent.action}#${intent.dataString}#${intent.getIntExtra(QuickFocus.EXTRA_MINUTES, 0)}"
+            QuickFocus.ACTION_WIDGET_SETTINGS -> intent.action
+            else -> null
+        }
     }
 
     /** 计划提醒通知点击：转发给 PlanScheduler，AppRoot 收集后弹「距开始倒计时」对话框 */
@@ -116,5 +170,10 @@ class MainActivity : ComponentActivity() {
      */
     private fun handleQuickFocusIntent(intent: Intent?) {
         QuickFocus.handleIntent(intent)
+    }
+
+    private companion object {
+        /** savedInstanceState 里保存「已消费的入口 Intent 标记」的 key */
+        const val STATE_HANDLED_ENTRY = "frosthush.handled_entry"
     }
 }

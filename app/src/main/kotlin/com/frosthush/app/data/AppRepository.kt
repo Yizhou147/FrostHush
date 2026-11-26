@@ -6,14 +6,20 @@ import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Process
+import android.os.SystemClock
 import android.os.UserManager
 import android.util.LruCache
 import com.frosthush.app.FrostHushApp.Companion.app
 import com.frosthush.app.R
 import com.frosthush.app.focus.HShizuku
 import com.frosthush.app.util.AppNameComparator
+import com.frosthush.app.util.DebugLog
 import com.frosthush.app.util.FuzzySearch
 import com.frosthush.app.util.PinyinSearch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
 import java.io.File
@@ -55,9 +61,52 @@ class AppRepository(private val context: Context) {
 
         fun updateAppNameCache(names: Map<String, String>) {
             appNameCache = names
+            appNamesLoadedAt = SystemClock.elapsedRealtime()
             runCatching {
                 appNameFile.parentFile?.mkdirs()
                 appNameFile.writeText(JSONObject(names).toString())
+            }
+        }
+
+        /** 上次全量名称查询完成时刻（elapsedRealtime）；-1 表示本进程还没做过全量查询 */
+        @Volatile
+        private var appNamesLoadedAt = -1L
+
+        private val appNamesLoadMutex = Mutex()
+
+        /** 全量名称缓存有效期：窗口内重复调用直接复用，过后允许后台刷新（新装应用也能拿到名称） */
+        private const val APP_NAMES_TTL_MS = 10 * 60_000L
+
+        /** 本进程做过全量查询且还在有效期内（磁盘缓存 alone 不算，避免刚开机时误判） */
+        private fun isAppNamesFresh(): Boolean {
+            val at = appNamesLoadedAt
+            return at >= 0 && SystemClock.elapsedRealtime() - at < APP_NAMES_TTL_MS
+        }
+
+        /**
+         * 后台加载全量应用名称缓存（含分身）。
+         *
+         * 禁止在 UI 线程直接调 [queryApps]：主列表 + 每个包 loadLabel + 拼音排序已经很重，
+         * 分身还要走 Shizuku shell（execute 读线程最长 join 15s）。Shizuku 本体在后台被冻结时
+         * 这些调用会阻塞调用线程数秒——那就是回前台卡住点不动的直接来源。
+         * 并发调用由 Mutex 串行化，只有第一个真正查询，其余直接拿结果。
+         */
+        suspend fun ensureAppNamesLoaded(context: Context): Map<String, String> {
+            if (isAppNamesFresh()) appNameCache?.let { return it }
+            return appNamesLoadMutex.withLock {
+                if (isAppNamesFresh()) appNameCache?.let { return@withLock it }
+                val start = SystemClock.elapsedRealtime()
+                val full = withContext(Dispatchers.IO) {
+                    runCatching {
+                        AppRepository(context).queryApps().associate { it.entry to it.displayName }
+                    }.getOrDefault(emptyMap())
+                }
+                if (full.isNotEmpty()) updateAppNameCache(full)
+                val cost = SystemClock.elapsedRealtime() - start
+                if (cost > 200) {
+                    DebugLog.d("AppRepo", "全量应用名称查询耗时 ${cost}ms size=${full.size}")
+                }
+                if (full.isNotEmpty()) full else cachedAppNames()
             }
         }
     }

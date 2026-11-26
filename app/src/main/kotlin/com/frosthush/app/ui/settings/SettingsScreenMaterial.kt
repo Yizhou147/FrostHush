@@ -390,14 +390,21 @@ internal fun PlanReliabilityDialogMaterial(show: Boolean, onDismiss: () -> Unit)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) checkKey++
+            if (event == Lifecycle.Event.ON_RESUME) {
+                checkKey++
+                // 回到前台后在后台重探 Shizuku 状态（用户可能刚从 Shizuku 应用授权回来）
+                ShizukuManager.refreshAsync("reliability-resume")
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     val batteryOk = remember(checkKey) { checkBatteryOptimization(context) }
-    val shizukuOk = remember(checkKey) { FocusManager.shizukuReady() }
+    // Shizuku 状态读已探测的 StateFlow：不能在组合期同步调 checkSelfPermission()（binder 调用，
+    // Shizuku 本体在后台被冻结时会阻塞 UI 线程数秒）
+    val shizukuState by ShizukuManager.state.collectAsState()
+    val shizukuOk = shizukuState == ShizukuManager.State.AUTHORIZED
     val allOk = batteryOk && shizukuOk
 
     if (!show) return

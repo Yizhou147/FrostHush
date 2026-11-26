@@ -11,6 +11,7 @@ import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.focus.PlanScheduler
 import com.frosthush.app.focus.FocusWidgetProvider
 import com.frosthush.app.focus.QuickFocus
+import com.frosthush.app.focus.ShizukuManager
 import com.frosthush.app.util.DebugLog
 import androidx.compose.ui.AndroidComposeUiFlags
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -82,7 +83,10 @@ class FrostHushApp : Application() {
         // 注意：不要在 onCreate 后台预加载应用列表——MIUI 的「允许获取应用列表」
         // 确认框只在应用前台首次查询包列表时弹出，后台预加载会抢先触发查询并被
         // MIUI 静默拒绝，导致欢迎页/应用内再也无法弹出授权框（雹等应用均因此可弹）。
-        Thread {
+        Thread({
+            // 提前在后台探测 Shizuku 状态：真实状态就绪后 UI 首帧就不会显示错误的
+            // 「启动 Shizuku / 去授权」文案（探测本身也是异步的，这里只是提前触发）
+            ShizukuManager.refreshAsync("app-start")
             FocusManager.resumeAfterRestart(this)
             // 重建专注计划闹钟（进程被杀后重新拉起时兜底；开机由 FocusBootReceiver 处理）
             PlanScheduler.scheduleAll(this)
@@ -90,15 +94,15 @@ class FrostHushApp : Application() {
             QuickFocus.syncShortcuts(this)
             // 重刷桌面小部件：布局/尺寸策略随版本变化时，装完即生效（否则要等系统或用户重加）
             FocusWidgetProvider.refreshAll(this)
-        }.start()
+        }, "app-start").apply { isDaemon = true }.start()
     }
 
-    /** 后台预加载应用名称全量缓存（含分身）；由 AppRoot 在进入主界面（前台）后调用 */
-    internal fun preloadAppNames() {
-        runCatching {
-            val full = AppRepository(this).queryApps().associate { it.entry to it.displayName }
-            if (full.isNotEmpty()) AppRepository.updateAppNameCache(full)
-        }
+    /**
+     * 预加载应用名称全量缓存（含分身）；由 AppRoot 在进入主界面后调用。
+     * 必须是挂起函数：queryApps 含 loadLabel/拼音排序/分身 Shizuku shell，绝不能在 UI 线程同步执行。
+     */
+    internal suspend fun preloadAppNames() {
+        AppRepository.ensureAppNamesLoaded(this)
     }
 
     companion object {

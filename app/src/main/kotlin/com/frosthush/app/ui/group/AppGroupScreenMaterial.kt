@@ -82,8 +82,6 @@ import com.frosthush.app.data.FocusStore.AppGroup
 import com.frosthush.app.focus.FocusManager
 import com.frosthush.app.ui.AppIcon
 import com.frosthush.app.ui.AppSelectScreen
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -455,7 +453,6 @@ private fun GroupEditScreen(
     onSaved: () -> Unit,
 ) {
     val context = LocalContext.current
-    val repo = remember { AppRepository(context) }
     var name by remember { mutableStateOf(group?.name ?: "") }
     var entries by remember { mutableStateOf(group?.entries ?: emptyList()) }
     // 设为默认：编辑页内开关（对齐计划页启用 Switch 的交互）
@@ -464,15 +461,9 @@ private fun GroupEditScreen(
     // 优先使用缓存的应用名称（内存/磁盘），避免名称加载慢而闪现包名
     val appNames = remember { mutableStateOf(AppRepository.cachedAppNames()) }
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.Default) {
-            // 直接查询全量（含分身）一次到位；不用不含分身的中间结果覆盖缓存，避免闪现裸包名
-            val full = runCatching { repo.queryApps().associate { it.entry to it.displayName } }
-                .getOrDefault(emptyMap())
-            if (full.isNotEmpty()) {
-                appNames.value = full
-                AppRepository.updateAppNameCache(full)
-            }
-        }
+        // 后台查询 + 进程内去重（queryApps 含分身 Shizuku shell，禁止在 UI 线程执行）
+        val full = AppRepository.ensureAppNamesLoaded(context)
+        if (full.isNotEmpty()) appNames.value = full
     }
 
     fun save() {

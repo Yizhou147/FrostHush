@@ -364,10 +364,26 @@ object PlanScheduler {
      * 才发布事件，AppRoot 收集后弹对话框（防止迟到点击/重复触发）。
      */
     fun onReminderClicked(planId: Long) {
+        // 主线程（onCreate/onNewIntent）只做转发：这里要读 plans/session/executed 三个 JSON 文件，
+        // 不能在点击路径上占用 UI 线程（界面刚从后台恢复时正是最敏感的时刻）。
+        Thread({ handleReminderClick(planId) }, "reminder-click")
+            .apply { isDaemon = true }
+            .start()
+    }
+
+    private fun handleReminderClick(planId: Long) {
         val plan = FocusStore.focusPlans().firstOrNull { it.id == planId } ?: return
         if (!plan.enabled) return
-        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) return
-        if (FocusStore.activeSession()?.planId == planId) return
+        if (FocusStore.activeSession()?.planId == planId) {
+            // 点击送达时计划已经由 START 闹钟开始：此刻锁屏已覆盖，选择框没有意义
+            DebugLog.d("Plan", "提醒点击时计划已开始，不弹选择框 planId=$planId")
+            return
+        }
+        if (FocusStore.planExecutedDay(planId) == FocusStore.todayCode()) {
+            // 已执行/已跳过（含刚过点开始）——记录以便区分“点击丢了”与“状态确实失效”
+            DebugLog.d("Plan", "提醒点击今日已执行/已跳过，不弹选择框 planId=$planId")
+            return
+        }
         reminderClick.value = ReminderClick(planId)
     }
 
